@@ -17,8 +17,7 @@ impl PlatformClient for NoFluffJobsScraper {
         let has_tab = hosts.iter().any(|h| h.contains("nofluffjobs.com"));
 
         if !has_tab {
-            eprintln!("  NoFluffJobs will be skipped — open nofluffjobs.com in Brave first.");
-            return Ok(vec![]);
+            anyhow::bail!("NoFluffJobs requires open nofluffjobs.com tab in Brave");
         }
 
         let search_url = self.build_search_url(query);

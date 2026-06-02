@@ -148,8 +148,7 @@ impl PlatformClient for UpworkScraper {
         let has_upwork_tab = hosts.iter().any(|h| h.contains("upwork.com"));
 
         if !has_upwork_tab {
-            eprintln!("  Upwork will be skipped — open upwork.com in Brave first.");
-            return Ok(vec![]);
+            anyhow::bail!("Upwork requires open upwork.com tab in Brave");
         }
 
         let page = browser.new_tab(&search_url).await?;
