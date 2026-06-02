@@ -1,0 +1,109 @@
+use anyhow::Result;
+use chromiumoxide::browser::Browser;
+use chromiumoxide::cdp::browser_protocol::target::{CreateTargetParams, GetTargetsParams};
+use futures::StreamExt;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+const CDP_URL: &str = "http://localhost:9222";
+
+pub fn host_of(url: &str) -> Option<String> {
+    url::Url::parse(url)
+        .ok()?
+        .host_str()
+        .map(|h| h.strip_prefix("www.").unwrap_or(h).to_lowercase())
+}
+
+pub trait BrowserExt {
+    async fn new_blank_tab(&self) -> Result<chromiumoxide::Page>;
+    async fn new_tab(&self, url: &str) -> Result<chromiumoxide::Page>;
+    async fn get_page_hosts(&self) -> Result<Vec<String>>;
+}
+
+impl BrowserExt for Browser {
+    async fn new_blank_tab(&self) -> Result<chromiumoxide::Page> {
+        Ok(self
+            .new_page(
+                CreateTargetParams::builder()
+                    .url("about:blank")
+                    .background(true)
+                    .build()
+                    .map_err(|s| anyhow::anyhow!("{}", s))?,
+            )
+            .await?)
+    }
+
+    async fn new_tab(&self, url: &str) -> Result<chromiumoxide::Page> {
+        let page = self.new_blank_tab().await?;
+        page.goto(url).await?;
+        page.wait_for_navigation().await?;
+        Ok(page)
+    }
+
+    async fn get_page_hosts(&self) -> Result<Vec<String>> {
+        let targets = self.execute(GetTargetsParams::default()).await?;
+        Ok(targets
+            .target_infos
+            .iter()
+            .filter(|t| t.r#type == "page")
+            .filter_map(|t| host_of(&t.url))
+            .collect())
+    }
+}
+
+
+
+#[derive(Clone)]
+pub struct BrowserManager {
+    inner: Arc<Mutex<Option<Arc<Browser>>>>,
+    handler: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+}
+
+impl BrowserManager {
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(None)),
+            handler: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    pub async fn ensure(&self) -> Result<Arc<Browser>> {
+        let mut guard = self.inner.lock().await;
+
+        if guard.is_none() {
+            let (browser, handle) = Self::connect().await?;
+            *guard = Some(Arc::new(browser));
+            *self.handler.lock().await = Some(handle);
+        }
+
+        Ok(guard.as_ref().unwrap().clone())
+    }
+
+    async fn connect() -> Result<(Browser, tokio::task::JoinHandle<()>)> {
+        let (browser, mut handler) = Browser::connect(CDP_URL)
+            .await
+            .map_err(|_| anyhow::anyhow!("Brave not running — run `jobsearch init` first"))?;
+        let handle = tokio::spawn(async move {
+            while let Some(h) = handler.next().await {
+                if h.is_err() {
+                    break;
+                }
+            }
+        });
+        Ok((browser, handle))
+    }
+
+    #[allow(dead_code)]
+    pub async fn close(&self) {
+        if let Some(h) = self.handler.lock().await.take() {
+            h.abort();
+        }
+        *self.inner.lock().await = None;
+    }
+}
+
+impl Default for BrowserManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
