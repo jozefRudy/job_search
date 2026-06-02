@@ -29,12 +29,6 @@ async fn test_nofluffjobs_fetches_jobs_with_tab() {
         .await
         .expect("Brave should connect or launch");
 
-    browser.close_tabs_by_host("nofluffjobs.com").await.ok();
-    let _page = browser
-        .new_tab("https://nofluffjobs.com")
-        .await
-        .expect("open nofluffjobs tab");
-
     let scraper = NoFluffJobsScraper::new();
     let jobs = scraper
         .fetch_with_browser(&browser, "rust")
@@ -56,12 +50,6 @@ async fn test_upwork_fetches_jobs_with_tab() {
         .ensure()
         .await
         .expect("Brave should connect or launch");
-
-    browser.close_tabs_by_host("upwork.com").await.ok();
-    let _page = browser
-        .new_tab("https://www.upwork.com")
-        .await
-        .expect("open upwork tab");
 
     let scraper = UpworkScraper::new();
     let jobs = scraper
