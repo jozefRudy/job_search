@@ -13,10 +13,15 @@ impl PlatformClient for NoFluffJobsScraper {
     }
 
     async fn fetch_with_browser(&self, browser: &Browser, query: &str) -> Result<Vec<Job>> {
-        let search_url = format!(
-            "https://nofluffjobs.com/pl/jobs?criteria=keyword%3D{}",
-            urlencoding::encode(query)
-        );
+        let hosts = browser.get_page_hosts().await?;
+        let has_tab = hosts.iter().any(|h| h.contains("nofluffjobs.com"));
+
+        if !has_tab {
+            eprintln!("  NoFluffJobs will be skipped — open nofluffjobs.com in Brave first.");
+            return Ok(vec![]);
+        }
+
+        let search_url = self.build_search_url(query);
         let page = browser.new_tab(&search_url).await?;
 
         let mut found = false;
@@ -125,7 +130,24 @@ fn parse_nofluff_time(text: &str) -> Option<chrono::DateTime<chrono::Utc>> {
     }
 }
 
-pub struct NoFluffJobsScraper;
+#[derive(Debug, Clone)]
+pub struct NoFluffJobsConfig {
+    pub path: String,
+    pub criteria: Vec<String>,
+}
+
+impl Default for NoFluffJobsConfig {
+    fn default() -> Self {
+        Self {
+            path: "remote".to_string(),
+            criteria: vec!["salary>eur8000m".to_string()],
+        }
+    }
+}
+
+pub struct NoFluffJobsScraper {
+    config: NoFluffJobsConfig,
+}
 
 impl Default for NoFluffJobsScraper {
     fn default() -> Self {
@@ -135,6 +157,64 @@ impl Default for NoFluffJobsScraper {
 
 impl NoFluffJobsScraper {
     pub fn new() -> Self {
-        Self
+        Self {
+            config: NoFluffJobsConfig::default(),
+        }
+    }
+
+    pub fn with_config(config: NoFluffJobsConfig) -> Self {
+        Self { config }
+    }
+
+    pub fn build_search_url(&self, query: &str) -> String {
+        let mut criteria = self.config.criteria.clone();
+        if !query.is_empty() {
+            criteria.push(format!("keyword={}", query));
+        }
+        let criteria_str = criteria.join(";");
+        format!(
+            "https://nofluffjobs.com/{}?criteria={}",
+            self.config.path,
+            urlencoding::encode(&criteria_str)
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_search_url_default_with_query() {
+        let scraper = NoFluffJobsScraper::new();
+        let url = scraper.build_search_url("rust");
+        assert_eq!(
+            url,
+            "https://nofluffjobs.com/remote?criteria=salary%3Eeur8000m%3Bkeyword%3Drust"
+        );
+    }
+
+    #[test]
+    fn test_build_search_url_empty_query() {
+        let scraper = NoFluffJobsScraper::new();
+        let url = scraper.build_search_url("");
+        assert_eq!(
+            url,
+            "https://nofluffjobs.com/remote?criteria=salary%3Eeur8000m"
+        );
+    }
+
+    #[test]
+    fn test_build_search_url_custom_config() {
+        let config = NoFluffJobsConfig {
+            path: "pl/jobs".to_string(),
+            criteria: vec!["remote".to_string(), "java".to_string()],
+        };
+        let scraper = NoFluffJobsScraper::with_config(config);
+        let url = scraper.build_search_url("senior");
+        assert_eq!(
+            url,
+            "https://nofluffjobs.com/pl/jobs?criteria=remote%3Bjava%3Bkeyword%3Dsenior"
+        );
     }
 }

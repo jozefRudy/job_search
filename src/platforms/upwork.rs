@@ -19,6 +19,13 @@ impl UpworkScraper {
         Self
     }
 
+    pub fn build_search_url(query: &str) -> String {
+        format!(
+            "https://www.upwork.com/nx/jobs/search/?q={}&sort=recency&job_type=hourly&contractor_tier=3&client_hires=10-",
+            urlencoding::encode(query)
+        )
+    }
+
     /// Visit individual job page and scrape full details
     pub async fn fetch_job_detail(&self, browser: &Browser, job_url: &str) -> Result<JobDetail> {
         let page = browser.new_tab(job_url).await?;
@@ -135,11 +142,7 @@ impl PlatformClient for UpworkScraper {
     }
 
     async fn fetch_with_browser(&self, browser: &Browser, query: &str) -> Result<Vec<Job>> {
-        // Build URL with filters: hourly, expert, 10+ hires
-        let search_url = format!(
-            "https://www.upwork.com/nx/jobs/search/?q={}&sort=recency&job_type=hourly&contractor_tier=3&client_hires=10-",
-            urlencoding::encode(query)
-        );
+        let search_url = Self::build_search_url(query);
 
         let hosts = browser.get_page_hosts().await?;
         let has_upwork_tab = hosts.iter().any(|h| h.contains("upwork.com"));
@@ -274,5 +277,19 @@ fn parse_upwork_time(text: &str) -> Option<chrono::DateTime<chrono::Utc>> {
         "week" | "weeks" => Some(now - chrono::Duration::days(n * 7)),
         "month" | "months" => Some(now - chrono::Duration::days(n * 30)),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_search_url() {
+        let url = UpworkScraper::build_search_url("rust dev");
+        assert!(url.contains("q=rust%20dev"));
+        assert!(url.contains("job_type=hourly"));
+        assert!(url.contains("contractor_tier=3"));
+        assert!(url.contains("client_hires=10-"));
     }
 }

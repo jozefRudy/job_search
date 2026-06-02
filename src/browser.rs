@@ -1,6 +1,8 @@
 use anyhow::Result;
 use chromiumoxide::browser::Browser;
-use chromiumoxide::cdp::browser_protocol::target::{CreateTargetParams, GetTargetsParams};
+use chromiumoxide::cdp::browser_protocol::target::{
+    CloseTargetParams, CreateTargetParams, GetTargetsParams,
+};
 use futures::StreamExt;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -19,6 +21,7 @@ pub trait BrowserExt {
     async fn new_blank_tab(&self) -> Result<chromiumoxide::Page>;
     async fn new_tab(&self, url: &str) -> Result<chromiumoxide::Page>;
     async fn get_page_hosts(&self) -> Result<Vec<String>>;
+    async fn close_tabs_by_host(&self, host_substr: &str) -> Result<()>;
 }
 
 impl BrowserExt for Browser {
@@ -49,6 +52,22 @@ impl BrowserExt for Browser {
             .filter(|t| t.r#type == "page")
             .filter_map(|t| host_of(&t.url))
             .collect())
+    }
+
+    async fn close_tabs_by_host(&self, host_substr: &str) -> Result<()> {
+        let targets = self.execute(GetTargetsParams::default()).await?;
+        for t in &targets.target_infos {
+            if t.r#type == "page"
+                && let Some(h) = host_of(&t.url)
+                && h.contains(host_substr)
+            {
+                self.execute(CloseTargetParams {
+                    target_id: t.target_id.clone(),
+                })
+                .await?;
+            }
+        }
+        Ok(())
     }
 }
 
