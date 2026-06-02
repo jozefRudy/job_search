@@ -6,12 +6,10 @@ mod platforms;
 
 use anyhow::Result;
 use browser::{BrowserExt, BrowserManager};
-use chromiumoxide::browser::Browser;
 use clap::Parser;
 use cli::{Cli, Commands};
 use db::Db;
 use directories::ProjectDirs;
-use futures::StreamExt;
 use models::{JobStatus, Platform, Reaction};
 use platforms::{PlatformClient, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper};
 
@@ -22,41 +20,10 @@ const DEFAULT_INIT_URLS: &[&str] = &[
 
 
 
-async fn cmd_init(urls: &[&str]) -> Result<()> {
+async fn cmd_init(browser: &BrowserManager, urls: &[&str]) -> Result<()> {
     eprintln!("Launching Brave browser with {} tabs...", urls.len());
 
-    // Try CDP first; cold-start if not running
-    let (browser, mut handler) = match Browser::connect("http://localhost:9222").await {
-        Ok(pair) => pair,
-        Err(_) => {
-            let mut cmd = std::process::Command::new("open");
-            cmd.arg("-g");
-            cmd.arg("-a");
-            cmd.arg("Brave Browser");
-            cmd.arg("--args");
-            cmd.arg("--remote-debugging-port=9222");
-            cmd.spawn()?;
-
-            let mut browser_and_handler = None;
-            for _ in 0..30 {
-                if let Ok(b) = Browser::connect("http://localhost:9222").await {
-                    browser_and_handler = Some(b);
-                    break;
-                }
-                tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-            }
-            browser_and_handler.ok_or_else(|| anyhow::anyhow!("Brave did not start in time"))?
-        }
-    };
-
-    let _handler_task = tokio::spawn(async move {
-        while let Some(h) = handler.next().await {
-            if h.is_err() {
-                break;
-            }
-        }
-    });
-
+    let browser = browser.ensure().await?;
     let hosts = browser.get_page_hosts().await?;
 
     for url in urls.iter() {
@@ -103,7 +70,7 @@ async fn main() -> Result<()> {
                 None => DEFAULT_INIT_URLS.iter().map(|s| s.to_string()).collect(),
             };
             let init_urls: Vec<&str> = init_urls.iter().map(|s| s.as_str()).collect();
-            cmd_init(&init_urls).await?;
+            cmd_init(&browser, &init_urls).await?;
         }
         Commands::Update { platform, query } => {
             cmd_update(&db, &browser, platform, &query).await?;

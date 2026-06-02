@@ -71,7 +71,10 @@ impl BrowserManager {
         let mut guard = self.inner.lock().await;
 
         if guard.is_none() {
-            let (browser, handle) = Self::connect().await?;
+            let (browser, handle) = match Self::connect().await {
+                Ok(pair) => pair,
+                Err(_) => Self::launch().await?,
+            };
             *guard = Some(Arc::new(browser));
             *self.handler.lock().await = Some(handle);
         }
@@ -80,9 +83,7 @@ impl BrowserManager {
     }
 
     async fn connect() -> Result<(Browser, tokio::task::JoinHandle<()>)> {
-        let (browser, mut handler) = Browser::connect(CDP_URL)
-            .await
-            .map_err(|_| anyhow::anyhow!("Brave not running — run `jobsearch init` first"))?;
+        let (browser, mut handler) = Browser::connect(CDP_URL).await?;
         let handle = tokio::spawn(async move {
             while let Some(h) = handler.next().await {
                 if h.is_err() {
@@ -91,6 +92,26 @@ impl BrowserManager {
             }
         });
         Ok((browser, handle))
+    }
+
+    async fn launch() -> Result<(Browser, tokio::task::JoinHandle<()>)> {
+        let mut cmd = std::process::Command::new("open");
+        cmd.arg("-g");
+        cmd.arg("-a");
+        cmd.arg("Brave Browser");
+        cmd.arg("--args");
+        cmd.arg("--remote-debugging-port=9222");
+        cmd.spawn()?;
+
+        let mut browser_and_handler = None;
+        for _ in 0..30 {
+            if let Ok(b) = Self::connect().await {
+                browser_and_handler = Some(b);
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        }
+        browser_and_handler.ok_or_else(|| anyhow::anyhow!("Brave did not start in time"))
     }
 
     #[allow(dead_code)]
