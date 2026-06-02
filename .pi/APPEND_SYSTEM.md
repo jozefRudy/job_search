@@ -15,11 +15,14 @@ cd backend && cargo test -- --include-ignored
 
 ## SQLx
 
-- **Static queries** — always use `query_as!` macro for compile-time checking.
-- **Dynamic queries** (conditional WHERE/LIMIT) — manual `sqlx::query_as::<_, Row>(&query_string)` with `.bind()` is OK. But prefer static queries when possible.
+- **Static queries** — always use `query!` / `query_as!` macro for compile-time checking.
+- **Optional filters** — use `WHERE (?1 IS NULL OR platform = ?1)` pattern. No dynamic SQL needed.
+- **SQLite timestamps** — macro infers `NaiveDateTime`. Use `NaiveDateTime` in row structs, convert to `DateTime<Utc>` in `From` impl.
+- **Schema alignment** — macro checks `NOT NULL` vs nullable. Mismatch = compile error. Fix schema or row struct types.
 - `SQLX_OFFLINE = "true"` is set as env var
-- Run `cargo-sqlx-prepare` (not `cargo sqlx prepare` — former prepares db) after any query change to update `.sqlx/`
-- `devenv` script prepares everything then runs `cargo sqlx prepare`
+- `cargo sqlx prepare` — devenv `enterShell` auto-runs on shell entry. For active editing, run `direnv reload` or `cargo sqlx prepare` manually.
+- Commit `.sqlx/` to version control — enables `SQLX_OFFLINE=true` builds without live DB.
+- Migrations in `migrations/` — `sqlx::migrate!("./migrations").run(&pool)` on startup.
 
 ## Design Rules
 
