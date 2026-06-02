@@ -132,14 +132,18 @@ fn parse_nofluff_time(text: &str) -> Option<chrono::DateTime<chrono::Utc>> {
 #[derive(Debug, Clone)]
 pub struct NoFluffJobsConfig {
     pub path: String,
-    pub criteria: Vec<String>,
+    pub min_salary_eur: Option<u32>,
+    pub employment: Option<String>,
+    pub language: Option<String>,
 }
 
 impl Default for NoFluffJobsConfig {
     fn default() -> Self {
         Self {
             path: "remote".to_string(),
-            criteria: vec!["salary>eur8000m".to_string()],
+            min_salary_eur: None,
+            employment: None,
+            language: None,
         }
     }
 }
@@ -166,11 +170,20 @@ impl NoFluffJobsScraper {
     }
 
     pub fn build_search_url(&self, query: &str) -> String {
-        let mut criteria = self.config.criteria.clone();
+        let mut criteria: Vec<String> = Vec::new();
+        if let Some(emp) = &self.config.employment {
+            criteria.push(format!("employment={}", emp));
+        }
+        if let Some(salary) = self.config.min_salary_eur {
+            criteria.push(format!("salary>eur{}m", salary));
+        }
+        if let Some(lang) = &self.config.language {
+            criteria.push(format!("jobLanguage={}", lang));
+        }
         if !query.is_empty() {
             criteria.push(format!("keyword={}", query));
         }
-        let criteria_str = criteria.join(";");
+        let criteria_str = criteria.join(" ");
         format!(
             "https://nofluffjobs.com/{}?criteria={}",
             self.config.path,
@@ -189,7 +202,7 @@ mod tests {
         let url = scraper.build_search_url("rust");
         assert_eq!(
             url,
-            "https://nofluffjobs.com/remote?criteria=salary%3Eeur8000m%3Bkeyword%3Drust"
+            "https://nofluffjobs.com/remote?criteria=keyword%3Drust"
         );
     }
 
@@ -197,23 +210,54 @@ mod tests {
     fn test_build_search_url_empty_query() {
         let scraper = NoFluffJobsScraper::new();
         let url = scraper.build_search_url("");
+        assert_eq!(url, "https://nofluffjobs.com/remote?criteria=");
+    }
+
+    #[test]
+    fn test_build_search_url_with_all_filters() {
+        let config = NoFluffJobsConfig {
+            path: "remote".to_string(),
+            min_salary_eur: Some(8000),
+            employment: Some("b2b".to_string()),
+            language: Some("en".to_string()),
+        };
+        let scraper = NoFluffJobsScraper::with_config(config);
+        let url = scraper.build_search_url("rust");
         assert_eq!(
             url,
-            "https://nofluffjobs.com/remote?criteria=salary%3Eeur8000m"
+            "https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur8000m%20jobLanguage%3Den%20keyword%3Drust"
         );
     }
 
     #[test]
-    fn test_build_search_url_custom_config() {
+    fn test_build_search_url_filters_no_query() {
+        let config = NoFluffJobsConfig {
+            path: "remote".to_string(),
+            min_salary_eur: Some(8000),
+            employment: Some("b2b".to_string()),
+            language: Some("en".to_string()),
+        };
+        let scraper = NoFluffJobsScraper::with_config(config);
+        let url = scraper.build_search_url("");
+        assert_eq!(
+            url,
+            "https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur8000m%20jobLanguage%3Den"
+        );
+    }
+
+    #[test]
+    fn test_build_search_url_custom_path() {
         let config = NoFluffJobsConfig {
             path: "pl/jobs".to_string(),
-            criteria: vec!["remote".to_string(), "java".to_string()],
+            min_salary_eur: None,
+            employment: None,
+            language: None,
         };
         let scraper = NoFluffJobsScraper::with_config(config);
         let url = scraper.build_search_url("senior");
         assert_eq!(
             url,
-            "https://nofluffjobs.com/pl/jobs?criteria=remote%3Bjava%3Bkeyword%3Dsenior"
+            "https://nofluffjobs.com/pl/jobs?criteria=keyword%3Dsenior"
         );
     }
 }

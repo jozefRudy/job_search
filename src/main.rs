@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager};
-use jobsearch::cli::{Cli, Commands};
+use jobsearch::cli::{Cli, Commands, UpdatePlatform};
 use jobsearch::db::Db;
 use jobsearch::models::{JobStatus, Platform, Reaction};
 use jobsearch::platforms::{
@@ -66,9 +66,38 @@ async fn main() -> Result<()> {
             let init_urls: Vec<&str> = init_urls.iter().map(|s| s.as_str()).collect();
             cmd_init(&browser, &init_urls).await?;
         }
-        Commands::Update { platform, query } => {
-            cmd_update(&db, &browser, platform, &query).await?;
-        }
+        Commands::Update(update_cmd) => match update_cmd.platform {
+            UpdatePlatform::Upwork(args) => {
+                let scraper = UpworkScraper::with_config(args.tier, args.min_rate);
+                fetch_and_store(&db, &browser, vec![Box::new(scraper)], &args.query).await?;
+            }
+            UpdatePlatform::Nofluff(args) => {
+                let config = jobsearch::platforms::nofluffjobs::NoFluffJobsConfig {
+                    path: "remote".to_string(),
+                    min_salary_eur: args.min_salary,
+                    employment: args.employment,
+                    language: args.lang,
+                };
+                let scraper = NoFluffJobsScraper::with_config(config);
+                fetch_and_store(&db, &browser, vec![Box::new(scraper)], &args.query).await?;
+            }
+            UpdatePlatform::All(args) => {
+                let nf_config = jobsearch::platforms::nofluffjobs::NoFluffJobsConfig {
+                    path: "remote".to_string(),
+                    min_salary_eur: args.nofluff_min_salary,
+                    employment: args.nofluff_employment,
+                    language: args.nofluff_lang,
+                };
+                let clients: Vec<Box<dyn PlatformClient>> = vec![
+                    Box::new(NoFluffJobsScraper::with_config(nf_config)),
+                    Box::new(UpworkScraper::with_config(
+                        args.upwork_tier,
+                        args.upwork_min_rate,
+                    )),
+                ];
+                fetch_and_store(&db, &browser, clients, &args.query).await?;
+            }
+        },
         Commands::List {
             platform,
             status,
@@ -94,25 +123,12 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn cmd_update(
+async fn fetch_and_store(
     db: &Db,
     browser: &BrowserManager,
-    platform: Option<Platform>,
+    clients: Vec<Box<dyn PlatformClient>>,
     query: &str,
 ) -> Result<()> {
-    let clients: Vec<Box<dyn PlatformClient>> = match platform {
-        Some(Platform::NoFluffJobs) => {
-            vec![Box::new(NoFluffJobsScraper::new()) as Box<dyn PlatformClient>]
-        }
-        Some(Platform::Upwork) => {
-            vec![Box::new(UpworkScraper::new()) as Box<dyn PlatformClient>]
-        }
-        None => vec![
-            Box::new(NoFluffJobsScraper::new()) as Box<dyn PlatformClient>,
-            Box::new(UpworkScraper::new()) as Box<dyn PlatformClient>,
-        ],
-    };
-
     for client in clients {
         eprintln!("Fetching from {}...", client.name());
         match client.fetch_with_manager(browser, query).await {
@@ -127,7 +143,6 @@ async fn cmd_update(
             }
         }
     }
-
     Ok(())
 }
 

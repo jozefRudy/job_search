@@ -4,26 +4,103 @@ use crate::platforms::PlatformClient;
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
+use clap::ValueEnum;
 use serde_json::Value;
 
-pub struct UpworkScraper;
+#[derive(Debug, Clone, Default)]
+pub struct UpworkSearchParams {
+    pub query: String,
+    pub tier: Option<UpworkTier>,
+    pub hourly_rate_min: Option<u32>,
+}
 
-impl Default for UpworkScraper {
-    fn default() -> Self {
-        Self::new()
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+#[clap(rename_all = "kebab")]
+pub enum UpworkTier {
+    #[default]
+    All, // no param (default on Upwork = all tiers)
+    Expert,       // contractor_tier=3
+    Intermediate, // contractor_tier=2
+    BothUpper,    // contractor_tier=2,3
+}
+
+impl UpworkSearchParams {
+    pub fn new(query: &str) -> Self {
+        Self {
+            query: query.to_string(),
+            ..Default::default()
+        }
     }
+
+    pub fn tier(mut self, tier: Option<UpworkTier>) -> Self {
+        self.tier = tier;
+        self
+    }
+
+    pub fn hourly_rate_min(mut self, min: Option<u32>) -> Self {
+        self.hourly_rate_min = min;
+        self
+    }
+
+    pub fn build_url(&self) -> String {
+        let tier_param = match self.tier.unwrap_or(UpworkTier::All) {
+            UpworkTier::All => None,
+            UpworkTier::Expert => Some("contractor_tier=3"),
+            UpworkTier::Intermediate => Some("contractor_tier=2"),
+            UpworkTier::BothUpper => Some("contractor_tier=2,3"),
+        };
+
+        let rate_param = self.hourly_rate_min.map(|r| format!("hourly_rate={}-", r));
+
+        let mut parts = vec![
+            format!("q={}", urlencoding::encode(&self.query)),
+            "sort=relevance%2Bdesc".to_string(),
+            "t=0".to_string(),
+            "client_hires=1-9,10-".to_string(),
+        ];
+
+        if let Some(t) = tier_param {
+            parts.push(t.to_string());
+        }
+
+        if let Some(r) = rate_param {
+            parts.push(r);
+        }
+
+        format!(
+            "https://www.upwork.com/nx/search/jobs/?{}",
+            parts.join(" &")
+        )
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct UpworkScraper {
+    pub tier: Option<UpworkTier>,
+    pub hourly_rate_min: Option<u32>,
 }
 
 impl UpworkScraper {
     pub fn new() -> Self {
-        Self
+        Self::default()
     }
 
-    pub fn build_search_url(query: &str) -> String {
-        format!(
-            "https://www.upwork.com/nx/jobs/search/?q={}&sort=recency&job_type=hourly&contractor_tier=3&client_hires=10-",
-            urlencoding::encode(query)
-        )
+    pub fn with_config(tier: Option<UpworkTier>, hourly_rate_min: Option<u32>) -> Self {
+        Self {
+            tier,
+            hourly_rate_min,
+        }
+    }
+
+    pub fn build_search_url(
+        query: &str,
+        tier: Option<UpworkTier>,
+        hourly_rate_min: Option<u32>,
+    ) -> String {
+        UpworkSearchParams::new(query)
+            .tier(tier)
+            .hourly_rate_min(hourly_rate_min)
+            .build_url()
     }
 
     /// Visit individual job page and scrape full details
@@ -142,7 +219,7 @@ impl PlatformClient for UpworkScraper {
     }
 
     async fn fetch_with_browser(&self, browser: &Browser, query: &str) -> Result<Vec<Job>> {
-        let search_url = Self::build_search_url(query);
+        let search_url = Self::build_search_url(query, self.tier, self.hourly_rate_min);
 
         let hosts = browser.get_page_hosts().await?;
         let has_upwork_tab = hosts.iter().any(|h| h.contains("upwork.com"));
@@ -285,10 +362,36 @@ mod tests {
 
     #[test]
     fn test_build_search_url() {
-        let url = UpworkScraper::build_search_url("rust dev");
-        assert!(url.contains("q=rust%20dev"));
-        assert!(url.contains("job_type=hourly"));
-        assert!(url.contains("contractor_tier=3"));
-        assert!(url.contains("client_hires=10-"));
+        let url = UpworkScraper::build_search_url("quant trading", None, None);
+        assert!(url.contains("q=quant%20trading"));
+        assert!(!url.contains("hourly_rate")); // no min rate by default
+        assert!(!url.contains("contractor_tier")); // All by default
+    }
+
+    #[test]
+    fn test_build_search_url_with_tier_and_rate() {
+        let url =
+            UpworkScraper::build_search_url("quant trading", Some(UpworkTier::BothUpper), Some(65));
+        assert!(url.contains("q=quant%20trading"));
+        assert!(url.contains("hourly_rate=65-"));
+        assert!(url.contains("contractor_tier=2,3"));
+    }
+
+    #[test]
+    fn test_upwork_search_params_defaults() {
+        let params = UpworkSearchParams::new("rust");
+        let url = params.build_url();
+        assert!(url.contains("q=rust"));
+        assert!(!url.contains("contractor_tier")); // Expert default, no param
+    }
+
+    #[test]
+    fn test_upwork_search_params_builder() {
+        let url = UpworkSearchParams::new("rust")
+            .tier(Some(UpworkTier::BothUpper))
+            .hourly_rate_min(Some(65))
+            .build_url();
+        assert!(url.contains("contractor_tier=2,3"));
+        assert!(url.contains("hourly_rate=65-"));
     }
 }
