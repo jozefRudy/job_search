@@ -81,6 +81,13 @@ cd backend && cargo test -- --include-ignored
 - JavaScript regex syntax differs from Rust — `+?` is valid in JS but can cause `Invalid regular expression flags` if combined with `/i` in certain ways. Test regex in browser console first.
 - Use `document.body.innerText` instead of `textContent` when scraping to avoid getting script content mixed in.
 
+## Browser Integration Tests with Live Browser
+
+- **For sites requiring login / slow load (Upwork):** do NOT automate tab creation in test. Manual setup: open tab, login, then run test. Test fails fast with clear error if tab absent.
+- Prefer `anyhow::bail!("message")` over `eprintln!` + `Ok(vec![])` when precondition fails — fail fast surfaces real errors in tests.
+- Never use `unwrap` in tests — use `.expect("msg")` or `?`.
+- Fewer comprehensive tests beat many trivial ones.
+
 ## Session Efficiency
 
 - If user says "don't use X", stop immediately — don't keep trying. (e.g. `browser_navigate` after user said use rust code)
