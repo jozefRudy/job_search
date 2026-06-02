@@ -18,8 +18,6 @@ const DEFAULT_INIT_URLS: &[&str] = &[
     "https://nofluffjobs.com",
 ];
 
-
-
 async fn cmd_init(browser: &BrowserManager, urls: &[&str]) -> Result<()> {
     eprintln!("Launching Brave browser with {} tabs...", urls.len());
 

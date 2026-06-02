@@ -51,8 +51,6 @@ impl BrowserExt for Browser {
     }
 }
 
-
-
 #[derive(Clone)]
 pub struct BrowserManager {
     inner: Arc<Mutex<Option<Arc<Browser>>>>,
