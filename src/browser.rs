@@ -112,13 +112,7 @@ impl BrowserManager {
         browser_and_handler.ok_or_else(|| anyhow::anyhow!("Brave did not start in time"))
     }
 
-    #[allow(dead_code)]
-    pub async fn close(&self) {
-        if let Some(h) = self.handler.lock().await.take() {
-            h.abort();
-        }
-        *self.inner.lock().await = None;
-    }
+
 }
 
 impl Default for BrowserManager {
