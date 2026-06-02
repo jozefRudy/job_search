@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO reactions (job_id, action, metadata) VALUES (?1, ?2, ?3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "fb39288aefd3aa9b1b52a917c11f18c86ed782ad647067fcbc741d4b0d0477da"
+}

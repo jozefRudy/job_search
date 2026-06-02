@@ -1,0 +1,92 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT id, platform, external_id, title, description, url, posted_at, budget, tags, raw, status, created_at, updated_at\n            FROM jobs\n            WHERE (?1 IS NULL OR platform = ?1) AND (?2 IS NULL OR status = ?2)\n            ORDER BY posted_at DESC LIMIT ?3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "platform",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "external_id",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "title",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "description",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "url",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "posted_at",
+        "ordinal": 6,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "budget",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "tags",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "raw",
+        "ordinal": 9,
+        "type_info": "Text"
+      },
+      {
+        "name": "status",
+        "ordinal": 10,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 11,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 12,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8fc8c3ce3f20387ffdc2627a5460a49e6096ddba4007133ce01281a5f70a7265"
+}

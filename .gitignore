@@ -1,4 +1,6 @@
 /target
+jobsearch.db
+*.db
 
 # Devenv
 .devenv*

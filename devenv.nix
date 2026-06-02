@@ -5,7 +5,15 @@
   inputs,
   ...
 }: {
-  packages = [pkgs.git];
+  packages = [pkgs.git pkgs.sqlx-cli];
+  env = {
+    SQLX_OFFLINE = "true";
+    DATABASE_URL = "sqlite:./jobsearch.db";
+  };
+  enterShell = ''
+    cargo sqlx database create 2>/dev/null || true
+    cargo sqlx migrate run && cargo sqlx prepare
+  '';
 
   languages = {
     rust = {
