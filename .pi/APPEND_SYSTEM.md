@@ -95,6 +95,11 @@ cd backend && cargo test -- --include-ignored
 - `grep` for all field usages before renaming — prevents dead references.
 - When adding CLI commands, update both `cli.rs` enum AND `main.rs` match arm.
 
+## CLI Design
+
+- **Platform-specific options = subcommands, not flags.** When different platforms need different args (`--tier` for Upwork, `--employment` for NoFluffJobs), use clap subcommands (`update upwork`, `update nofluff`) instead of flat flags with `--platform`. Clean, self-documenting, no ambiguity.
+- **Generic traits stay generic.** Never put platform-specific types (`UpworkTier`, `hourly_rate_min`) into a generic `PlatformClient` trait. Store config in scraper struct fields instead.
+
 ## Architecture Reference
 
 - `PATTERNS.md` — LanceDB, Postgres, Auth, API, Frontend patterns with code examples. Read when building new feature.
