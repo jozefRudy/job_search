@@ -8,6 +8,12 @@ use serde_json::Value;
 
 pub struct UpworkScraper;
 
+impl Default for UpworkScraper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UpworkScraper {
     pub fn new() -> Self {
         Self

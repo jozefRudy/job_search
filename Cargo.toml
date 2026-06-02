@@ -21,3 +21,6 @@ tokio = { version = "1", features = ["full"] }
 [dependencies.chromiumoxide]
 git = "https://github.com/mattsse/chromiumoxide"
 branch = "main"
+
+[dev-dependencies]
+tempfile = "3"

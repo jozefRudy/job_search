@@ -1,17 +1,13 @@
-mod browser;
-mod cli;
-mod db;
-mod models;
-mod platforms;
-
 use anyhow::Result;
-use browser::{BrowserExt, BrowserManager};
 use clap::Parser;
-use cli::{Cli, Commands};
-use db::Db;
 use directories::ProjectDirs;
-use models::{JobStatus, Platform, Reaction};
-use platforms::{PlatformClient, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper};
+use jobsearch::browser::{BrowserExt, BrowserManager};
+use jobsearch::cli::{Cli, Commands};
+use jobsearch::db::Db;
+use jobsearch::models::{JobStatus, Platform, Reaction};
+use jobsearch::platforms::{
+    PlatformClient, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper,
+};
 
 const DEFAULT_INIT_URLS: &[&str] = &[
     "https://www.upwork.com/freelancers/~01dba08086390dc196",
@@ -25,7 +21,7 @@ async fn cmd_init(browser: &BrowserManager, urls: &[&str]) -> Result<()> {
     let hosts = browser.get_page_hosts().await?;
 
     for url in urls.iter() {
-        let host = crate::browser::host_of(url);
+        let host = jobsearch::browser::host_of(url);
         let has_tab = hosts.iter().any(|h| Some(h) == host.as_ref());
         if has_tab {
             eprintln!("  {} - already open, skipping", url);
@@ -307,7 +303,7 @@ async fn cmd_detail(db: &Db, browser: &BrowserManager, id: i64, force: bool) -> 
                 d
             } else {
                 eprintln!("Using cached detail (use --force to refetch)");
-                serde_json::from_value::<crate::platforms::upwork::JobDetail>(
+                serde_json::from_value::<jobsearch::platforms::upwork::JobDetail>(
                     job.raw["detail"].clone(),
                 )?
             };

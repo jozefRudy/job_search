@@ -15,7 +15,8 @@ cd backend && cargo test -- --include-ignored
 
 ## SQLx
 
-- Always use `query_as!` macro
+- **Static queries** — always use `query_as!` macro for compile-time checking.
+- **Dynamic queries** (conditional WHERE/LIMIT) — manual `sqlx::query_as::<_, Row>(&query_string)` with `.bind()` is OK. But prefer static queries when possible.
 - `SQLX_OFFLINE = "true"` is set as env var
 - Run `cargo-sqlx-prepare` (not `cargo sqlx prepare` — former prepares db) after any query change to update `.sqlx/`
 - `devenv` script prepares everything then runs `cargo sqlx prepare`
@@ -37,6 +38,8 @@ cd backend && cargo test -- --include-ignored
 
 ## Testing
 
+- Use `?` in async tests — return `Result<()>` instead of `unwrap`. Cleaner error messages, no panic backtraces.
+- **Temp files** — use `tempfile` crate. Auto-deletes on drop, even on panic. Never manual `remove_file` in tests.
 - Run **full** `cargo test` (not `--lib`) before claiming done — integration tests matter
 - When debugging distribution output, check sample count vs bin count (need N >= bins for quantile display)
 - For parser base64: real RPC data is base64 encoded, test fixtures use plain text. Handle both.

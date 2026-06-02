@@ -14,6 +14,7 @@ pub fn host_of(url: &str) -> Option<String> {
         .map(|h| h.strip_prefix("www.").unwrap_or(h).to_lowercase())
 }
 
+#[allow(async_fn_in_trait)]
 pub trait BrowserExt {
     async fn new_blank_tab(&self) -> Result<chromiumoxide::Page>;
     async fn new_tab(&self, url: &str) -> Result<chromiumoxide::Page>;
@@ -111,8 +112,42 @@ impl BrowserManager {
         }
         browser_and_handler.ok_or_else(|| anyhow::anyhow!("Brave did not start in time"))
     }
+}
 
+#[cfg(test)]
+mod tests {
+    use super::*;
 
+    #[test]
+    fn test_host_of_basic() {
+        assert_eq!(
+            host_of("https://upwork.com"),
+            Some("upwork.com".to_string())
+        );
+        assert_eq!(
+            host_of("https://www.upwork.com/jobs"),
+            Some("upwork.com".to_string())
+        );
+        assert_eq!(
+            host_of("https://NOFLUFFJOBS.COM/pl"),
+            Some("nofluffjobs.com".to_string())
+        );
+    }
+
+    #[test]
+    fn test_host_of_malformed() {
+        assert_eq!(host_of("not-a-url"), None);
+        assert_eq!(host_of(""), None);
+        assert_eq!(host_of("ftp://"), None);
+    }
+
+    #[test]
+    fn test_host_of_with_port() {
+        assert_eq!(
+            host_of("http://localhost:9222"),
+            Some("localhost".to_string())
+        );
+    }
 }
 
 impl Default for BrowserManager {

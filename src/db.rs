@@ -247,3 +247,78 @@ pub struct Stats {
     pub by_status: Vec<(String, i64)>,
     pub by_platform: Vec<(String, i64)>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{Job, JobStatus, Platform};
+
+    fn temp_db() -> tempfile::NamedTempFile {
+        tempfile::NamedTempFile::new().expect("temp db")
+    }
+
+    fn test_job(platform: Platform, external_id: &str, title: &str, status: JobStatus) -> Job {
+        Job {
+            id: None,
+            platform,
+            external_id: external_id.to_string(),
+            title: title.to_string(),
+            description: None,
+            url: format!("https://example.com/{}", external_id),
+            posted_at: None,
+            budget: None,
+            tags: vec![],
+            raw: serde_json::json!({}),
+            status,
+            created_at: None,
+            updated_at: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_upsert_and_list() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let job = test_job(Platform::Upwork, "abc123", "Rust Dev", JobStatus::New);
+        let id = db.upsert_job(&job).await?;
+        assert!(id > 0);
+
+        let jobs = db.list_jobs(None, None, 10).await?;
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].title, "Rust Dev");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_update_status() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let job = test_job(Platform::NoFluffJobs, "nf1", "Backend", JobStatus::New);
+        let id = db.upsert_job(&job).await?;
+
+        db.update_status(id, JobStatus::Saved).await?;
+        let found = db.get_job(id).await?.expect("job exists");
+        assert_eq!(found.status, JobStatus::Saved);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stats() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        db.upsert_job(&test_job(Platform::Upwork, "u1", "A", JobStatus::New))
+            .await?;
+        db.upsert_job(&test_job(Platform::Upwork, "u2", "B", JobStatus::Saved))
+            .await?;
+        db.upsert_job(&test_job(Platform::NoFluffJobs, "n1", "C", JobStatus::New))
+            .await?;
+
+        let stats = db.stats().await?;
+        assert_eq!(stats.total, 3);
+        assert_eq!(stats.new_count, 2);
+        Ok(())
+    }
+}

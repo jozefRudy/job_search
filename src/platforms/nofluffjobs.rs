@@ -127,6 +127,12 @@ fn parse_nofluff_time(text: &str) -> Option<chrono::DateTime<chrono::Utc>> {
 
 pub struct NoFluffJobsScraper;
 
+impl Default for NoFluffJobsScraper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NoFluffJobsScraper {
     pub fn new() -> Self {
         Self
