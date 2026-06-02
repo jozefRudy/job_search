@@ -61,6 +61,11 @@ cd backend && cargo test -- --include-ignored
 ## Browser Automation (chromiumoxide)
 
 - **Connect to existing browser first** — `Browser::connect("http://localhost:9222")`. Gets user's cookies/session, no focus stealing. Fallback to `Browser::launch()` only if not running.
+- **Background tabs** — use `CreateTargetParams::builder().url("about:blank").background(true)`, then `page.goto(url)`. `CreateTargetParams::url(some_url)` with `background(true)` does not eagerly load in background.
+- **`GetTargetsParams` returns ALL targets** — service workers, extensions, etc. Always filter `t.r#type == "page"` before matching.
+- **`/json/new` HTTP endpoint creates foreground tabs** — has no background param. Use CDP `Target.createTarget` via `Browser::new_page(CreateTargetParams)` instead.
+- **`open -g` on macOS** works for launching fresh app instance in background. Sending URLs to already-running apps via `open` can still activate. Use CDP tab creation for already-running browsers.
+- **Separate concerns** — `BrowserManager` manages connection lifecycle (connect/launch/ensure). Tab operations belong on `Browser` via extension trait (`BrowserExt`), not on manager.
 - **Use `page.wait_for_navigation()`** after `goto()` instead of blind `sleep`. Still need polling loops for JS-rendered SPA content.
 - **New tabs inherit cookies** from existing browser session. No need to control existing tabs directly (chromiumoxide can't reliably get handles for pre-existing tabs).
 - **Check `target/md_docs/` for API signatures** before guessing — e.g. `BrowserConfigBuilder` methods, CDP command types.
