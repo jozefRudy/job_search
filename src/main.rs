@@ -46,10 +46,13 @@ async fn cmd_init(browser: &BrowserManager, urls: &[&str]) -> Result<()> {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let db_path = cli.db.unwrap_or_else(|| {
-        let dirs = ProjectDirs::from("", "", "jobsearch").expect("project dirs");
-        dirs.data_dir().join("jobsearch.db")
-    });
+    let db_path = std::env::var("DATABASE_URL")
+        .ok()
+        .and_then(|url| url.strip_prefix("sqlite:").map(std::path::PathBuf::from))
+        .unwrap_or_else(|| {
+            let dirs = ProjectDirs::from("", "", "jobsearch").expect("project dirs");
+            dirs.data_dir().join("jobsearch.db")
+        });
 
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -209,7 +212,7 @@ async fn cmd_show(db: &Db, id: i64, json: bool) -> Result<()> {
         println!("URL:       {}", job.url);
         println!(
             "Posted:    {}",
-            job.posted_at
+            job.created_at
                 .map(|d| d.to_rfc3339())
                 .unwrap_or_else(|| "?".to_string())
         );
@@ -278,8 +281,8 @@ async fn cmd_detail(db: &Db, browser: &BrowserManager, id: i64, force: bool) -> 
 
     match job.platform {
         Platform::Upwork => {
-            let is_fresh = job.posted_at.is_some_and(|posted| {
-                let age = chrono::Utc::now() - posted;
+            let is_fresh = job.created_at.is_some_and(|created| {
+                let age = chrono::Utc::now() - created;
                 age.num_days() < 7
             });
             let should_fetch = force || is_fresh;

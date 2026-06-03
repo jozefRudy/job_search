@@ -34,7 +34,7 @@ pub fn render_table(jobs: &[Job]) -> String {
         table.add_row(vec![
             Cell::new(job.id.unwrap_or(0)),
             Cell::new(job.platform.to_string()),
-            Cell::new(fmt_relative(job.posted_at)),
+            Cell::new(fmt_relative(job.created_at)),
             Cell::new(job.budget.as_deref().unwrap_or("?")),
             Cell::new(&job.title),
         ]);
@@ -49,7 +49,7 @@ pub fn render_job_detailed(job: &Job) -> String {
         "#{} [{}] {} | {} | {}",
         job.id.unwrap_or(0),
         job.platform,
-        fmt_relative(job.posted_at),
+        fmt_relative(job.created_at),
         job.budget.as_deref().unwrap_or("?"),
         job.title
     ));

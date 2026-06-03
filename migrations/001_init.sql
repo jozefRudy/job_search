@@ -5,7 +5,6 @@ CREATE TABLE IF NOT EXISTS jobs (
     title TEXT NOT NULL,
     description TEXT,
     url TEXT NOT NULL,
-    posted_at TIMESTAMP,
     budget TEXT,
     tags TEXT NOT NULL,
     raw TEXT NOT NULL,

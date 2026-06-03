@@ -22,16 +22,19 @@ impl Db {
         let tags = serde_json::to_string(&job.tags)?;
         let raw = serde_json::to_string(&job.raw)?;
         let platform = job.platform.to_string();
+        let created_at = job
+            .created_at
+            .map(|dt| dt.naive_utc())
+            .unwrap_or_else(|| chrono::Utc::now().naive_utc());
 
         let id = sqlx::query_scalar!(
             r#"
-            INSERT INTO jobs (platform, external_id, title, description, url, posted_at, budget, tags, raw)
+            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at)
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
             ON CONFLICT(platform, external_id) DO UPDATE SET
                 title = excluded.title,
                 description = excluded.description,
                 url = excluded.url,
-                posted_at = excluded.posted_at,
                 budget = excluded.budget,
                 tags = excluded.tags,
                 raw = excluded.raw,
@@ -43,10 +46,10 @@ impl Db {
             job.title,
             job.description,
             job.url,
-            job.posted_at,
             job.budget,
             tags,
             raw,
+            created_at,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -60,10 +63,10 @@ impl Db {
         let rows = sqlx::query_as!(
             JobRow,
             r#"
-            SELECT id, platform, external_id, title, description, url, posted_at, budget, tags, raw, created_at, updated_at
+            SELECT id, platform, external_id, title, description, url, budget, tags, raw, created_at, updated_at
             FROM jobs
             WHERE (?1 IS NULL OR platform = ?1)
-            ORDER BY posted_at DESC LIMIT ?2
+            ORDER BY created_at DESC LIMIT ?2
             "#,
             platform,
             limit
@@ -78,7 +81,7 @@ impl Db {
         let row = sqlx::query_as!(
             JobRow,
             r#"
-            SELECT id, platform, external_id, title, description, url, posted_at, budget, tags, raw, created_at, updated_at
+            SELECT id, platform, external_id, title, description, url, budget, tags, raw, created_at, updated_at
             FROM jobs WHERE id = ?1
             "#,
             id
@@ -158,7 +161,6 @@ struct JobRow {
     title: String,
     description: Option<String>,
     url: String,
-    posted_at: Option<chrono::NaiveDateTime>,
     budget: Option<String>,
     tags: String,
     raw: String,
@@ -194,7 +196,6 @@ impl From<JobRow> for Job {
             title: r.title,
             description: r.description,
             url: r.url,
-            posted_at: r.posted_at.map(|dt| dt.and_utc()),
             budget: r.budget,
             tags: serde_json::from_str(&r.tags).unwrap_or_default(),
             raw,
@@ -235,7 +236,6 @@ mod tests {
             title: title.to_string(),
             description: None,
             url: format!("https://example.com/{}", external_id),
-            posted_at: None,
             budget: None,
             tags: vec![],
             raw,
@@ -285,7 +285,6 @@ mod tests {
             title: "Rust Backend".to_string(),
             description: None,
             url: "https://upwork.com/jobs/uw-99".to_string(),
-            posted_at: None,
             budget: Some("$5000".to_string()),
             tags: vec!["rust".to_string()],
             raw: Data::Upwork {
@@ -322,6 +321,7 @@ mod tests {
             offer_description: "Cool project".to_string(),
             offer_valid_until: "2026-12-31".to_string(),
             languages: vec!["en".to_string()],
+            posted_at: None,
         };
         let job = Job {
             id: None,
@@ -330,7 +330,6 @@ mod tests {
             title: "Senior Rust".to_string(),
             description: None,
             url: "https://nofluffjobs.com/job/nf-88".to_string(),
-            posted_at: None,
             budget: Some("8000 EUR".to_string()),
             tags: vec!["rust".to_string(), "remote".to_string()],
             raw: Data::Nofluffjobs {

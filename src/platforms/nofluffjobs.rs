@@ -35,6 +35,14 @@ pub struct DetailResponse {
     pub requirements: Reqs,
     #[serde(default)]
     pub details: JobDetails,
+    #[serde(default)]
+    pub company: Company,
+    #[serde(default)]
+    pub posted: Option<i64>,
+    #[serde(default, rename = "expiresAt")]
+    pub expires_at: Option<String>,
+    #[serde(default)]
+    pub location: Location,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -46,6 +54,24 @@ pub struct Basics {
 pub struct JobDetails {
     #[serde(default)]
     pub description: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Company {
+    #[serde(default)]
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Location {
+    #[serde(default)]
+    pub places: Vec<Place>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Place {
+    #[serde(default)]
+    pub city: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -169,6 +195,8 @@ impl NoFluffJobsScraper {
         let mut processed_ids: HashSet<String> = HashSet::new();
         let mut checked_count = 0;
 
+        eprint!("\x1B[?25l"); // hide cursor
+
         loop {
             let cards: Vec<NofluffJobCard> = page
                 .evaluate(super::nofluffjobs_js::SCRAPE_CARDS)
@@ -196,6 +224,17 @@ impl NoFluffJobsScraper {
 
                 match self.fetch_detail(&card.external_id).await {
                     Ok(detail) => {
+                        let posted = detail.posted_at;
+                        let budget = card.budget.as_ref().map(|b| {
+                            if b.trim() == "Salary Match" {
+                                self.config
+                                    .min_salary_eur
+                                    .map(|min| format!("~{} {}", min, self.config.salary_currency))
+                                    .unwrap_or_else(|| b.clone())
+                            } else {
+                                b.clone()
+                            }
+                        });
                         let job = Job {
                             id: None,
                             platform,
@@ -203,12 +242,10 @@ impl NoFluffJobsScraper {
                             title: card.title.clone(),
                             description: None,
                             url: card.url.clone(),
-                            posted_at: None,
-                            budget: card.budget.clone(),
+                            budget,
                             tags: card.tags.clone(),
                             raw: Data::Nofluffjobs { detail },
-
-                            created_at: None,
+                            created_at: posted,
                             updated_at: None,
                         };
                         db.upsert_job(&job).await?;
@@ -222,7 +259,9 @@ impl NoFluffJobsScraper {
                     }
                 }
 
-                eprint!("\r    Progress: {:>5}", checked_count);
+                const SPIN: [char; 4] = ['-', '\\', '|', '/'];
+                let sp = SPIN[checked_count % SPIN.len()];
+                eprint!("\r    Progress: {:>5} {}", checked_count, sp);
             }
 
             if stopped {
@@ -234,6 +273,7 @@ impl NoFluffJobsScraper {
             }
         }
 
+        eprintln!("\x1B[?25h"); // show cursor
         page.close().await.ok();
         eprintln!("  Total new jobs: {}", all_jobs.len());
         Ok(all_jobs)
@@ -355,16 +395,35 @@ impl NoFluffJobsScraper {
             .map(|l| l.code.clone())
             .collect();
 
+        let posted_at = detail
+            .posted
+            .and_then(chrono::DateTime::from_timestamp_millis);
+
+        let locations: Vec<String> = detail
+            .location
+            .places
+            .iter()
+            .map(|p| p.city.clone())
+            .filter(|c| !c.is_empty())
+            .collect();
+
+        let remote = if locations.iter().any(|l| l.eq_ignore_ascii_case("remote")) {
+            "Remote".to_string()
+        } else {
+            String::new()
+        };
+
         Ok(NoFluffJobDetail {
-            company: String::new(),
+            company: detail.company.name,
             seniority,
-            remote: String::new(),
-            locations: vec![],
+            remote,
+            locations,
             must_have,
             requirements,
             offer_description,
-            offer_valid_until: String::new(),
+            offer_valid_until: detail.expires_at.unwrap_or_default(),
             languages,
+            posted_at,
         })
     }
 

@@ -62,6 +62,8 @@ pub struct NoFluffJobDetail {
     pub offer_valid_until: String,
     #[serde(default)]
     pub languages: Vec<String>,
+    #[serde(default)]
+    pub posted_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ValueEnum)]
@@ -89,7 +91,6 @@ pub struct Job {
     pub title: String,
     pub description: Option<String>,
     pub url: String,
-    pub posted_at: Option<DateTime<Utc>>,
     pub budget: Option<String>,
     pub tags: Vec<String>,
     pub raw: Data,

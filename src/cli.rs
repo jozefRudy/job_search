@@ -1,15 +1,11 @@
 use crate::models::{Platform, Reaction};
 use crate::platforms::upwork::UpworkTier;
 use clap::{Args, Parser, Subcommand};
-use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "jobsearch")]
 #[command(about = "Unified job search CLI")]
 pub struct Cli {
-    #[arg(short, long, global = true)]
-    pub db: Option<PathBuf>,
-
     #[arg(long, global = true)]
     pub json: bool,
 

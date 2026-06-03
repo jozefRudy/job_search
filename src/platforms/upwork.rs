@@ -467,8 +467,7 @@ impl PlatformClient for UpworkScraper {
 
                 match self.fetch_job_detail(browser, &job_url).await {
                     Ok(detail) => {
-                        let posted_at =
-                            v.posted_at_text.as_ref().and_then(|t| parse_upwork_time(t));
+                        let posted = v.posted_at_text.as_ref().and_then(|t| parse_upwork_time(t));
                         let job = Job {
                             id: None,
                             platform: Platform::Upwork,
@@ -476,12 +475,10 @@ impl PlatformClient for UpworkScraper {
                             title: v.title.clone(),
                             description: v.description.clone(),
                             url: v.url.clone(),
-                            posted_at,
                             budget: v.budget.clone(),
                             tags: v.tags.clone(),
                             raw: Data::Upwork { detail },
-
-                            created_at: None,
+                            created_at: posted,
                             updated_at: None,
                         };
                         db.upsert_job(&job).await?;
