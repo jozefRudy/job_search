@@ -4,7 +4,7 @@ use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager};
 use jobsearch::cli::{Cli, Commands, UpdatePlatform};
 use jobsearch::db::Db;
-use jobsearch::models::{JobStatus, Platform, Reaction};
+use jobsearch::models::{Data, JobStatus, Platform, Reaction};
 use jobsearch::platforms::{
     PlatformClient, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper,
 };
@@ -69,7 +69,14 @@ async fn main() -> Result<()> {
         Commands::Update(update_cmd) => match update_cmd.platform {
             UpdatePlatform::Upwork(args) => {
                 let scraper = UpworkScraper::with_config(args.tier, args.min_rate);
-                fetch_and_store(&db, &browser, vec![Box::new(scraper)], &args.query).await?;
+                fetch_and_store(
+                    &db,
+                    &browser,
+                    vec![Box::new(scraper)],
+                    &args.query,
+                    args.pause,
+                )
+                .await?;
             }
             UpdatePlatform::Nofluff(args) => {
                 let config = jobsearch::platforms::nofluffjobs::NoFluffJobsConfig {
@@ -79,7 +86,14 @@ async fn main() -> Result<()> {
                     language: args.lang,
                 };
                 let scraper = NoFluffJobsScraper::with_config(config);
-                fetch_and_store(&db, &browser, vec![Box::new(scraper)], &args.query).await?;
+                fetch_and_store(
+                    &db,
+                    &browser,
+                    vec![Box::new(scraper)],
+                    &args.query,
+                    args.pause,
+                )
+                .await?;
             }
             UpdatePlatform::All(args) => {
                 let nf_config = jobsearch::platforms::nofluffjobs::NoFluffJobsConfig {
@@ -95,7 +109,7 @@ async fn main() -> Result<()> {
                         args.upwork_min_rate,
                     )),
                 ];
-                fetch_and_store(&db, &browser, clients, &args.query).await?;
+                fetch_and_store(&db, &browser, clients, &args.query, args.pause).await?;
             }
         },
         Commands::List {
@@ -128,10 +142,14 @@ async fn fetch_and_store(
     browser: &BrowserManager,
     clients: Vec<Box<dyn PlatformClient>>,
     query: &str,
+    pause_ms: u64,
 ) -> Result<()> {
     for client in clients {
         eprintln!("Fetching from {}...", client.name());
-        match client.fetch_with_manager(browser, query).await {
+        match client
+            .fetch_with_manager(browser, db, query, pause_ms)
+            .await
+        {
             Ok(jobs) => {
                 eprintln!("  Found {} jobs", jobs.len());
                 for job in &jobs {
@@ -198,56 +216,31 @@ async fn cmd_show(db: &Db, id: i64, json: bool) -> Result<()> {
         println!("Tags:      {}", job.tags.join(", "));
         println!("Desc:      {}", job.description.as_deref().unwrap_or("?"));
 
-        // Show cached detail for Upwork
-        if let Some(detail) = job.raw.get("detail") {
-            let fetched = job
-                .raw
-                .get("detail_fetched_at")
-                .and_then(|v| v.as_str())
-                .unwrap_or("?");
-            println!("\n--- Detail (fetched: {}) ---", fetched);
-            println!(
-                "Exact budget:   {}",
-                detail
-                    .get("exact_budget")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("?")
-            );
-            println!(
-                "Proposals:      {}",
-                detail
-                    .get("proposals")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("?")
-            );
-            println!(
-                "Last viewed:    {}",
-                detail
-                    .get("last_viewed")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("?")
-            );
-            println!(
-                "Interviewing:   {}",
-                detail
-                    .get("interviewing")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("?")
-            );
-            println!(
-                "Invites sent:   {}",
-                detail
-                    .get("invites_sent")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("?")
-            );
-            println!(
-                "Unanswered:     {}",
-                detail
-                    .get("unanswered_invites")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("?")
-            );
+        // Show cached detail
+        match &job.raw {
+            Data::Upwork { detail } => {
+                println!("\n--- Detail ---");
+                println!("Exact budget:   {}", detail.exact_budget);
+                println!("Experience:     {}", detail.experience_level);
+                println!("Project type:   {}", detail.project_type);
+                println!("Duration:       {}", detail.duration);
+                println!("Hours/week:     {}", detail.hours_per_week);
+                println!("Hires:          {}", detail.hires);
+                println!("Proposals:      {}", detail.proposals);
+                println!("Last viewed:    {}", detail.last_viewed);
+                println!("Interviewing:   {}", detail.interviewing);
+                println!("Invites sent:   {}", detail.invites_sent);
+                println!("Unanswered:     {}", detail.unanswered_invites);
+            }
+            Data::Nofluffjobs { detail } => {
+                println!("\n--- Detail ---");
+                println!("Company:        {}", detail.company);
+                println!("Seniority:      {}", detail.seniority);
+                println!("Remote:         {}", detail.remote);
+                println!("Locations:      {}", detail.locations.join(", "));
+                println!("Valid until:    {}", detail.offer_valid_until);
+                println!("Must have:      {}", detail.must_have.join(", "));
+            }
         }
     }
 
@@ -301,8 +294,7 @@ async fn cmd_detail(db: &Db, browser: &BrowserManager, id: i64, force: bool) -> 
                 let age = chrono::Utc::now() - posted;
                 age.num_days() < 7
             });
-
-            let should_fetch = force || job.raw.get("detail").is_none() || is_fresh;
+            let should_fetch = force || is_fresh;
 
             let detail = if should_fetch {
                 eprintln!("Fetching fresh detail...");
@@ -310,21 +302,25 @@ async fn cmd_detail(db: &Db, browser: &BrowserManager, id: i64, force: bool) -> 
                 let scraper = UpworkScraper::new();
                 let d = scraper.fetch_job_detail(&b, &job.url).await?;
 
-                let mut raw = job.raw.clone();
-                raw["detail"] = serde_json::to_value(&d)?;
-                raw["detail_fetched_at"] = serde_json::to_value(chrono::Utc::now().to_rfc3339())?;
-                db.update_raw(id, raw).await?;
+                let raw = Data::Upwork { detail: d.clone() };
+                db.update_raw(id, &raw).await?;
 
                 d
             } else {
                 eprintln!("Using cached detail (use --force to refetch)");
-                serde_json::from_value::<jobsearch::platforms::upwork::JobDetail>(
-                    job.raw["detail"].clone(),
-                )?
+                match &job.raw {
+                    Data::Upwork { detail } => detail.clone(),
+                    _ => return Err(anyhow::anyhow!("Not an Upwork job")),
+                }
             };
 
             println!("Title:          {}", job.title);
             println!("Budget:         {}", detail.exact_budget);
+            println!("Experience:     {}", detail.experience_level);
+            println!("Project type:   {}", detail.project_type);
+            println!("Duration:       {}", detail.duration);
+            println!("Hours/week:     {}", detail.hours_per_week);
+            println!("Hires:          {}", detail.hires);
             println!("Proposals:      {}", detail.proposals);
             println!("Last viewed:    {}", detail.last_viewed);
             println!("Interviewing:   {}", detail.interviewing);
@@ -333,7 +329,35 @@ async fn cmd_detail(db: &Db, browser: &BrowserManager, id: i64, force: bool) -> 
             println!("\nDescription:\n{}", detail.description);
         }
         Platform::NoFluffJobs => {
-            println!("Detail fetch not yet supported for NoFluffJobs");
+            let should_fetch = force;
+
+            let detail = if should_fetch {
+                eprintln!("Fetching fresh detail...");
+                let b = browser.ensure().await?;
+                let scraper = NoFluffJobsScraper::new();
+                let d = scraper.fetch_job_detail(&b, &job.url).await?;
+
+                let raw = Data::Nofluffjobs { detail: d.clone() };
+                db.update_raw(id, &raw).await?;
+
+                d
+            } else {
+                eprintln!("Using cached detail (use --force to refetch)");
+                match &job.raw {
+                    Data::Nofluffjobs { detail } => detail.clone(),
+                    _ => return Err(anyhow::anyhow!("Not a NoFluffJobs job")),
+                }
+            };
+
+            println!("Title:          {}", job.title);
+            println!("Company:        {}", detail.company);
+            println!("Seniority:      {}", detail.seniority);
+            println!("Remote:         {}", detail.remote);
+            println!("Locations:      {}", detail.locations.join(", "));
+            println!("Valid until:    {}", detail.offer_valid_until);
+            println!("Must have:      {}", detail.must_have.join(", "));
+            println!("\nRequirements:\n{}", detail.requirements);
+            println!("\nOffer description:\n{}", detail.offer_description);
         }
     }
 

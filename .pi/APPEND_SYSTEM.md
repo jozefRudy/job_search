@@ -4,13 +4,13 @@
 
 After completing code changes, run validation:
 ```bash
-cd backend && cargo build && cargo clippy -- -D warnings && cargo test && cargo fmt
+cargo build && cargo clippy -- -D warnings && cargo test && cargo fmt
 ```
 
-Integration tests (live RPC, >1min) — takes 1 minute, run after changes related to api clients
+Integration tests, run after changes related to api clients
 
 ```bash
-cd backend && cargo test -- --include-ignored
+cargo test -- --include-ignored
 ```
 
 ## SQLx
@@ -87,6 +87,12 @@ cd backend && cargo test -- --include-ignored
 - Prefer `anyhow::bail!("message")` over `eprintln!` + `Ok(vec![])` when precondition fails — fail fast surfaces real errors in tests.
 - Never use `unwrap` in tests — use `.expect("msg")` or `?`.
 - Fewer comprehensive tests beat many trivial ones.
+
+## Refactoring
+
+- **Avoid sed for code transformations.** sed corrupts imports, breaks syntax, and produces unhelpful errors. Use `write` for full-file rewrites or `edit` with exact text matches.
+- **Plan refactor scope before touching files.** Cascading type changes across 5+ files cause compile-error whack-a-mole. Map all affected files first (models, db, platform modules, main.rs, tests).
+- **Prefer `#[allow(...)]` over boxing enum variants.** `Box<T>` adds indirection and noise. For large enum variants that are rarely cloned, suppress the lint instead.
 
 ## Session Efficiency
 

@@ -22,10 +22,10 @@
     };
   };
   scripts = {
-    validate.exec = ''
+    test.exec = ''
       cargo build && cargo clippy -- -D warnings && cargo test && cargo fmt
     '';
-    validate-integration.exec = ''
+    test-integration.exec = ''
       cargo test -- --include-ignored
     '';
     export-docs.exec = ''

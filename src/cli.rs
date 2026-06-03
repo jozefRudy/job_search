@@ -89,6 +89,10 @@ pub struct UpworkArgs {
     /// Minimum hourly rate in USD (default: no minimum)
     #[arg(long)]
     pub min_rate: Option<u32>,
+
+    /// Pause between interactions in ms (default: 2000)
+    #[arg(long, default_value = "2000")]
+    pub pause: u64,
 }
 
 #[derive(Args)]
@@ -107,6 +111,10 @@ pub struct NofluffArgs {
     /// Job language: en, pl, etc. (default: all)
     #[arg(long)]
     pub lang: Option<String>,
+
+    /// Pause between interactions in ms (default: 2000)
+    #[arg(long, default_value = "2000")]
+    pub pause: u64,
 }
 
 #[derive(Args)]
@@ -128,4 +136,8 @@ pub struct AllArgs {
 
     #[arg(long)]
     pub nofluff_lang: Option<String>,
+
+    /// Pause between interactions in ms (default: 2000)
+    #[arg(long, default_value = "2000")]
+    pub pause: u64,
 }

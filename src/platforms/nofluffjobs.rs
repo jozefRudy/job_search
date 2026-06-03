@@ -1,10 +1,10 @@
 use crate::browser::BrowserExt;
-use crate::models::{Job, JobStatus, Platform, Reaction};
+use crate::db::Db;
+use crate::models::{Data, Job, JobStatus, NoFluffJobCard, NoFluffJobDetail, Platform, Reaction};
 use crate::platforms::PlatformClient;
-use anyhow::{Result, anyhow};
+use anyhow::{Result, bail};
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
-use serde_json::Value;
 
 #[async_trait]
 impl PlatformClient for NoFluffJobsScraper {
@@ -12,32 +12,120 @@ impl PlatformClient for NoFluffJobsScraper {
         "nofluffjobs"
     }
 
-    async fn fetch_with_browser(&self, browser: &Browser, query: &str) -> Result<Vec<Job>> {
+    async fn fetch_with_browser(
+        &self,
+        browser: &Browser,
+        db: &Db,
+        query: &str,
+        pause_ms: u64,
+    ) -> Result<Vec<Job>> {
         let hosts = browser.get_page_hosts().await?;
-        let has_tab = hosts.iter().any(|h| h.contains("nofluffjobs.com"));
-
-        if !has_tab {
-            anyhow::bail!("NoFluffJobs requires open nofluffjobs.com tab in Brave");
+        if !hosts.iter().any(|h| h.contains("nofluffjobs.com")) {
+            bail!("NoFluffJobs requires open nofluffjobs.com tab in Brave");
         }
 
         let search_url = self.build_search_url(query);
         let page = browser.new_tab(&search_url).await?;
 
-        let mut found = false;
+        if !Self::wait_for_jobs(&page).await? {
+            bail!("NoFluffJobs job cards did not appear within 30s");
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        let mut all_jobs: Vec<Job> = Vec::new();
+        let platform = Platform::NoFluffJobs;
+
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
+
+            let raw_jobs = Self::scrape_page(&page).await?;
+            let mut stopped = false;
+
+            for v in &raw_jobs {
+                if db.job_exists(&platform, &v.external_id).await? {
+                    eprintln!(
+                        "  Stopping: '{}' already in DB ({})",
+                        v.title, v.external_id
+                    );
+                    stopped = true;
+                    break;
+                }
+
+                let job_url = v.url.clone();
+
+                match self.fetch_job_detail(browser, &job_url).await {
+                    Ok(detail) => {
+                        let posted_at = v
+                            .posted_at_text
+                            .as_ref()
+                            .and_then(|t| parse_nofluff_time(t));
+                        let job = Job {
+                            id: None,
+                            platform,
+                            external_id: v.external_id.clone(),
+                            title: v.title.clone(),
+                            description: None,
+                            url: v.url.clone(),
+                            posted_at,
+                            budget: v.budget.clone(),
+                            tags: v.tags.clone(),
+                            raw: Data::Nofluffjobs { detail },
+                            status: JobStatus::New,
+                            created_at: None,
+                            updated_at: None,
+                        };
+                        db.upsert_job(&job).await?;
+                        all_jobs.push(job);
+                    }
+                    Err(e) => {
+                        eprintln!("    Warning: failed to fetch detail for {}: {}", v.title, e);
+                    }
+                }
+                tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
+            }
+
+            if stopped {
+                break;
+            }
+
+            eprintln!(
+                "  Page: +{} jobs (total: {})",
+                raw_jobs
+                    .iter()
+                    .filter(|v| !v.external_id.is_empty())
+                    .count(),
+                all_jobs.len()
+            );
+
+            if !Self::click_load_more(&page, pause_ms).await {
+                break;
+            }
+        }
+
+        page.close().await.ok();
+        Ok(all_jobs)
+    }
+
+    async fn react(&self, _job: &Job, _action: Reaction) -> Result<()> {
+        bail!("NoFluffJobs react not yet implemented")
+    }
+}
+
+impl NoFluffJobsScraper {
+    /// Wait for job cards to appear. Returns true if found.
+    pub async fn wait_for_jobs(page: &chromiumoxide::Page) -> Result<bool> {
         for _ in 0..60 {
             if page.find_element("a.posting-list-item").await.is_ok() {
-                found = true;
-                break;
+                return Ok(true);
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         }
-        if !found {
-            anyhow::bail!("NoFluffJobs job cards did not appear within 30s");
-        }
+        Ok(false)
+    }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
-        let raw_jobs: Vec<serde_json::Value> = page
+    /// Scrape job cards from current page.
+    pub async fn scrape_page(page: &chromiumoxide::Page) -> Result<Vec<NoFluffJobCard>> {
+        let cards: Vec<NoFluffJobCard> = page
             .evaluate(
                 r#"
                 Array.from(document.querySelectorAll("a.posting-list-item")).map(el => {
@@ -51,7 +139,6 @@ impl PlatformClient for NoFluffJobsScraper {
                     return {
                         external_id: id,
                         title: titleEl?.textContent?.trim() || "",
-                        description: null,
                         url: url || "",
                         budget: salaryEl?.textContent?.trim() || null,
                         posted_at_text: timeEl?.textContent?.trim() || null,
@@ -62,52 +149,163 @@ impl PlatformClient for NoFluffJobsScraper {
             )
             .await?
             .into_value()?;
+        Ok(cards)
+    }
 
-        let jobs: Vec<Job> = raw_jobs
-            .iter()
-            .filter_map(|v| raw_to_job(v).ok())
-            .filter(|j| !j.external_id.is_empty())
-            .collect();
+    /// Click "Load More" button and wait for new jobs. Returns true if more jobs loaded.
+    pub async fn click_load_more(page: &chromiumoxide::Page, pause_ms: u64) -> bool {
+        let has_more: Option<String> = page
+            .evaluate(
+                r#"
+                (() => {
+                    const btn = Array.from(document.querySelectorAll('button, [role="button"], a'))
+                        .find(el => /load\s*more|show\s*more|view\s*more|see\s*more/i.test(el.textContent || ''));
+                    if (btn && !btn.disabled && btn.offsetParent !== null) {
+                        btn.scrollIntoView({ block: 'center' });
+                        return 'click';
+                    }
+                    return 'none';
+                })()
+                "#,
+            )
+            .await
+            .ok()
+            .and_then(|v| v.into_value().ok());
+
+        if has_more.as_deref() != Some("click") {
+            return false;
+        }
+
+        let prev_count: i32 = page
+            .evaluate(r#"document.querySelectorAll("a.posting-list-item").length"#)
+            .await
+            .ok()
+            .and_then(|v| v.into_value().ok())
+            .unwrap_or(0);
+
+        let _ = page
+            .evaluate(
+                r#"
+                (() => {
+                    const btn = Array.from(document.querySelectorAll('button, [role="button"], a'))
+                        .find(el => /load\s*more|show\s*more|view\s*more|see\s*more/i.test(el.textContent || ''));
+                    if (btn) btn.click();
+                })()
+                "#,
+            )
+            .await;
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
+
+        for _ in 0..3 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            let count: i32 = page
+                .evaluate(r#"document.querySelectorAll("a.posting-list-item").length"#)
+                .await
+                .ok()
+                .and_then(|v| v.into_value().ok())
+                .unwrap_or(0);
+            if count > prev_count {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub async fn fetch_job_detail(
+        &self,
+        browser: &Browser,
+        job_url: &str,
+    ) -> Result<NoFluffJobDetail> {
+        let page = browser.new_tab(job_url).await?;
+
+        let mut found = false;
+        for _ in 0..3 {
+            if page.find_element("h1").await.is_ok()
+                || page.find_element("[data-test='job-title']").await.is_ok()
+            {
+                found = true;
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        }
+        if !found {
+            page.close().await.ok();
+            bail!("NoFluffJobs detail page did not load");
+        }
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+        let detail: NoFluffJobDetail = page
+            .evaluate(
+                r#"
+                (() => {
+                    const text = document.body.innerText;
+
+                    let company = '';
+                    const h1 = document.querySelector('h1');
+                    if (h1) {
+                        const next = h1.parentElement?.querySelector('a, h2, div');
+                        if (next) company = next.textContent.trim();
+                    }
+                    if (!company) {
+                        const lines = text.split('\n').map(s => s.trim()).filter(Boolean);
+                        if (lines.length > 1) company = lines[1];
+                    }
+
+                    let seniority = '';
+                    const seniorityMatch = text.match(/\b(Senior|Mid|Junior|Expert|Lead|Principal)\b/i);
+                    if (seniorityMatch) seniority = seniorityMatch[1];
+
+                    let remote = '';
+                    if (text.includes('Fully remote')) remote = 'Fully remote';
+                    else if (text.includes('Remote')) remote = 'Remote';
+                    else if (text.includes('Hybrid')) remote = 'Hybrid';
+                    else if (text.includes('On-site')) remote = 'On-site';
+
+                    let locations = [];
+                    const locMatch = text.match(/Locations?:[\s\S]*?(?=\n\s*\n|Show on map|Offer valid|$)/i);
+                    if (locMatch) {
+                        const locText = locMatch[0].replace(/Locations?:/, '').replace(/Show on map/, '');
+                        locations = locText.split(/,|\n/)
+                            .map(s => s.trim())
+                            .filter(s => s && s.length > 2 && s !== 'Remote');
+                    }
+
+                    let must_have = [];
+                    const mustMatch = text.match(/Must have[\s\S]*?(?=Requirements description|Nice to have|Offer description|$)/i);
+                    if (mustMatch) {
+                        const lines = mustMatch[0].replace('Must have', '').trim().split('\n');
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (trimmed && trimmed.length > 1 && trimmed.length < 50 && !trimmed.includes(':')) {
+                                must_have.push(trimmed);
+                            }
+                        }
+                    }
+
+                    let requirements = '';
+                    const reqMatch = text.match(/Requirements description[\s\S]*?(?=Offer description|Job details|$)/i);
+                    if (reqMatch) requirements = reqMatch[0].replace('Requirements description', '').trim();
+
+                    let offer_description = '';
+                    const offerMatch = text.match(/Offer description[\s\S]*?(?=Job details|$)/i);
+                    if (offerMatch) offer_description = offerMatch[0].replace('Offer description', '').trim();
+
+                    let offer_valid_until = '';
+                    const validMatch = text.match(/Offer valid until[:\s]*([^\n(]+)/i);
+                    if (validMatch) offer_valid_until = validMatch[1].trim();
+
+                    return { company, seniority, remote, locations, must_have, requirements, offer_description, offer_valid_until };
+                })()
+                "#,
+            )
+            .await?
+            .into_value()?;
 
         page.close().await.ok();
-        Ok(jobs)
+        Ok(detail)
     }
-
-    async fn react(&self, _job: &Job, _action: Reaction) -> Result<()> {
-        anyhow::bail!("NoFluffJobs react not yet implemented")
-    }
-}
-
-fn raw_to_job(v: &Value) -> Result<Job> {
-    let external_id = v["external_id"]
-        .as_str()
-        .ok_or_else(|| anyhow!("missing external_id"))?
-        .to_string();
-
-    let posted_at = v["posted_at_text"].as_str().and_then(parse_nofluff_time);
-
-    Ok(Job {
-        id: None,
-        platform: Platform::NoFluffJobs,
-        external_id,
-        title: v["title"].as_str().unwrap_or("").to_string(),
-        description: v["description"].as_str().map(|s| s.to_string()),
-        url: v["url"].as_str().unwrap_or("").to_string(),
-        posted_at,
-        budget: v["budget"].as_str().map(|s| s.to_string()),
-        tags: v["tags"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|t| t.as_str().map(|s| s.to_string()))
-                    .collect()
-            })
-            .unwrap_or_default(),
-        raw: v.clone(),
-        status: JobStatus::New,
-        created_at: None,
-        updated_at: None,
-    })
 }
 
 fn parse_nofluff_time(text: &str) -> Option<chrono::DateTime<chrono::Utc>> {

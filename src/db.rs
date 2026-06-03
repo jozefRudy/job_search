@@ -1,4 +1,4 @@
-use crate::models::{Job, JobStatus, Platform, Reaction};
+use crate::models::{Data, Job, JobStatus, Platform, Reaction};
 use anyhow::Result;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use std::str::FromStr;
@@ -128,8 +128,8 @@ impl Db {
         Ok(())
     }
 
-    pub async fn update_raw(&self, id: i64, raw: serde_json::Value) -> Result<()> {
-        let raw_str = serde_json::to_string(&raw)?;
+    pub async fn update_raw(&self, id: i64, raw: &Data) -> Result<()> {
+        let raw_str = serde_json::to_string(raw)?;
         sqlx::query!(
             "UPDATE jobs SET raw = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
             raw_str,
@@ -138,6 +138,19 @@ impl Db {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    /// Returns true if a job with this platform+external_id already exists.
+    pub async fn job_exists(&self, platform: &Platform, external_id: &str) -> Result<bool> {
+        let platform = platform.to_string();
+        let count: i64 = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM jobs WHERE platform = ?1 AND external_id = ?2",
+            platform,
+            external_id
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(count > 0)
     }
 
     pub async fn stats(&self) -> Result<Stats> {
@@ -195,6 +208,10 @@ struct JobRow {
 
 impl From<JobRow> for Job {
     fn from(r: JobRow) -> Self {
+        // Deserialize raw first (before moving fields from r)
+        let raw: Data =
+            serde_json::from_str(&r.raw).expect("raw JSON should match current Data schema");
+
         Job {
             id: Some(r.id),
             platform: match r.platform.as_str() {
@@ -208,7 +225,7 @@ impl From<JobRow> for Job {
             posted_at: r.posted_at.map(|dt| dt.and_utc()),
             budget: r.budget,
             tags: serde_json::from_str(&r.tags).unwrap_or_default(),
-            raw: serde_json::from_str(&r.raw).unwrap_or(serde_json::Value::Null),
+            raw,
             status: match r.status.as_str() {
                 "viewed" => JobStatus::Viewed,
                 "saved" => JobStatus::Saved,
@@ -234,13 +251,21 @@ pub struct Stats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Job, JobStatus, Platform};
+    use crate::models::{Job, JobStatus, NoFluffJobDetail, Platform, UpworkJobDetail};
 
     fn temp_db() -> tempfile::NamedTempFile {
         tempfile::NamedTempFile::new().expect("temp db")
     }
 
     fn test_job(platform: Platform, external_id: &str, title: &str, status: JobStatus) -> Job {
+        let raw = match platform {
+            Platform::Upwork => Data::Upwork {
+                detail: UpworkJobDetail::default(),
+            },
+            Platform::NoFluffJobs => Data::Nofluffjobs {
+                detail: NoFluffJobDetail::default(),
+            },
+        };
         Job {
             id: None,
             platform,
@@ -251,7 +276,7 @@ mod tests {
             posted_at: None,
             budget: None,
             tags: vec![],
-            raw: serde_json::json!({}),
+            raw,
             status,
             created_at: None,
             updated_at: None,
@@ -270,6 +295,101 @@ mod tests {
         let jobs = db.list_jobs(None, None, 10).await?;
         assert_eq!(jobs.len(), 1);
         assert_eq!(jobs[0].title, "Rust Dev");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_raw_roundtrip_upwork() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let detail = UpworkJobDetail {
+            proposals: "5 to 10".to_string(),
+            last_viewed: "2 hours ago".to_string(),
+            interviewing: "1".to_string(),
+            invites_sent: "3".to_string(),
+            unanswered_invites: "0".to_string(),
+            description: "Build a Rust API".to_string(),
+            exact_budget: "$50-$100/hr".to_string(),
+            experience_level: "Expert".to_string(),
+            hires: "0".to_string(),
+            project_type: "Ongoing project".to_string(),
+            duration: "1 to 3 months".to_string(),
+            hours_per_week: "Less than 30 hrs/week".to_string(),
+        };
+        let job = Job {
+            id: None,
+            platform: Platform::Upwork,
+            external_id: "uw-99".to_string(),
+            title: "Rust Backend".to_string(),
+            description: None,
+            url: "https://upwork.com/jobs/uw-99".to_string(),
+            posted_at: None,
+            budget: Some("$5000".to_string()),
+            tags: vec!["rust".to_string()],
+            raw: Data::Upwork {
+                detail: detail.clone(),
+            },
+            status: JobStatus::New,
+            created_at: None,
+            updated_at: None,
+        };
+
+        let id = db.upsert_job(&job).await?;
+        let found = db.get_job(id).await?.expect("job exists");
+
+        assert!(matches!(found.raw, Data::Upwork { .. }));
+        if let Data::Upwork { detail: d } = found.raw {
+            assert_eq!(d.proposals, detail.proposals);
+            assert_eq!(d.exact_budget, detail.exact_budget);
+            assert_eq!(d.experience_level, detail.experience_level);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_raw_roundtrip_nofluffjobs() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let detail = NoFluffJobDetail {
+            company: "Acme Corp".to_string(),
+            seniority: "Senior".to_string(),
+            remote: "Fully remote".to_string(),
+            locations: vec!["Warsaw".to_string(), "Berlin".to_string()],
+            must_have: vec!["rust".to_string(), "docker".to_string()],
+            requirements: "5+ years Rust".to_string(),
+            offer_description: "Cool project".to_string(),
+            offer_valid_until: "2026-12-31".to_string(),
+        };
+        let job = Job {
+            id: None,
+            platform: Platform::NoFluffJobs,
+            external_id: "nf-88".to_string(),
+            title: "Senior Rust".to_string(),
+            description: None,
+            url: "https://nofluffjobs.com/job/nf-88".to_string(),
+            posted_at: None,
+            budget: Some("8000 EUR".to_string()),
+            tags: vec!["rust".to_string(), "remote".to_string()],
+            raw: Data::Nofluffjobs {
+                detail: detail.clone(),
+            },
+            status: JobStatus::New,
+            created_at: None,
+            updated_at: None,
+        };
+
+        let id = db.upsert_job(&job).await?;
+        let found = db.get_job(id).await?.expect("job exists");
+
+        assert!(matches!(found.raw, Data::Nofluffjobs { .. }));
+        if let Data::Nofluffjobs { detail: d } = found.raw {
+            assert_eq!(d.company, detail.company);
+            assert_eq!(d.remote, detail.remote);
+            assert_eq!(d.locations, detail.locations);
+            assert_eq!(d.must_have, detail.must_have);
+        }
         Ok(())
     }
 
