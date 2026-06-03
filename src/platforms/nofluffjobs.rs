@@ -289,7 +289,7 @@ impl NoFluffJobsScraper {
 
     /// Fetch jobs and store in DB. Stops when finds already-existing job.
     pub async fn fetch_jobs(&self, db: &Db, query: &str, pause_ms: u64) -> Result<Vec<Job>> {
-        self.fetch_jobs_with_limit(db, query, pause_ms, 2).await
+        self.fetch_jobs_with_limit(db, query, pause_ms, None).await
     }
 
     /// Check if posting matches config filters (client-side, since API ignores criteria).
@@ -315,7 +315,7 @@ impl NoFluffJobsScraper {
         db: &Db,
         query: &str,
         pause_ms: u64,
-        max_pages: i64,
+        max_pages: Option<i64>,
     ) -> Result<Vec<Job>> {
         let mut all_jobs = Vec::new();
         let platform = Platform::NoFluffJobs;
@@ -323,7 +323,7 @@ impl NoFluffJobsScraper {
         let mut seen_this_run: HashSet<(String, String)> = HashSet::new();
 
         loop {
-            if page >= max_pages {
+            if max_pages.is_some_and(|m| page >= m) {
                 break;
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;

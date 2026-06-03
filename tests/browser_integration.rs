@@ -247,7 +247,7 @@ async fn test_nofluffjobs_fetch_jobs_stops_on_existing() {
                 salary_currency: "EUR".to_string(),
             });
         let jobs = scraper
-            .fetch_jobs_with_limit(&db, "rust", 100, 2)
+            .fetch_jobs_with_limit(&db, "rust", 100, Some(2))
             .await
             .expect("fetch jobs");
         println!(
