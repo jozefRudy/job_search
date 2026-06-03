@@ -121,9 +121,24 @@ async fn main() -> Result<()> {
         Commands::List {
             platform,
             limit,
+            id,
             detailed,
         } => {
-            cmd_list(&db, platform, limit, detailed, cli.json).await?;
+            if let Some(job_id) = id {
+                let job = db
+                    .get_job(job_id)
+                    .await?
+                    .ok_or_else(|| anyhow::anyhow!("Job {} not found", job_id))?;
+                if cli.json {
+                    println!("{}", serde_json::to_string_pretty(&job)?);
+                } else if detailed {
+                    println!("{}", display::render_job_detailed(&job));
+                } else {
+                    println!("{}", display::render_table(&[job]));
+                }
+            } else {
+                cmd_list(&db, platform, limit, detailed, cli.json).await?;
+            }
         }
         Commands::Show { id } => {
             cmd_show(&db, id, cli.json).await?;

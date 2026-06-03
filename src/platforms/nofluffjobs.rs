@@ -1,6 +1,6 @@
 use crate::browser::BrowserExt;
 use crate::db::Db;
-use crate::models::{Data, Job, NoFluffJobDetail, Platform};
+use crate::models::{Budget, Data, Job, NoFluffJobDetail, Platform};
 use crate::platforms::PlatformClient;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
@@ -225,14 +225,20 @@ impl NoFluffJobsScraper {
                 match self.fetch_detail(&card.external_id).await {
                     Ok(detail) => {
                         let posted = detail.posted_at;
-                        let budget = card.budget.as_ref().map(|b| {
-                            if b.trim() == "Salary Match" {
-                                self.config
-                                    .min_salary_eur
-                                    .map(|min| format!("~{} {}", min, self.config.salary_currency))
-                                    .unwrap_or_else(|| b.clone())
+                        let budget = card.budget.as_ref().and_then(|b| {
+                            let normalized = b.replace(['\u{00a0}', '\u{2007}', '\u{202f}'], " ");
+                            if normalized.trim() == "Salary Match" {
+                                self.config.min_salary_eur.map(|min| {
+                                    Budget {
+                                        min,
+                                        max: min,
+                                        currency: self.config.salary_currency.clone(),
+                                        period: None,
+                                    }
+                                    .to_string()
+                                })
                             } else {
-                                b.clone()
+                                Budget::parse(b).map(|b| b.to_string())
                             }
                         });
                         let job = Job {

@@ -1,6 +1,11 @@
 use crate::models::{Data, Job};
 use comfy_table::{Cell, ContentArrangement, Table};
 
+/// Render HTML to plain text suitable for terminal display.
+fn html_to_text(html: &str) -> String {
+    html2text::from_read(html.as_bytes(), 80).unwrap_or_else(|_| html.to_string())
+}
+
 pub fn fmt_relative(dt: Option<chrono::DateTime<chrono::Utc>>) -> String {
     let dt = match dt {
         Some(d) => d,
@@ -123,16 +128,20 @@ pub fn render_job_detailed(job: &Job) -> String {
                 lines.push(format!("  Languages:      {}", detail.languages.join(", ")));
             }
             if !detail.requirements.is_empty() {
-                lines.push(format!(
-                    "  Requirements:\n    {}",
-                    detail.requirements.replace('\n', "\n    ")
-                ));
+                let text = html_to_text(&detail.requirements)
+                    .lines()
+                    .map(|l| l.trim_end())
+                    .collect::<Vec<_>>()
+                    .join("\n    ");
+                lines.push(format!("  Requirements:\n    {}", text));
             }
             if !detail.offer_description.is_empty() {
-                lines.push(format!(
-                    "  Offer desc:\n    {}",
-                    detail.offer_description.replace('\n', "\n    ")
-                ));
+                let text = html_to_text(&detail.offer_description)
+                    .lines()
+                    .map(|l| l.trim_end())
+                    .collect::<Vec<_>>()
+                    .join("\n    ");
+                lines.push(format!("  Offer desc:\n    {}", text));
             }
         }
     }
