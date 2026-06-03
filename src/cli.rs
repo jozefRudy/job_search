@@ -38,6 +38,10 @@ pub enum Commands {
 
         #[arg(short, long, default_value = "50")]
         limit: i64,
+
+        /// Show platform-specific details below each row
+        #[arg(short, long)]
+        detailed: bool,
     },
 
     Show {

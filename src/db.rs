@@ -208,9 +208,21 @@ struct JobRow {
 
 impl From<JobRow> for Job {
     fn from(r: JobRow) -> Self {
-        // Deserialize raw first (before moving fields from r)
-        let raw: Data =
-            serde_json::from_str(&r.raw).expect("raw JSON should match current Data schema");
+        // Deserialize raw; fall back to default if old schema (missing `platform` tag)
+        let raw: Data = serde_json::from_str(&r.raw).unwrap_or_else(|_| {
+            let platform = match r.platform.as_str() {
+                "upwork" => Platform::Upwork,
+                _ => Platform::NoFluffJobs,
+            };
+            match platform {
+                Platform::Upwork => Data::Upwork {
+                    detail: crate::models::UpworkJobDetail::default(),
+                },
+                Platform::NoFluffJobs => Data::Nofluffjobs {
+                    detail: crate::models::NoFluffJobDetail::default(),
+                },
+            }
+        });
 
         Job {
             id: Some(r.id),

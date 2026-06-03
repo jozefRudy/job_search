@@ -4,6 +4,7 @@ use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager};
 use jobsearch::cli::{Cli, Commands, UpdatePlatform};
 use jobsearch::db::Db;
+use jobsearch::display;
 use jobsearch::models::{Data, JobStatus, Platform, Reaction};
 use jobsearch::platforms::{
     PlatformClient, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper,
@@ -118,8 +119,9 @@ async fn main() -> Result<()> {
             platform,
             status,
             limit,
+            detailed,
         } => {
-            cmd_list(&db, platform, status, limit, cli.json).await?;
+            cmd_list(&db, platform, status, limit, detailed, cli.json).await?;
         }
         Commands::Show { id } => {
             cmd_show(&db, id, cli.json).await?;
@@ -171,23 +173,23 @@ async fn cmd_list(
     platform: Option<Platform>,
     status: Option<JobStatus>,
     limit: i64,
+    detailed: bool,
     json: bool,
 ) -> Result<()> {
     let jobs = db.list_jobs(platform, status, limit).await?;
 
     if json {
         println!("{}", serde_json::to_string_pretty(&jobs)?);
-    } else {
+        return Ok(());
+    }
+
+    if detailed {
         for job in &jobs {
-            println!(
-                "[{}] {} | {} | {} | {}",
-                job.id.unwrap_or(0),
-                job.platform,
-                job.status.to_string().to_uppercase(),
-                job.title,
-                job.url
-            );
+            println!("{}", display::render_job_detailed(job));
         }
+        println!("\nTotal: {} jobs", jobs.len());
+    } else {
+        println!("{}", display::render_table(&jobs));
         println!("\nTotal: {} jobs", jobs.len());
     }
 
