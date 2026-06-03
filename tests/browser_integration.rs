@@ -1,5 +1,4 @@
 use jobsearch::browser::{BrowserExt, BrowserManager};
-use jobsearch::db::Db;
 use jobsearch::platforms::upwork::UpworkScraper;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -185,96 +184,120 @@ async fn test_upwork_load_more_adds_jobs() {
     .expect("test should complete within 60s");
 }
 
-// --- NoFluffJobs: API tests ---
+// --- NoFluffJobs: search page ---
 
 #[tokio::test]
-#[ignore = "requires network access to nofluffjobs.com"]
-async fn test_nofluffjobs_api_list_with_filters() {
-    let client = reqwest::Client::new();
+#[ignore = "requires Brave browser installed and nofluffjobs.com accessible"]
+async fn test_nofluffjobs_search_page_has_cards_and_details() {
+    let _guard = get_guard();
+    let manager = BrowserManager::new();
+
+    tokio::time::timeout(Duration::from_secs(45), async {
+        let browser = manager.ensure().await.expect("Brave should connect");
+        let scraper = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new();
+        let search_url = scraper.build_search_url("rust");
+        let page = browser
+            .new_tab(&search_url)
+            .await
+            .expect("open search page");
+
+        let ok = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::wait_for_jobs(&page)
+            .await
+            .expect("wait_for_jobs should not error");
+        assert!(ok, "jobs should appear on search page");
+
+        let jobs = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::scrape_page(&page)
+            .await
+            .expect("scrape_page should not error");
+        assert!(!jobs.is_empty(), "should find at least one job card");
+
+        let first = &jobs[0];
+        assert!(!first.external_id.is_empty(), "external_id required");
+        assert!(!first.title.is_empty(), "title required");
+        assert!(
+            first.url.starts_with("https://nofluffjobs.com/"),
+            "url must be on nofluffjobs.com: {}",
+            first.url
+        );
+        println!("found {} cards, first card:", jobs.len());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(first).expect("serialization should succeed")
+        );
+
+        let detail = scraper
+            .fetch_detail(&first.external_id)
+            .await
+            .expect("fetch_detail should succeed");
+
+        println!("detail struct:");
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&detail).expect("serialization should succeed")
+        );
+
+        page.close().await.ok();
+    })
+    .await
+    .expect("test should complete within 45s");
+}
+
+// --- NoFluffJobs: load more ---
+
+#[tokio::test]
+#[ignore = "requires Brave browser installed and nofluffjobs.com accessible"]
+async fn test_nofluffjobs_load_more_adds_jobs() {
+    let _guard = get_guard();
+    let manager = BrowserManager::new();
 
     tokio::time::timeout(Duration::from_secs(60), async {
-        // Test basic keyword filter works
-        let rust_count = fetch_page_count(&client, "keyword=rust").await;
-        println!("keyword=rust: {} jobs", rust_count);
-        assert!(rust_count > 100, "should find many rust jobs");
+        let browser = manager.ensure().await.expect("Brave should connect");
+        let scraper = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new();
+        let search_url = scraper.build_search_url("rust");
+        let page = browser
+            .new_tab(&search_url)
+            .await
+            .expect("open search page");
 
-        // Test other filters work (may or may not reduce count)
-        let b2b_count = fetch_page_count(&client, "keyword=rust employment=b2b").await;
-        println!("keyword=rust employment=b2b: {} jobs", b2b_count);
+        assert!(
+            jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::wait_for_jobs(&page)
+                .await
+                .expect("wait_for_jobs"),
+            "jobs should appear"
+        );
+        tokio::time::sleep(Duration::from_secs(2)).await;
 
-        let high_salary_count = fetch_page_count(&client, "keyword=rust salary>eur8000m").await;
-        println!("keyword=rust salary>eur8000m: {} jobs", high_salary_count);
+        let first_page = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::scrape_page(&page)
+            .await
+            .expect("scrape first page");
+        assert!(!first_page.is_empty(), "first page should have jobs");
+        let first_count = first_page.len();
+        println!("first page: {} jobs", first_count);
 
-        println!("\nAPI verification passed - all filters return results");
+        let more_loaded =
+            jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::click_load_more(&page, 2000)
+                .await;
+        if !more_loaded {
+            println!("No 'See more offers' button or no more jobs — skipping assertion");
+            page.close().await.ok();
+            return;
+        }
+
+        let second_page = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::scrape_page(&page)
+            .await
+            .expect("scrape second page");
+        let total = second_page.len();
+        println!("after load-more: {} jobs", total);
+
+        assert!(
+            total > first_count,
+            "after load-more, total should increase: {} vs {}",
+            total,
+            first_count
+        );
+
+        page.close().await.ok();
     })
     .await
     .expect("test should complete within 60s");
-}
-
-async fn fetch_page_count(client: &reqwest::Client, criteria: &str) -> usize {
-    let response = client
-        .get("https://nofluffjobs.com/api/joboffers/main")
-        .query(&[
-            ("criteria", criteria),
-            ("salaryCurrency", "EUR"),
-            ("salaryPeriod", "month"),
-            ("pageNumber", "0"),
-        ])
-        .send()
-        .await
-        .expect("API request should succeed");
-
-    let d: serde_json::Value = response.json().await.expect("parse JSON");
-    d["postings"].as_array().expect("postings array").len()
-}
-
-#[tokio::test]
-#[ignore = "requires network access to nofluffjobs.com"]
-async fn test_nofluffjobs_fetch_jobs_stops_on_existing() {
-    use jobsearch::platforms::nofluffjobs::NoFluffJobsScraper;
-
-    let tmp = tempfile::NamedTempFile::new().expect("temp db");
-    let db = Db::open(tmp.path()).await.expect("open db");
-
-    tokio::time::timeout(Duration::from_secs(90), async {
-        // Fetch with salary + employment filters
-        let scraper =
-            NoFluffJobsScraper::with_config(jobsearch::platforms::nofluffjobs::NoFluffJobsConfig {
-                path: "remote".to_string(),
-                min_salary_eur: Some(8000),
-                employment: Some("b2b".to_string()),
-                language: None,
-                salary_currency: "EUR".to_string(),
-            });
-        let jobs = scraper
-            .fetch_jobs_with_limit(&db, "rust", 100, Some(2))
-            .await
-            .expect("fetch jobs");
-        println!(
-            "fetched {} jobs with filters: salary>8000 EUR, b2b",
-            jobs.len()
-        );
-
-        // Verify all jobs match criteria
-        for job in &jobs {
-            // Check salary upper bound >= 8000 EUR
-            if let Some(budget) = &job.budget {
-                let parts: Vec<&str> = budget.split_whitespace().collect();
-                if let Some(upper_str) = parts.get(2) {
-                    let upper: f64 = upper_str.parse().unwrap_or(0.0);
-                    assert!(
-                        upper >= 8000.0,
-                        "salary upper bound should be >= 8000 EUR: {} for {}",
-                        budget,
-                        job.title
-                    );
-                }
-                println!("  {}: {}", job.title, budget);
-            }
-        }
-
-        println!("  total matching jobs: {}", jobs.len());
-    })
-    .await
-    .expect("test should complete within 90s");
 }

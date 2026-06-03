@@ -1,14 +1,24 @@
 use crate::browser::BrowserExt;
 use crate::db::Db;
-use crate::models::{Data, Job, JobStatus, NoFluffJobDetail, Platform, Reaction};
+use crate::models::{Data, Job, JobStatus, NoFluffJobDetail, Platform};
 use crate::platforms::PlatformClient;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
-use chrono::{TimeZone, Utc};
+
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+
+/// Card scraped from NoFluffJobs search page DOM.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NofluffJobCard {
+    pub external_id: String,
+    pub title: String,
+    pub url: String,
+    pub budget: Option<String>,
+    pub tags: Vec<String>,
+}
 
 pub struct NoFluffJobsScraper {
     config: NoFluffJobsConfig,
@@ -16,88 +26,6 @@ pub struct NoFluffJobsScraper {
 }
 
 const API_BASE: &str = "https://nofluffjobs.com/api";
-const LIST_ENDPOINT: &str = "/joboffers/main";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ApiPosting {
-    pub id: String,
-    pub name: String,
-    pub title: String,
-    pub url: String,
-    pub posted: i64,
-    pub renewed: Option<i64>,
-    pub seniority: Seniority,
-    pub technology: Option<Technology>,
-    #[serde(default)]
-    pub fully_remote: bool,
-    pub salary: Option<Salary>,
-    pub regions: Vec<String>,
-    #[serde(default)]
-    pub flavors: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Seniority {
-    Single(String),
-    Multiple(Vec<String>),
-}
-
-impl Seniority {
-    pub fn as_string(&self) -> String {
-        match self {
-            Seniority::Single(s) => s.clone(),
-            Seniority::Multiple(v) => v.join(", "),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Technology {
-    Single(String),
-    Multiple(Vec<String>),
-    None,
-}
-
-impl Technology {
-    pub fn as_vec(&self) -> Vec<String> {
-        match self {
-            Technology::Single(s) => vec![s.clone()],
-            Technology::Multiple(v) => v.clone(),
-            Technology::None => vec![],
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Salary {
-    pub from: f64,
-    pub to: f64,
-    #[serde(rename = "type")]
-    pub salary_type: String,
-    pub currency: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Region {
-    pub country: Country,
-    pub city: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Country {
-    pub code: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ListResponse {
-    pub postings: Vec<ApiPosting>,
-    #[serde(rename = "totalCount")]
-    pub total_count: i64,
-    #[serde(rename = "totalPages")]
-    pub total_pages: i64,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DetailResponse {
@@ -170,13 +98,11 @@ impl PlatformClient for NoFluffJobsScraper {
             bail!("NoFluffJobs requires open nofluffjobs.com tab in Brave");
         }
 
-        // Use API instead of browser scraping
-        self.fetch_jobs(db, query, pause_ms).await
+        self.fetch_jobs_via_browser(browser, db, query, pause_ms)
+            .await
     }
 
-    async fn react(&self, job: &Job, action: Reaction) -> Result<()> {
-        self.react_via_browser(job, action).await
-    }
+
 }
 
 impl NoFluffJobsScraper {
@@ -200,24 +126,168 @@ impl NoFluffJobsScraper {
         }
     }
 
-    /// Fetch single page of job postings from API (no DB dependency).
-    /// Testable without DB or network mocking.
-    pub async fn fetch_page(&self, query: &str, page: i64) -> Result<ListResponse> {
-        let criteria = self.build_criteria(query);
-        let response: ListResponse = self
-            .client
-            .get(format!("{}{}", API_BASE, LIST_ENDPOINT))
-            .query(&[
-                ("criteria", &criteria),
-                ("salaryCurrency", &self.config.salary_currency),
-                ("salaryPeriod", &"month".to_string()),
-                ("pageNumber", &page.to_string()),
-            ])
-            .send()
+    /// Scrape job cards from NoFluffJobs search page via browser.
+    /// The website respects filters (unlike the API), so this gives accurate results.
+    /// Clicks "See more offers" to load additional pages.
+    pub async fn fetch_jobs_via_browser(
+        &self,
+        browser: &Browser,
+        db: &Db,
+        query: &str,
+        pause_ms: u64,
+    ) -> Result<Vec<Job>> {
+        let search_url = self.build_search_url(query);
+        let page = browser.new_tab(&search_url).await?;
+
+        // Wait for job cards to appear
+        let mut found = false;
+        for _ in 0..30 {
+            if page.find_element("a.posting-list-item").await.is_ok() {
+                found = true;
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        }
+        if !found {
+            page.close().await.ok();
+            bail!("NoFluffJobs search page did not load job cards");
+        }
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+        let mut all_jobs = Vec::new();
+        let platform = Platform::NoFluffJobs;
+        let mut processed_ids: HashSet<String> = HashSet::new();
+
+        loop {
+            let cards: Vec<NofluffJobCard> = page
+                .evaluate(super::nofluffjobs_js::SCRAPE_CARDS)
+                .await?
+                .into_value()?;
+
+            let mut stopped = false;
+            let new_cards: Vec<_> = cards
+                .into_iter()
+                .filter(|c| processed_ids.insert(c.external_id.clone()))
+                .collect();
+
+            eprintln!("  Scraped {} new cards", new_cards.len());
+
+            for card in &new_cards {
+                if db.job_exists(&platform, &card.external_id).await? {
+                    eprintln!(
+                        "  Stopping: '{}' already in DB ({})",
+                        card.title, card.external_id
+                    );
+                    stopped = true;
+                    break;
+                }
+
+                tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
+
+                match self.fetch_detail(&card.external_id).await {
+                    Ok(detail) => {
+                        let job = Job {
+                            id: None,
+                            platform,
+                            external_id: card.external_id.clone(),
+                            title: card.title.clone(),
+                            description: None,
+                            url: card.url.clone(),
+                            posted_at: None,
+                            budget: card.budget.clone(),
+                            tags: card.tags.clone(),
+                            raw: Data::Nofluffjobs { detail },
+                            status: JobStatus::New,
+                            created_at: None,
+                            updated_at: None,
+                        };
+                        db.upsert_job(&job).await?;
+                        all_jobs.push(job);
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "    Warning: failed to fetch detail for {}: {}",
+                            card.external_id, e
+                        );
+                    }
+                }
+            }
+
+            if stopped {
+                break;
+            }
+
+            if !Self::click_load_more(&page, pause_ms).await {
+                break;
+            }
+        }
+
+        page.close().await.ok();
+        eprintln!("  Total new jobs: {}", all_jobs.len());
+        Ok(all_jobs)
+    }
+
+    /// Wait for job cards to appear on search page.
+    pub async fn wait_for_jobs(page: &chromiumoxide::Page) -> Result<bool> {
+        for _ in 0..30 {
+            let has_cards: bool = page
+                .evaluate("!!document.querySelector('a.posting-list-item')")
+                .await?
+                .into_value()?;
+            if has_cards {
+                return Ok(true);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        }
+        Ok(false)
+    }
+
+    /// Scrape job cards from current page.
+    pub async fn scrape_page(page: &chromiumoxide::Page) -> Result<Vec<NofluffJobCard>> {
+        let cards: Vec<NofluffJobCard> = page
+            .evaluate(super::nofluffjobs_js::SCRAPE_CARDS)
             .await?
-            .json()
-            .await?;
-        Ok(response)
+            .into_value()?;
+        Ok(cards)
+    }
+
+    /// Click "See more offers" button and wait for new cards. Returns true if more loaded.
+    pub async fn click_load_more(page: &chromiumoxide::Page, pause_ms: u64) -> bool {
+        let prev_count: i32 = page
+            .evaluate(super::nofluffjobs_js::COUNT_CARDS)
+            .await
+            .ok()
+            .and_then(|v| v.into_value().ok())
+            .unwrap_or(0);
+
+        // Single JS: check, scroll, click in one go. Returns true if button was found.
+        let clicked: bool = page
+            .evaluate(super::nofluffjobs_js::CLICK_LOAD_MORE)
+            .await
+            .ok()
+            .and_then(|v| v.into_value().ok())
+            .unwrap_or(false);
+
+        if !clicked {
+            return false;
+        }
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
+
+        for _ in 0..30 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            let count: i32 = page
+                .evaluate(super::nofluffjobs_js::COUNT_CARDS)
+                .await
+                .ok()
+                .and_then(|v| v.into_value().ok())
+                .unwrap_or(0);
+            if count > prev_count {
+                return true;
+            }
+        }
+        false
     }
 
     /// Fetch job detail from API (no DB dependency).
@@ -285,151 +355,6 @@ impl NoFluffJobsScraper {
             offer_valid_until: String::new(),
             languages,
         })
-    }
-
-    /// Fetch jobs and store in DB. Stops when finds already-existing job.
-    pub async fn fetch_jobs(&self, db: &Db, query: &str, pause_ms: u64) -> Result<Vec<Job>> {
-        self.fetch_jobs_with_limit(db, query, pause_ms, None).await
-    }
-
-    /// Check if posting matches config filters (client-side, since API ignores criteria).
-    fn matches_filters(&self, posting: &ApiPosting) -> bool {
-        if let Some(min) = self.config.min_salary_eur {
-            let upper = posting.salary.as_ref().map(|s| s.to).unwrap_or(0.0);
-            if (upper as u32) < min {
-                return false;
-            }
-        }
-        if let Some(ref emp) = self.config.employment {
-            let posting_type = posting.salary.as_ref().map(|s| &s.salary_type);
-            if posting_type != Some(emp) {
-                return false;
-            }
-        }
-        true
-    }
-
-    /// Fetch jobs with configurable page limit (useful for testing).
-    pub async fn fetch_jobs_with_limit(
-        &self,
-        db: &Db,
-        query: &str,
-        pause_ms: u64,
-        max_pages: Option<i64>,
-    ) -> Result<Vec<Job>> {
-        let mut all_jobs = Vec::new();
-        let platform = Platform::NoFluffJobs;
-        let mut page = 0;
-        let mut seen_this_run: HashSet<(String, String)> = HashSet::new();
-
-        loop {
-            if max_pages.is_some_and(|m| page >= m) {
-                break;
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
-
-            let response = self.fetch_page(query, page).await?;
-
-            eprintln!(
-                "  Page {}: {} jobs (total: {})",
-                page,
-                response.postings.len(),
-                response.total_count
-            );
-
-            let mut stopped = false;
-
-            for posting in &response.postings {
-                let dedup_key = (posting.name.clone(), posting.title.clone());
-                if !seen_this_run.insert(dedup_key) {
-                    continue;
-                }
-
-                if db.job_exists(&platform, &posting.id).await? {
-                    eprintln!(
-                        "  Stopping: '{}' already in DB ({})",
-                        posting.title, posting.id
-                    );
-                    stopped = true;
-                    continue;
-                }
-
-                if !self.matches_filters(posting) {
-                    continue;
-                }
-
-                match self.fetch_detail(&posting.id).await {
-                    Ok(detail) => {
-                        let posted_at = Utc.timestamp_millis_opt(posting.posted).single();
-                        let tags = posting
-                            .technology
-                            .as_ref()
-                            .map(|t| t.as_vec())
-                            .unwrap_or_default();
-                        let budget = posting
-                            .salary
-                            .as_ref()
-                            .map(|s| format!("{} - {} {}", s.from as i32, s.to as i32, s.currency));
-
-                        let job = Job {
-                            id: None,
-                            platform,
-                            external_id: posting.id.clone(),
-                            title: posting.title.clone(),
-                            description: None,
-                            url: format!("https://nofluffjobs.com/job/{}", posting.url),
-                            posted_at,
-                            budget,
-                            tags,
-                            raw: Data::Nofluffjobs { detail },
-                            status: JobStatus::New,
-                            created_at: None,
-                            updated_at: None,
-                        };
-
-                        db.upsert_job(&job).await?;
-                        all_jobs.push(job);
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "    Warning: failed to fetch detail for {}: {}",
-                            posting.id, e
-                        );
-                    }
-                }
-            }
-
-            if stopped {
-                break;
-            }
-
-            page += 1;
-            if page >= response.total_pages {
-                break;
-            }
-        }
-
-        eprintln!("  Total new jobs: {}", all_jobs.len());
-        Ok(all_jobs)
-    }
-
-    /// Open job detail page in browser for reacting
-    pub async fn react_via_browser(&self, job: &Job, action: Reaction) -> Result<()> {
-        match action {
-            Reaction::Save | Reaction::Apply => {
-                eprintln!(
-                    "Open this URL in browser and {}: {}",
-                    if action == Reaction::Save {
-                        "save"
-                    } else {
-                        "apply"
-                    },
-                    job.url
-                );
-                Ok(())
-            }
-            Reaction::Hide => Ok(()),
-        }
     }
 
     fn build_criteria(&self, query: &str) -> String {
@@ -558,18 +483,5 @@ mod tests {
             url,
             "https://nofluffjobs.com/pl/jobs?criteria=keyword%3Dsenior"
         );
-    }
-
-    #[test]
-    fn test_technology_as_vec() {
-        assert_eq!(
-            Technology::Single("Rust".to_string()).as_vec(),
-            vec!["Rust"]
-        );
-        assert_eq!(
-            Technology::Multiple(vec!["Rust".to_string(), "Python".to_string()]).as_vec(),
-            vec!["Rust", "Python"]
-        );
-        assert!(Technology::None.as_vec().is_empty());
     }
 }
