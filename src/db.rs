@@ -361,6 +361,7 @@ mod tests {
             requirements: "5+ years Rust".to_string(),
             offer_description: "Cool project".to_string(),
             offer_valid_until: "2026-12-31".to_string(),
+            languages: vec!["en".to_string()],
         };
         let job = Job {
             id: None,

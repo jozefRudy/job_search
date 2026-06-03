@@ -5,18 +5,151 @@ use crate::platforms::PlatformClient;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
+use chrono::{TimeZone, Utc};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
-/// Job card as scraped from the NoFluffJobs list page.
+pub struct NoFluffJobsScraper {
+    config: NoFluffJobsConfig,
+    client: Client,
+}
+
+const API_BASE: &str = "https://nofluffjobs.com/api";
+const LIST_ENDPOINT: &str = "/joboffers/main";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NoFluffJobCard {
-    pub external_id: String,
+pub struct ApiPosting {
+    pub id: String,
+    pub name: String,
     pub title: String,
     pub url: String,
-    pub budget: Option<String>,
-    pub posted_at_text: Option<String>,
+    pub posted: i64,
+    pub renewed: Option<i64>,
+    pub seniority: Seniority,
+    pub technology: Option<Technology>,
     #[serde(default)]
-    pub tags: Vec<String>,
+    pub fully_remote: bool,
+    pub salary: Option<Salary>,
+    pub regions: Vec<String>,
+    #[serde(default)]
+    pub flavors: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Seniority {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
+impl Seniority {
+    pub fn as_string(&self) -> String {
+        match self {
+            Seniority::Single(s) => s.clone(),
+            Seniority::Multiple(v) => v.join(", "),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Technology {
+    Single(String),
+    Multiple(Vec<String>),
+    None,
+}
+
+impl Technology {
+    pub fn as_vec(&self) -> Vec<String> {
+        match self {
+            Technology::Single(s) => vec![s.clone()],
+            Technology::Multiple(v) => v.clone(),
+            Technology::None => vec![],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Salary {
+    pub from: f64,
+    pub to: f64,
+    #[serde(rename = "type")]
+    pub salary_type: String,
+    pub currency: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Region {
+    pub country: Country,
+    pub city: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Country {
+    pub code: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListResponse {
+    pub postings: Vec<ApiPosting>,
+    #[serde(rename = "totalCount")]
+    pub total_count: i64,
+    #[serde(rename = "totalPages")]
+    pub total_pages: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DetailResponse {
+    #[serde(default)]
+    pub basics: Basics,
+    #[serde(default)]
+    pub requirements: Reqs,
+    #[serde(default)]
+    pub details: JobDetails,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Basics {
+    pub seniority: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct JobDetails {
+    #[serde(default)]
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Reqs {
+    #[serde(default)]
+    pub musts: Vec<ReqItem>,
+    #[serde(default)]
+    pub nices: Vec<ReqItem>,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub languages: Vec<Language>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Language {
+    #[serde(rename = "type")]
+    #[serde(default)]
+    pub type_field: String,
+    #[serde(default)]
+    pub code: String,
+    #[serde(default)]
+    pub level: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReqItem {
+    #[serde(default)]
+    pub value: String,
+    #[serde(rename = "type")]
+    #[serde(default)]
+    pub type_field: String,
 }
 
 #[async_trait]
@@ -37,306 +170,300 @@ impl PlatformClient for NoFluffJobsScraper {
             bail!("NoFluffJobs requires open nofluffjobs.com tab in Brave");
         }
 
-        let search_url = self.build_search_url(query);
-        let page = browser.new_tab(&search_url).await?;
+        // Use API instead of browser scraping
+        self.fetch_jobs(db, query, pause_ms).await
+    }
 
-        if !Self::wait_for_jobs(&page).await? {
-            bail!("NoFluffJobs job cards did not appear within 30s");
+    async fn react(&self, job: &Job, action: Reaction) -> Result<()> {
+        self.react_via_browser(job, action).await
+    }
+}
+
+impl NoFluffJobsScraper {
+    pub fn new() -> Self {
+        Self {
+            config: NoFluffJobsConfig::default(),
+            client: Client::builder()
+                .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
+                .build()
+                .unwrap_or_else(|_| Client::new()),
         }
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    }
 
-        let mut all_jobs: Vec<Job> = Vec::new();
+    pub fn with_config(config: NoFluffJobsConfig) -> Self {
+        Self {
+            config,
+            client: Client::builder()
+                .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
+                .build()
+                .unwrap_or_else(|_| Client::new()),
+        }
+    }
+
+    /// Fetch single page of job postings from API (no DB dependency).
+    /// Testable without DB or network mocking.
+    pub async fn fetch_page(&self, query: &str, page: i64) -> Result<ListResponse> {
+        let criteria = self.build_criteria(query);
+        let response: ListResponse = self
+            .client
+            .get(format!("{}{}", API_BASE, LIST_ENDPOINT))
+            .query(&[
+                ("criteria", &criteria),
+                ("salaryCurrency", &self.config.salary_currency),
+                ("salaryPeriod", &"month".to_string()),
+                ("pageNumber", &page.to_string()),
+            ])
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(response)
+    }
+
+    /// Fetch job detail from API (no DB dependency).
+    pub async fn fetch_detail(&self, job_id: &str) -> Result<NoFluffJobDetail> {
+        let detail: DetailResponse = self
+            .client
+            .get(format!("{}/posting/{}", API_BASE, job_id))
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        let seniority = detail
+            .basics
+            .seniority
+            .as_ref()
+            .and_then(|s| s.as_str().map(String::from))
+            .unwrap_or_default();
+
+        let must_have = detail
+            .requirements
+            .musts
+            .iter()
+            .filter_map(|m| {
+                if m.type_field == "main" {
+                    Some(m.value.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let requirements = detail.requirements.description.clone();
+
+        let offer_description = detail
+            .requirements
+            .nices
+            .iter()
+            .filter_map(|m| {
+                if m.type_field == "main" {
+                    Some(m.value.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let languages: Vec<String> = detail
+            .requirements
+            .languages
+            .iter()
+            .filter(|l| l.type_field == "MUST")
+            .map(|l| l.code.clone())
+            .collect();
+
+        Ok(NoFluffJobDetail {
+            company: String::new(),
+            seniority,
+            remote: String::new(),
+            locations: vec![],
+            must_have,
+            requirements,
+            offer_description,
+            offer_valid_until: String::new(),
+            languages,
+        })
+    }
+
+    /// Fetch jobs and store in DB. Stops when finds already-existing job.
+    pub async fn fetch_jobs(&self, db: &Db, query: &str, pause_ms: u64) -> Result<Vec<Job>> {
+        self.fetch_jobs_with_limit(db, query, pause_ms, 2).await
+    }
+
+    /// Check if posting matches config filters (client-side, since API ignores criteria).
+    fn matches_filters(&self, posting: &ApiPosting) -> bool {
+        if let Some(min) = self.config.min_salary_eur {
+            let upper = posting.salary.as_ref().map(|s| s.to).unwrap_or(0.0);
+            if (upper as u32) < min {
+                return false;
+            }
+        }
+        if let Some(ref emp) = self.config.employment {
+            let posting_type = posting.salary.as_ref().map(|s| &s.salary_type);
+            if posting_type != Some(emp) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Fetch jobs with configurable page limit (useful for testing).
+    pub async fn fetch_jobs_with_limit(
+        &self,
+        db: &Db,
+        query: &str,
+        pause_ms: u64,
+        max_pages: i64,
+    ) -> Result<Vec<Job>> {
+        let mut all_jobs = Vec::new();
         let platform = Platform::NoFluffJobs;
+        let mut page = 0;
+        let mut seen_this_run: HashSet<(String, String)> = HashSet::new();
 
         loop {
+            if page >= max_pages {
+                break;
+            }
             tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
 
-            let raw_jobs = Self::scrape_page(&page).await?;
+            let response = self.fetch_page(query, page).await?;
+
+            eprintln!(
+                "  Page {}: {} jobs (total: {})",
+                page,
+                response.postings.len(),
+                response.total_count
+            );
+
             let mut stopped = false;
 
-            for v in &raw_jobs {
-                if db.job_exists(&platform, &v.external_id).await? {
-                    eprintln!(
-                        "  Stopping: '{}' already in DB ({})",
-                        v.title, v.external_id
-                    );
-                    stopped = true;
-                    break;
+            for posting in &response.postings {
+                let dedup_key = (posting.name.clone(), posting.title.clone());
+                if !seen_this_run.insert(dedup_key) {
+                    continue;
                 }
 
-                let job_url = v.url.clone();
+                if db.job_exists(&platform, &posting.id).await? {
+                    eprintln!(
+                        "  Stopping: '{}' already in DB ({})",
+                        posting.title, posting.id
+                    );
+                    stopped = true;
+                    continue;
+                }
 
-                match self.fetch_job_detail(browser, &job_url).await {
+                if !self.matches_filters(posting) {
+                    continue;
+                }
+
+                match self.fetch_detail(&posting.id).await {
                     Ok(detail) => {
-                        let posted_at = v
-                            .posted_at_text
+                        let posted_at = Utc.timestamp_millis_opt(posting.posted).single();
+                        let tags = posting
+                            .technology
                             .as_ref()
-                            .and_then(|t| parse_nofluff_time(t));
+                            .map(|t| t.as_vec())
+                            .unwrap_or_default();
+                        let budget = posting
+                            .salary
+                            .as_ref()
+                            .map(|s| format!("{} - {} {}", s.from as i32, s.to as i32, s.currency));
+
                         let job = Job {
                             id: None,
                             platform,
-                            external_id: v.external_id.clone(),
-                            title: v.title.clone(),
+                            external_id: posting.id.clone(),
+                            title: posting.title.clone(),
                             description: None,
-                            url: v.url.clone(),
+                            url: format!("https://nofluffjobs.com/job/{}", posting.url),
                             posted_at,
-                            budget: v.budget.clone(),
-                            tags: v.tags.clone(),
+                            budget,
+                            tags,
                             raw: Data::Nofluffjobs { detail },
                             status: JobStatus::New,
                             created_at: None,
                             updated_at: None,
                         };
+
                         db.upsert_job(&job).await?;
                         all_jobs.push(job);
                     }
                     Err(e) => {
-                        eprintln!("    Warning: failed to fetch detail for {}: {}", v.title, e);
+                        eprintln!(
+                            "    Warning: failed to fetch detail for {}: {}",
+                            posting.id, e
+                        );
                     }
                 }
-                tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
             }
 
             if stopped {
                 break;
             }
 
-            eprintln!(
-                "  Page: +{} jobs (total: {})",
-                raw_jobs
-                    .iter()
-                    .filter(|v| !v.external_id.is_empty())
-                    .count(),
-                all_jobs.len()
-            );
-
-            if !Self::click_load_more(&page, pause_ms).await {
+            page += 1;
+            if page >= response.total_pages {
                 break;
             }
         }
 
-        page.close().await.ok();
+        eprintln!("  Total new jobs: {}", all_jobs.len());
         Ok(all_jobs)
     }
 
-    async fn react(&self, _job: &Job, _action: Reaction) -> Result<()> {
-        bail!("NoFluffJobs react not yet implemented")
+    /// Open job detail page in browser for reacting
+    pub async fn react_via_browser(&self, job: &Job, action: Reaction) -> Result<()> {
+        match action {
+            Reaction::Save | Reaction::Apply => {
+                eprintln!(
+                    "Open this URL in browser and {}: {}",
+                    if action == Reaction::Save {
+                        "save"
+                    } else {
+                        "apply"
+                    },
+                    job.url
+                );
+                Ok(())
+            }
+            Reaction::Hide => Ok(()),
+        }
+    }
+
+    fn build_criteria(&self, query: &str) -> String {
+        let mut parts: Vec<String> = Vec::new();
+
+        if let Some(emp) = &self.config.employment {
+            parts.push(format!("employment={}", emp));
+        }
+        if let Some(salary) = self.config.min_salary_eur {
+            parts.push(format!("salary>eur{}m", salary));
+        }
+        if let Some(lang) = &self.config.language {
+            parts.push(format!("jobLanguage={}", lang));
+        }
+        if !query.is_empty() {
+            parts.push(format!("keyword={}", query));
+        }
+
+        parts.join(" ")
+    }
+
+    pub fn build_search_url(&self, query: &str) -> String {
+        let criteria = self.build_criteria(query);
+        format!(
+            "https://nofluffjobs.com/{}?criteria={}",
+            self.config.path,
+            urlencoding::encode(&criteria)
+        )
     }
 }
 
-impl NoFluffJobsScraper {
-    /// Wait for job cards to appear. Returns true if found.
-    pub async fn wait_for_jobs(page: &chromiumoxide::Page) -> Result<bool> {
-        for _ in 0..60 {
-            if page.find_element("a.posting-list-item").await.is_ok() {
-                return Ok(true);
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        }
-        Ok(false)
-    }
-
-    /// Scrape job cards from current page.
-    pub async fn scrape_page(page: &chromiumoxide::Page) -> Result<Vec<NoFluffJobCard>> {
-        let cards: Vec<NoFluffJobCard> = page
-            .evaluate(
-                r#"
-                Array.from(document.querySelectorAll("a.posting-list-item")).map(el => {
-                    const titleEl = el.querySelector('h3');
-                    const tagsEls = el.querySelectorAll('.posting-tag');
-                    const salaryEl = el.querySelector('[class*="salary"]');
-                    const timeEl = el.querySelector('time');
-                    const url = el.href;
-                    const idMatch = url?.match(/\/job\/([^\/?#]+)/);
-                    const id = idMatch ? idMatch[1] : '';
-                    return {
-                        external_id: id,
-                        title: titleEl?.textContent?.trim() || "",
-                        url: url || "",
-                        budget: salaryEl?.textContent?.trim() || null,
-                        posted_at_text: timeEl?.textContent?.trim() || null,
-                        tags: Array.from(tagsEls).map(s => s.textContent.trim()).filter(Boolean)
-                    };
-                })
-                "#,
-            )
-            .await?
-            .into_value()?;
-        Ok(cards)
-    }
-
-    /// Click "Load More" button and wait for new jobs. Returns true if more jobs loaded.
-    pub async fn click_load_more(page: &chromiumoxide::Page, pause_ms: u64) -> bool {
-        let has_more: Option<String> = page
-            .evaluate(
-                r#"
-                (() => {
-                    const btn = Array.from(document.querySelectorAll('button, [role="button"], a'))
-                        .find(el => /load\s*more|show\s*more|view\s*more|see\s*more/i.test(el.textContent || ''));
-                    if (btn && !btn.disabled && btn.offsetParent !== null) {
-                        btn.scrollIntoView({ block: 'center' });
-                        return 'click';
-                    }
-                    return 'none';
-                })()
-                "#,
-            )
-            .await
-            .ok()
-            .and_then(|v| v.into_value().ok());
-
-        if has_more.as_deref() != Some("click") {
-            return false;
-        }
-
-        let prev_count: i32 = page
-            .evaluate(r#"document.querySelectorAll("a.posting-list-item").length"#)
-            .await
-            .ok()
-            .and_then(|v| v.into_value().ok())
-            .unwrap_or(0);
-
-        let _ = page
-            .evaluate(
-                r#"
-                (() => {
-                    const btn = Array.from(document.querySelectorAll('button, [role="button"], a'))
-                        .find(el => /load\s*more|show\s*more|view\s*more|see\s*more/i.test(el.textContent || ''));
-                    if (btn) btn.click();
-                })()
-                "#,
-            )
-            .await;
-
-        tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
-
-        for _ in 0..3 {
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            let count: i32 = page
-                .evaluate(r#"document.querySelectorAll("a.posting-list-item").length"#)
-                .await
-                .ok()
-                .and_then(|v| v.into_value().ok())
-                .unwrap_or(0);
-            if count > prev_count {
-                return true;
-            }
-        }
-        false
-    }
-
-    pub async fn fetch_job_detail(
-        &self,
-        browser: &Browser,
-        job_url: &str,
-    ) -> Result<NoFluffJobDetail> {
-        let page = browser.new_tab(job_url).await?;
-
-        let mut found = false;
-        for _ in 0..3 {
-            if page.find_element("h1").await.is_ok()
-                || page.find_element("[data-test='job-title']").await.is_ok()
-            {
-                found = true;
-                break;
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        }
-        if !found {
-            page.close().await.ok();
-            bail!("NoFluffJobs detail page did not load");
-        }
-
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-        let detail: NoFluffJobDetail = page
-            .evaluate(
-                r#"
-                (() => {
-                    const text = document.body.innerText;
-
-                    let company = '';
-                    const h1 = document.querySelector('h1');
-                    if (h1) {
-                        const next = h1.parentElement?.querySelector('a, h2, div');
-                        if (next) company = next.textContent.trim();
-                    }
-                    if (!company) {
-                        const lines = text.split('\n').map(s => s.trim()).filter(Boolean);
-                        if (lines.length > 1) company = lines[1];
-                    }
-
-                    let seniority = '';
-                    const seniorityMatch = text.match(/\b(Senior|Mid|Junior|Expert|Lead|Principal)\b/i);
-                    if (seniorityMatch) seniority = seniorityMatch[1];
-
-                    let remote = '';
-                    if (text.includes('Fully remote')) remote = 'Fully remote';
-                    else if (text.includes('Remote')) remote = 'Remote';
-                    else if (text.includes('Hybrid')) remote = 'Hybrid';
-                    else if (text.includes('On-site')) remote = 'On-site';
-
-                    let locations = [];
-                    const locMatch = text.match(/Locations?:[\s\S]*?(?=\n\s*\n|Show on map|Offer valid|$)/i);
-                    if (locMatch) {
-                        const locText = locMatch[0].replace(/Locations?:/, '').replace(/Show on map/, '');
-                        locations = locText.split(/,|\n/)
-                            .map(s => s.trim())
-                            .filter(s => s && s.length > 2 && s !== 'Remote');
-                    }
-
-                    let must_have = [];
-                    const mustMatch = text.match(/Must have[\s\S]*?(?=Requirements description|Nice to have|Offer description|$)/i);
-                    if (mustMatch) {
-                        const lines = mustMatch[0].replace('Must have', '').trim().split('\n');
-                        for (const line of lines) {
-                            const trimmed = line.trim();
-                            if (trimmed && trimmed.length > 1 && trimmed.length < 50 && !trimmed.includes(':')) {
-                                must_have.push(trimmed);
-                            }
-                        }
-                    }
-
-                    let requirements = '';
-                    const reqMatch = text.match(/Requirements description[\s\S]*?(?=Offer description|Job details|$)/i);
-                    if (reqMatch) requirements = reqMatch[0].replace('Requirements description', '').trim();
-
-                    let offer_description = '';
-                    const offerMatch = text.match(/Offer description[\s\S]*?(?=Job details|$)/i);
-                    if (offerMatch) offer_description = offerMatch[0].replace('Offer description', '').trim();
-
-                    let offer_valid_until = '';
-                    const validMatch = text.match(/Offer valid until[:\s]*([^\n(]+)/i);
-                    if (validMatch) offer_valid_until = validMatch[1].trim();
-
-                    return { company, seniority, remote, locations, must_have, requirements, offer_description, offer_valid_until };
-                })()
-                "#,
-            )
-            .await?
-            .into_value()?;
-
-        page.close().await.ok();
-        Ok(detail)
-    }
-}
-
-fn parse_nofluff_time(text: &str) -> Option<chrono::DateTime<chrono::Utc>> {
-    let now = chrono::Utc::now();
-    let text = text.to_lowercase();
-    let parts: Vec<&str> = text.split_whitespace().collect();
-    if parts.len() < 2 {
-        return None;
-    }
-    let n: i64 = parts[0].parse().ok()?;
-    match parts[1] {
-        "minute" | "minutes" => Some(now - chrono::Duration::minutes(n)),
-        "hour" | "hours" => Some(now - chrono::Duration::hours(n)),
-        "day" | "days" => Some(now - chrono::Duration::days(n)),
-        "week" | "weeks" => Some(now - chrono::Duration::days(n * 7)),
-        "month" | "months" => Some(now - chrono::Duration::days(n * 30)),
-        "yesterday" => Some(now - chrono::Duration::days(1)),
-        _ => None,
+impl Default for NoFluffJobsScraper {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -346,6 +473,7 @@ pub struct NoFluffJobsConfig {
     pub min_salary_eur: Option<u32>,
     pub employment: Option<String>,
     pub language: Option<String>,
+    pub salary_currency: String,
 }
 
 impl Default for NoFluffJobsConfig {
@@ -355,51 +483,8 @@ impl Default for NoFluffJobsConfig {
             min_salary_eur: None,
             employment: None,
             language: None,
+            salary_currency: "EUR".to_string(),
         }
-    }
-}
-
-pub struct NoFluffJobsScraper {
-    config: NoFluffJobsConfig,
-}
-
-impl Default for NoFluffJobsScraper {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl NoFluffJobsScraper {
-    pub fn new() -> Self {
-        Self {
-            config: NoFluffJobsConfig::default(),
-        }
-    }
-
-    pub fn with_config(config: NoFluffJobsConfig) -> Self {
-        Self { config }
-    }
-
-    pub fn build_search_url(&self, query: &str) -> String {
-        let mut criteria: Vec<String> = Vec::new();
-        if let Some(emp) = &self.config.employment {
-            criteria.push(format!("employment={}", emp));
-        }
-        if let Some(salary) = self.config.min_salary_eur {
-            criteria.push(format!("salary>eur{}m", salary));
-        }
-        if let Some(lang) = &self.config.language {
-            criteria.push(format!("jobLanguage={}", lang));
-        }
-        if !query.is_empty() {
-            criteria.push(format!("keyword={}", query));
-        }
-        let criteria_str = criteria.join(" ");
-        format!(
-            "https://nofluffjobs.com/{}?criteria={}",
-            self.config.path,
-            urlencoding::encode(&criteria_str)
-        )
     }
 }
 
@@ -431,6 +516,7 @@ mod tests {
             min_salary_eur: Some(8000),
             employment: Some("b2b".to_string()),
             language: Some("en".to_string()),
+            salary_currency: "EUR".to_string(),
         };
         let scraper = NoFluffJobsScraper::with_config(config);
         let url = scraper.build_search_url("rust");
@@ -447,6 +533,7 @@ mod tests {
             min_salary_eur: Some(8000),
             employment: Some("b2b".to_string()),
             language: Some("en".to_string()),
+            salary_currency: "EUR".to_string(),
         };
         let scraper = NoFluffJobsScraper::with_config(config);
         let url = scraper.build_search_url("");
@@ -463,6 +550,7 @@ mod tests {
             min_salary_eur: None,
             employment: None,
             language: None,
+            salary_currency: "EUR".to_string(),
         };
         let scraper = NoFluffJobsScraper::with_config(config);
         let url = scraper.build_search_url("senior");
@@ -470,5 +558,18 @@ mod tests {
             url,
             "https://nofluffjobs.com/pl/jobs?criteria=keyword%3Dsenior"
         );
+    }
+
+    #[test]
+    fn test_technology_as_vec() {
+        assert_eq!(
+            Technology::Single("Rust".to_string()).as_vec(),
+            vec!["Rust"]
+        );
+        assert_eq!(
+            Technology::Multiple(vec!["Rust".to_string(), "Python".to_string()]).as_vec(),
+            vec!["Rust", "Python"]
+        );
+        assert!(Technology::None.as_vec().is_empty());
     }
 }

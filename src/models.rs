@@ -60,6 +60,8 @@ pub struct NoFluffJobDetail {
     pub offer_description: String,
     #[serde(default)]
     pub offer_valid_until: String,
+    #[serde(default)]
+    pub languages: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ValueEnum)]

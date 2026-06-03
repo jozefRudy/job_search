@@ -84,6 +84,7 @@ async fn main() -> Result<()> {
                     min_salary_eur: args.min_salary,
                     employment: args.employment,
                     language: args.lang,
+                    salary_currency: "EUR".to_string(),
                 };
                 let scraper = NoFluffJobsScraper::with_config(config);
                 fetch_and_store(
@@ -101,6 +102,7 @@ async fn main() -> Result<()> {
                     min_salary_eur: args.nofluff_min_salary,
                     employment: args.nofluff_employment,
                     language: args.nofluff_lang,
+                    salary_currency: "EUR".to_string(),
                 };
                 let clients: Vec<Box<dyn PlatformClient>> = vec![
                     Box::new(NoFluffJobsScraper::with_config(nf_config)),
@@ -333,9 +335,9 @@ async fn cmd_detail(db: &Db, browser: &BrowserManager, id: i64, force: bool) -> 
 
             let detail = if should_fetch {
                 eprintln!("Fetching fresh detail...");
-                let b = browser.ensure().await?;
                 let scraper = NoFluffJobsScraper::new();
-                let d = scraper.fetch_job_detail(&b, &job.url).await?;
+                let job_id = job.external_id.clone();
+                let d = scraper.fetch_detail(&job_id).await?;
 
                 let raw = Data::Nofluffjobs { detail: d.clone() };
                 db.update_raw(id, &raw).await?;
