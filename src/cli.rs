@@ -40,7 +40,7 @@ pub enum Commands {
         limit: i64,
 
         /// Show platform-specific details below each row
-        #[arg(short, long)]
+        #[arg(long)]
         detailed: bool,
     },
 
