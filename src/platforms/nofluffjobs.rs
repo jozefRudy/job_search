@@ -1,10 +1,23 @@
 use crate::browser::BrowserExt;
 use crate::db::Db;
-use crate::models::{Data, Job, JobStatus, NoFluffJobCard, NoFluffJobDetail, Platform, Reaction};
+use crate::models::{Data, Job, JobStatus, NoFluffJobDetail, Platform, Reaction};
 use crate::platforms::PlatformClient;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
+use serde::{Deserialize, Serialize};
+
+/// Job card as scraped from the NoFluffJobs list page.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NoFluffJobCard {
+    pub external_id: String,
+    pub title: String,
+    pub url: String,
+    pub budget: Option<String>,
+    pub posted_at_text: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
 
 #[async_trait]
 impl PlatformClient for NoFluffJobsScraper {

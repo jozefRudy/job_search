@@ -12,19 +12,6 @@ pub enum Data {
     Nofluffjobs { detail: NoFluffJobDetail },
 }
 
-/// Job card as scraped from the Upwork list page.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpworkJobCard {
-    pub external_id: String,
-    pub title: String,
-    pub description: Option<String>,
-    pub url: String,
-    pub budget: Option<String>,
-    pub posted_at_text: Option<String>,
-    #[serde(default)]
-    pub tags: Vec<String>,
-}
-
 /// Full detail scraped from an individual Upwork job page.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpworkJobDetail {
@@ -52,18 +39,6 @@ pub struct UpworkJobDetail {
     pub duration: String,
     #[serde(default)]
     pub hours_per_week: String,
-}
-
-/// Job card as scraped from the NoFluffJobs list page.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NoFluffJobCard {
-    pub external_id: String,
-    pub title: String,
-    pub url: String,
-    pub budget: Option<String>,
-    pub posted_at_text: Option<String>,
-    #[serde(default)]
-    pub tags: Vec<String>,
 }
 
 /// Full detail scraped from an individual NoFluffJobs job page.

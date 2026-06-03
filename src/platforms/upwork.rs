@@ -1,11 +1,25 @@
 use crate::browser::BrowserExt;
 use crate::db::Db;
-use crate::models::{Data, Job, JobStatus, Platform, Reaction, UpworkJobCard, UpworkJobDetail};
+use crate::models::{Data, Job, JobStatus, Platform, Reaction, UpworkJobDetail};
 use crate::platforms::PlatformClient;
 use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
 use clap::ValueEnum;
+use serde::{Deserialize, Serialize};
+
+/// Job card as scraped from the Upwork list page.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpworkJobCard {
+    pub external_id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub url: String,
+    pub budget: Option<String>,
+    pub posted_at_text: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct UpworkSearchParams {
