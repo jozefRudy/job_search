@@ -1,6 +1,6 @@
 use crate::browser::BrowserExt;
 use crate::db::Db;
-use crate::models::{Data, Job, JobStatus, Platform, Reaction, UpworkJobDetail};
+use crate::models::{Data, Job, Platform, Reaction, UpworkJobDetail};
 use crate::platforms::PlatformClient;
 use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
@@ -480,7 +480,7 @@ impl PlatformClient for UpworkScraper {
                             budget: v.budget.clone(),
                             tags: v.tags.clone(),
                             raw: Data::Upwork { detail },
-                            status: JobStatus::New,
+
                             created_at: None,
                             updated_at: None,
                         };

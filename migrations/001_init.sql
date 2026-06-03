@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS jobs (
     budget TEXT,
     tags TEXT NOT NULL,
     raw TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'new',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     UNIQUE(platform, external_id)
@@ -24,5 +23,4 @@ CREATE TABLE IF NOT EXISTS reactions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_platform ON jobs(platform);
-CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_external ON jobs(platform, external_id);

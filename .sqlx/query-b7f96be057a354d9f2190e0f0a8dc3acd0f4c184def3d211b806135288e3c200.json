@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT id, platform, external_id, title, description, url, posted_at, budget, tags, raw, status, created_at, updated_at\n            FROM jobs WHERE id = ?1\n            ",
+  "query": "\n            SELECT id, platform, external_id, title, description, url, posted_at, budget, tags, raw, created_at, updated_at\n            FROM jobs\n            WHERE (?1 IS NULL OR platform = ?1)\n            ORDER BY posted_at DESC LIMIT ?2\n            ",
   "describe": {
     "columns": [
       {
@@ -54,23 +54,18 @@
         "type_info": "Text"
       },
       {
-        "name": "status",
-        "ordinal": 10,
-        "type_info": "Text"
-      },
-      {
         "name": "created_at",
-        "ordinal": 11,
+        "ordinal": 10,
         "type_info": "Datetime"
       },
       {
         "name": "updated_at",
-        "ordinal": 12,
+        "ordinal": 11,
         "type_info": "Datetime"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       false,
@@ -84,9 +79,8 @@
       false,
       false,
       false,
-      false,
       false
     ]
   },
-  "hash": "9d6d8ac16dd850267b3b19cdf869b43f3b7d1dd65a705a12d13f8d7a38b07a0f"
+  "hash": "b7f96be057a354d9f2190e0f0a8dc3acd0f4c184def3d211b806135288e3c200"
 }

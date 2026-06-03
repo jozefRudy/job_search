@@ -5,31 +5,20 @@ pub const SCRAPE_CARDS: &str = r#"
     const cards = Array.from(document.querySelectorAll('a.posting-list-item'));
     return cards.map(el => {
         const titleEl = el.querySelector('h3');
-        const title = titleEl?.textContent?.trim() || '';
+        let title = titleEl?.textContent?.trim() || '';
+        // Strip trailing NEW badge that Angular hydrates inside h3
+        title = title.replace(/\s+NEW$/, '').trim();
+
         const href = el.href || '';
         const slug = href.split('/').pop() || '';
 
-        const allText = el.innerText.split('\n').map(t => t.trim()).filter(Boolean);
+        // Salary from dedicated data-cy element
+        const salaryEl = el.querySelector('[data-cy="salary ranges on the job offer listing"]');
+        const budget = salaryEl?.textContent?.trim() || null;
 
-        // Find salary line
-        let budget = null;
-        for (const text of allText) {
-            if (/\d+[\s\u00a0]*\d*\s*[–-]\s*\d+[\s\u00a0]*\d*\s*(PLN|EUR|USD)/.test(text)) {
-                budget = text;
-                break;
-            }
-        }
-
-        // Tags: lines between title and salary, excluding "Save this job offer"
-        const tags = [];
-        let started = false;
-        for (const text of allText) {
-            if (text === title) { started = true; continue; }
-            if (text === budget) break;
-            if (started && text && text !== 'Save this job offer' && !tags.includes(text)) {
-                tags.push(text);
-            }
-        }
+        // Tags from dedicated category spans
+        const tagEls = el.querySelectorAll('[data-cy="category name on the job offer listing"]');
+        const tags = Array.from(tagEls).map(t => t.textContent.trim()).filter(Boolean);
 
         return {
             external_id: slug,

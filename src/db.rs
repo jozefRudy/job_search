@@ -1,4 +1,4 @@
-use crate::models::{Data, Job, JobStatus, Platform, Reaction};
+use crate::models::{Data, Job, Platform, Reaction};
 use anyhow::Result;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use std::str::FromStr;
@@ -22,12 +22,11 @@ impl Db {
         let tags = serde_json::to_string(&job.tags)?;
         let raw = serde_json::to_string(&job.raw)?;
         let platform = job.platform.to_string();
-        let status = job.status.to_string();
 
         let id = sqlx::query_scalar!(
             r#"
-            INSERT INTO jobs (platform, external_id, title, description, url, posted_at, budget, tags, raw, status)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            INSERT INTO jobs (platform, external_id, title, description, url, posted_at, budget, tags, raw)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
             ON CONFLICT(platform, external_id) DO UPDATE SET
                 title = excluded.title,
                 description = excluded.description,
@@ -48,7 +47,6 @@ impl Db {
             job.budget,
             tags,
             raw,
-            status,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -56,25 +54,18 @@ impl Db {
         Ok(id)
     }
 
-    pub async fn list_jobs(
-        &self,
-        platform: Option<Platform>,
-        status: Option<JobStatus>,
-        limit: i64,
-    ) -> Result<Vec<Job>> {
+    pub async fn list_jobs(&self, platform: Option<Platform>, limit: i64) -> Result<Vec<Job>> {
         let platform = platform.map(|p| p.to_string());
-        let status = status.map(|s| s.to_string());
 
         let rows = sqlx::query_as!(
             JobRow,
             r#"
-            SELECT id, platform, external_id, title, description, url, posted_at, budget, tags, raw, status, created_at, updated_at
+            SELECT id, platform, external_id, title, description, url, posted_at, budget, tags, raw, created_at, updated_at
             FROM jobs
-            WHERE (?1 IS NULL OR platform = ?1) AND (?2 IS NULL OR status = ?2)
-            ORDER BY posted_at DESC LIMIT ?3
+            WHERE (?1 IS NULL OR platform = ?1)
+            ORDER BY posted_at DESC LIMIT ?2
             "#,
             platform,
-            status,
             limit
         )
         .fetch_all(&self.pool)
@@ -87,7 +78,7 @@ impl Db {
         let row = sqlx::query_as!(
             JobRow,
             r#"
-            SELECT id, platform, external_id, title, description, url, posted_at, budget, tags, raw, status, created_at, updated_at
+            SELECT id, platform, external_id, title, description, url, posted_at, budget, tags, raw, created_at, updated_at
             FROM jobs WHERE id = ?1
             "#,
             id
@@ -96,18 +87,6 @@ impl Db {
         .await?;
 
         Ok(row.map(|r| r.into()))
-    }
-
-    pub async fn update_status(&self, id: i64, status: JobStatus) -> Result<()> {
-        let status = status.to_string();
-        sqlx::query!(
-            "UPDATE jobs SET status = ?1, updated_at = CURRENT_TIMESTAMP WHERE id = ?2",
-            status,
-            id
-        )
-        .execute(&self.pool)
-        .await?;
-        Ok(())
     }
 
     pub async fn add_reaction(
@@ -158,15 +137,6 @@ impl Db {
             .fetch_one(&self.pool)
             .await?;
 
-        let by_status_rows =
-            sqlx::query!("SELECT status, COUNT(*) as count FROM jobs GROUP BY status")
-                .fetch_all(&self.pool)
-                .await?;
-        let by_status: Vec<(String, i64)> = by_status_rows
-            .into_iter()
-            .map(|r| (r.status, r.count))
-            .collect();
-
         let by_platform_rows =
             sqlx::query!("SELECT platform, COUNT(*) as count FROM jobs GROUP BY platform")
                 .fetch_all(&self.pool)
@@ -176,16 +146,7 @@ impl Db {
             .map(|r| (r.platform, r.count))
             .collect();
 
-        let new_count = sqlx::query_scalar!("SELECT COUNT(*) FROM jobs WHERE status = 'new'")
-            .fetch_one(&self.pool)
-            .await?;
-
-        Ok(Stats {
-            total,
-            new_count,
-            by_status,
-            by_platform,
-        })
+        Ok(Stats { total, by_platform })
     }
 }
 
@@ -201,7 +162,6 @@ struct JobRow {
     budget: Option<String>,
     tags: String,
     raw: String,
-    status: String,
     created_at: chrono::NaiveDateTime,
     updated_at: chrono::NaiveDateTime,
 }
@@ -238,14 +198,6 @@ impl From<JobRow> for Job {
             budget: r.budget,
             tags: serde_json::from_str(&r.tags).unwrap_or_default(),
             raw,
-            status: match r.status.as_str() {
-                "viewed" => JobStatus::Viewed,
-                "saved" => JobStatus::Saved,
-                "applied" => JobStatus::Applied,
-                "rejected" => JobStatus::Rejected,
-                "hidden" => JobStatus::Hidden,
-                _ => JobStatus::New,
-            },
             created_at: Some(r.created_at.and_utc()),
             updated_at: Some(r.updated_at.and_utc()),
         }
@@ -255,21 +207,19 @@ impl From<JobRow> for Job {
 #[derive(Debug, serde::Serialize)]
 pub struct Stats {
     pub total: i64,
-    pub new_count: i64,
-    pub by_status: Vec<(String, i64)>,
     pub by_platform: Vec<(String, i64)>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Job, JobStatus, NoFluffJobDetail, Platform, UpworkJobDetail};
+    use crate::models::{Job, NoFluffJobDetail, Platform, UpworkJobDetail};
 
     fn temp_db() -> tempfile::NamedTempFile {
         tempfile::NamedTempFile::new().expect("temp db")
     }
 
-    fn test_job(platform: Platform, external_id: &str, title: &str, status: JobStatus) -> Job {
+    fn test_job(platform: Platform, external_id: &str, title: &str) -> Job {
         let raw = match platform {
             Platform::Upwork => Data::Upwork {
                 detail: UpworkJobDetail::default(),
@@ -289,7 +239,6 @@ mod tests {
             budget: None,
             tags: vec![],
             raw,
-            status,
             created_at: None,
             updated_at: None,
         }
@@ -300,11 +249,11 @@ mod tests {
         let tmp = temp_db();
         let db = Db::open(tmp.path()).await?;
 
-        let job = test_job(Platform::Upwork, "abc123", "Rust Dev", JobStatus::New);
+        let job = test_job(Platform::Upwork, "abc123", "Rust Dev");
         let id = db.upsert_job(&job).await?;
         assert!(id > 0);
 
-        let jobs = db.list_jobs(None, None, 10).await?;
+        let jobs = db.list_jobs(None, 10).await?;
         assert_eq!(jobs.len(), 1);
         assert_eq!(jobs[0].title, "Rust Dev");
         Ok(())
@@ -342,7 +291,6 @@ mod tests {
             raw: Data::Upwork {
                 detail: detail.clone(),
             },
-            status: JobStatus::New,
             created_at: None,
             updated_at: None,
         };
@@ -388,7 +336,6 @@ mod tests {
             raw: Data::Nofluffjobs {
                 detail: detail.clone(),
             },
-            status: JobStatus::New,
             created_at: None,
             updated_at: None,
         };
@@ -407,34 +354,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_update_status() -> Result<()> {
-        let tmp = temp_db();
-        let db = Db::open(tmp.path()).await?;
-
-        let job = test_job(Platform::NoFluffJobs, "nf1", "Backend", JobStatus::New);
-        let id = db.upsert_job(&job).await?;
-
-        db.update_status(id, JobStatus::Saved).await?;
-        let found = db.get_job(id).await?.expect("job exists");
-        assert_eq!(found.status, JobStatus::Saved);
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn test_stats() -> Result<()> {
         let tmp = temp_db();
         let db = Db::open(tmp.path()).await?;
 
-        db.upsert_job(&test_job(Platform::Upwork, "u1", "A", JobStatus::New))
+        db.upsert_job(&test_job(Platform::Upwork, "u1", "A"))
             .await?;
-        db.upsert_job(&test_job(Platform::Upwork, "u2", "B", JobStatus::Saved))
+        db.upsert_job(&test_job(Platform::Upwork, "u2", "B"))
             .await?;
-        db.upsert_job(&test_job(Platform::NoFluffJobs, "n1", "C", JobStatus::New))
+        db.upsert_job(&test_job(Platform::NoFluffJobs, "n1", "C"))
             .await?;
 
         let stats = db.stats().await?;
         assert_eq!(stats.total, 3);
-        assert_eq!(stats.new_count, 2);
         Ok(())
     }
 }

@@ -1,4 +1,4 @@
-use crate::models::{JobStatus, Platform, Reaction};
+use crate::models::{Platform, Reaction};
 use crate::platforms::upwork::UpworkTier;
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
@@ -32,9 +32,6 @@ pub enum Commands {
     List {
         #[arg(short, long)]
         platform: Option<Platform>,
-
-        #[arg(short, long)]
-        status: Option<JobStatus>,
 
         #[arg(short, long, default_value = "50")]
         limit: i64,

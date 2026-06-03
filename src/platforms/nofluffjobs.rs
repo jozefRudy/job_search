@@ -1,6 +1,6 @@
 use crate::browser::BrowserExt;
 use crate::db::Db;
-use crate::models::{Data, Job, JobStatus, NoFluffJobDetail, Platform};
+use crate::models::{Data, Job, NoFluffJobDetail, Platform};
 use crate::platforms::PlatformClient;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
@@ -207,7 +207,7 @@ impl NoFluffJobsScraper {
                             budget: card.budget.clone(),
                             tags: card.tags.clone(),
                             raw: Data::Nofluffjobs { detail },
-                            status: JobStatus::New,
+
                             created_at: None,
                             updated_at: None,
                         };

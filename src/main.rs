@@ -5,7 +5,7 @@ use jobsearch::browser::{BrowserExt, BrowserManager};
 use jobsearch::cli::{Cli, Commands, UpdatePlatform};
 use jobsearch::db::Db;
 use jobsearch::display;
-use jobsearch::models::{Data, JobStatus, Platform, Reaction};
+use jobsearch::models::{Data, Platform, Reaction};
 use jobsearch::platforms::{
     PlatformClient, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper,
 };
@@ -117,11 +117,10 @@ async fn main() -> Result<()> {
         },
         Commands::List {
             platform,
-            status,
             limit,
             detailed,
         } => {
-            cmd_list(&db, platform, status, limit, detailed, cli.json).await?;
+            cmd_list(&db, platform, limit, detailed, cli.json).await?;
         }
         Commands::Show { id } => {
             cmd_show(&db, id, cli.json).await?;
@@ -171,12 +170,11 @@ async fn fetch_and_store(
 async fn cmd_list(
     db: &Db,
     platform: Option<Platform>,
-    status: Option<JobStatus>,
     limit: i64,
     detailed: bool,
     json: bool,
 ) -> Result<()> {
-    let jobs = db.list_jobs(platform, status, limit).await?;
+    let jobs = db.list_jobs(platform, limit).await?;
 
     if json {
         println!("{}", serde_json::to_string_pretty(&jobs)?);
@@ -207,7 +205,6 @@ async fn cmd_show(db: &Db, id: i64, json: bool) -> Result<()> {
     } else {
         println!("ID:        {}", job.id.unwrap_or(0));
         println!("Platform:  {}", job.platform);
-        println!("Status:    {}", job.status);
         println!("Title:     {}", job.title);
         println!("URL:       {}", job.url);
         println!(
@@ -252,16 +249,8 @@ async fn cmd_show(db: &Db, id: i64, json: bool) -> Result<()> {
 }
 
 async fn cmd_react(db: &Db, id: i64, action: Reaction) -> Result<()> {
-    let status = match action {
-        Reaction::Save => JobStatus::Saved,
-        Reaction::Apply => JobStatus::Applied,
-        Reaction::Hide => JobStatus::Hidden,
-    };
-
-    db.update_status(id, status).await?;
     db.add_reaction(id, action, None).await?;
-
-    println!("Job {} marked as {:?}", id, status);
+    println!("Job {} reacted: {:?}", id, action);
     Ok(())
 }
 
@@ -272,11 +261,6 @@ async fn cmd_stats(db: &Db, json: bool) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&stats)?);
     } else {
         println!("Total jobs: {}", stats.total);
-        println!("New jobs:   {}", stats.new_count);
-        println!("\nBy status:");
-        for (s, c) in &stats.by_status {
-            println!("  {}: {}", s, c);
-        }
         println!("\nBy platform:");
         for (p, c) in &stats.by_platform {
             println!("  {}: {}", p, c);

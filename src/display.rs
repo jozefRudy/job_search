@@ -27,16 +27,13 @@ pub fn fmt_relative(dt: Option<chrono::DateTime<chrono::Utc>>) -> String {
 
 pub fn render_table(jobs: &[Job]) -> String {
     let mut table = Table::new();
-    table.set_header(vec![
-        "ID", "Platform", "Status", "Posted", "Budget", "Title",
-    ]);
+    table.set_header(vec!["ID", "Platform", "Posted", "Budget", "Title"]);
     table.set_content_arrangement(ContentArrangement::Dynamic);
 
     for job in jobs {
         table.add_row(vec![
             Cell::new(job.id.unwrap_or(0)),
             Cell::new(job.platform.to_string()),
-            Cell::new(job.status.to_string().to_uppercase()),
             Cell::new(fmt_relative(job.posted_at)),
             Cell::new(job.budget.as_deref().unwrap_or("?")),
             Cell::new(&job.title),
@@ -49,10 +46,9 @@ pub fn render_table(jobs: &[Job]) -> String {
 pub fn render_job_detailed(job: &Job) -> String {
     let mut lines = Vec::new();
     lines.push(format!(
-        "#{} [{}] [{}] {} | {} | {}",
+        "#{} [{}] {} | {} | {}",
         job.id.unwrap_or(0),
         job.platform,
-        job.status.to_string().to_uppercase(),
         fmt_relative(job.posted_at),
         job.budget.as_deref().unwrap_or("?"),
         job.title
