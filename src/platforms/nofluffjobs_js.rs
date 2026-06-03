@@ -61,3 +61,15 @@ pub const CLICK_LOAD_MORE: &str = r#"
 pub const COUNT_CARDS: &str = r#"
 (() => document.querySelectorAll('a.posting-list-item').length)()
 "#;
+
+/// Extract total results count from the list header, e.g. "Jobs (135)" -> 135
+pub const GET_TOTAL_RESULTS: &str = r#"
+(() => {
+    const header = document.querySelector('header.list-title');
+    if (!header) return null;
+    const span = header.querySelector('span');
+    if (!span) return null;
+    const match = span.textContent.match(/\((\d+)\)/);
+    return match ? parseInt(match[1], 10) : null;
+})()
+"#;

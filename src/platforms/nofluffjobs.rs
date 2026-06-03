@@ -101,8 +101,6 @@ impl PlatformClient for NoFluffJobsScraper {
         self.fetch_jobs_via_browser(browser, db, query, pause_ms)
             .await
     }
-
-
 }
 
 impl NoFluffJobsScraper {
@@ -155,9 +153,21 @@ impl NoFluffJobsScraper {
 
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
+        let total_results: Option<usize> = page
+            .evaluate(super::nofluffjobs_js::GET_TOTAL_RESULTS)
+            .await
+            .ok()
+            .and_then(|v| v.into_value().ok())
+            .flatten()
+            .map(|n: i32| n as usize);
+        if let Some(total) = total_results {
+            eprintln!("  Total results: {}", total);
+        }
+
         let mut all_jobs = Vec::new();
         let platform = Platform::NoFluffJobs;
         let mut processed_ids: HashSet<String> = HashSet::new();
+        let mut checked_count = 0;
 
         loop {
             let cards: Vec<NofluffJobCard> = page
@@ -171,9 +181,8 @@ impl NoFluffJobsScraper {
                 .filter(|c| processed_ids.insert(c.external_id.clone()))
                 .collect();
 
-            eprintln!("  Scraped {} new cards", new_cards.len());
-
             for card in &new_cards {
+                checked_count += 1;
                 if db.job_exists(&platform, &card.external_id).await? {
                     eprintln!(
                         "  Stopping: '{}' already in DB ({})",
@@ -212,6 +221,8 @@ impl NoFluffJobsScraper {
                         );
                     }
                 }
+
+                eprint!("\r    Progress: {:>5}", checked_count);
             }
 
             if stopped {
