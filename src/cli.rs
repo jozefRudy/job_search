@@ -39,6 +39,10 @@ pub enum Commands {
         /// Show platform-specific details below each row
         #[arg(long)]
         detailed: bool,
+
+        /// Filter by recency, e.g. 1d, 4w
+        #[arg(long)]
+        recency: Option<String>,
     },
 
     Show {
