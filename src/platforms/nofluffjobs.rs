@@ -455,7 +455,7 @@ impl NoFluffJobsScraper {
     pub fn build_search_url(&self, query: &str) -> String {
         let criteria = self.build_criteria(query);
         format!(
-            "https://nofluffjobs.com/{}?criteria={}",
+            "https://nofluffjobs.com/{}?criteria={}&sort=newest",
             self.config.path,
             urlencoding::encode(&criteria)
         )
@@ -499,7 +499,7 @@ mod tests {
         let url = scraper.build_search_url("rust");
         assert_eq!(
             url,
-            "https://nofluffjobs.com/remote?criteria=keyword%3Drust"
+            "https://nofluffjobs.com/remote?criteria=keyword%3Drust&sort=newest"
         );
     }
 
@@ -507,7 +507,7 @@ mod tests {
     fn test_build_search_url_empty_query() {
         let scraper = NoFluffJobsScraper::new();
         let url = scraper.build_search_url("");
-        assert_eq!(url, "https://nofluffjobs.com/remote?criteria=");
+        assert_eq!(url, "https://nofluffjobs.com/remote?criteria=&sort=newest");
     }
 
     #[test]
@@ -523,7 +523,7 @@ mod tests {
         let url = scraper.build_search_url("rust");
         assert_eq!(
             url,
-            "https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur8000m%20jobLanguage%3Den%20keyword%3Drust"
+            "https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur8000m%20jobLanguage%3Den%20keyword%3Drust&sort=newest"
         );
     }
 
@@ -540,7 +540,7 @@ mod tests {
         let url = scraper.build_search_url("");
         assert_eq!(
             url,
-            "https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur8000m%20jobLanguage%3Den"
+            "https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur8000m%20jobLanguage%3Den&sort=newest"
         );
     }
 
@@ -557,7 +557,7 @@ mod tests {
         let url = scraper.build_search_url("senior");
         assert_eq!(
             url,
-            "https://nofluffjobs.com/pl/jobs?criteria=keyword%3Dsenior"
+            "https://nofluffjobs.com/pl/jobs?criteria=keyword%3Dsenior&sort=newest"
         );
     }
 }
