@@ -1,8 +1,8 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager};
-use jobsearch::cli::{Cli, Commands, UpdatePlatform};
+use jobsearch::cli::{Cli, Commands, Recency, UpdatePlatform};
 use jobsearch::db::Db;
 use jobsearch::display;
 use jobsearch::models::{Data, Platform, Reaction};
@@ -138,8 +138,7 @@ async fn main() -> Result<()> {
                     println!("{}", display::render_table(&[job]));
                 }
             } else {
-                let recency_days = recency.as_deref().map(parse_recency).transpose()?;
-                cmd_list(&db, platform, limit, recency_days, detailed, cli.json).await?;
+                cmd_list(&db, platform, limit, recency, detailed, cli.json).await?;
             }
         }
         Commands::Show { id } => {
@@ -186,34 +185,18 @@ async fn fetch_and_store(
     Ok(())
 }
 
-fn parse_recency(s: &str) -> Result<i64> {
-    let s = s.trim();
-    if s.len() < 2 {
-        bail!("recency must be like 1d or 4w, got '{}'", s);
-    }
-    let (num, unit) = s.split_at(s.len() - 1);
-    let n: i64 = num
-        .parse()
-        .map_err(|_| anyhow::anyhow!("invalid recency number '{}'", num))?;
-    match unit {
-        "d" => Ok(n),
-        "w" => Ok(n * 7),
-        _ => bail!("recency unit must be 'd' or 'w', got '{}'", unit),
-    }
-}
-
 async fn cmd_list(
     db: &Db,
     platform: Option<Platform>,
     limit: Option<i64>,
-    recency_days: Option<i64>,
+    recency: Option<Recency>,
     detailed: bool,
     json: bool,
 ) -> Result<()> {
     let jobs = db.list_jobs(platform, limit.unwrap_or(i64::MAX)).await?;
 
-    let jobs: Vec<_> = match recency_days {
-        Some(days) => {
+    let jobs: Vec<_> = match recency {
+        Some(Recency(days)) => {
             let cutoff = chrono::Utc::now() - chrono::Duration::days(days);
             jobs.into_iter()
                 .filter(|j| j.created_at.is_some_and(|dt| dt >= cutoff))
