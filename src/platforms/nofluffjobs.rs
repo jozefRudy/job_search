@@ -262,7 +262,7 @@ impl NoFluffJobsScraper {
 
                 eprint!(
                     "\r    Progress: {:>5} {:.40}\x1B[K",
-                    checked_count, &card.external_id
+                    checked_count, card.external_id
                 );
             }
 

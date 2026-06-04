@@ -29,8 +29,8 @@ pub enum Commands {
         #[arg(short, long)]
         platform: Option<Platform>,
 
-        #[arg(short, long, default_value = "50")]
-        limit: i64,
+        #[arg(short, long)]
+        limit: Option<i64>,
 
         /// Show only this job ID
         #[arg(long)]

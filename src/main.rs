@@ -187,11 +187,11 @@ async fn fetch_and_store(
 async fn cmd_list(
     db: &Db,
     platform: Option<Platform>,
-    limit: i64,
+    limit: Option<i64>,
     detailed: bool,
     json: bool,
 ) -> Result<()> {
-    let jobs = db.list_jobs(platform, limit).await?;
+    let jobs = db.list_jobs(platform, limit.unwrap_or(i64::MAX)).await?;
 
     if json {
         println!("{}", serde_json::to_string_pretty(&jobs)?);
