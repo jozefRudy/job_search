@@ -1,5 +1,5 @@
 use crate::models::{Data, Job};
-use comfy_table::{Cell, ContentArrangement, Table};
+use comfy_table::{Cell, CellAlignment, ContentArrangement, Table, presets::UTF8_FULL};
 
 /// Render HTML to plain text suitable for terminal display.
 fn html_to_text(html: &str) -> String {
@@ -32,8 +32,10 @@ pub fn fmt_relative(dt: Option<chrono::DateTime<chrono::Utc>>) -> String {
 
 pub fn render_table(jobs: &[Job]) -> String {
     let mut table = Table::new();
-    table.set_header(vec!["ID", "Platform", "Posted", "Budget", "Title"]);
-    table.set_content_arrangement(ContentArrangement::Dynamic);
+    table
+        .load_preset(UTF8_FULL)
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_header(vec!["Id", "Platform", "Posted", "Budget", "Title"]);
 
     for job in jobs {
         table.add_row(vec![
@@ -43,6 +45,10 @@ pub fn render_table(jobs: &[Job]) -> String {
             Cell::new(job.budget.as_deref().unwrap_or("?")),
             Cell::new(&job.title),
         ]);
+    }
+
+    if let Some(column) = table.column_mut(0) {
+        column.set_cell_alignment(CellAlignment::Right);
     }
 
     table.to_string()
