@@ -172,7 +172,6 @@ async fn fetch_and_store(
             .await
         {
             Ok(jobs) => {
-                eprintln!("  Found {} jobs", jobs.len());
                 for job in &jobs {
                     db.upsert_job(job).await?;
                 }

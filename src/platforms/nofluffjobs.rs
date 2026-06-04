@@ -203,7 +203,6 @@ impl NoFluffJobsScraper {
                 .await?
                 .into_value()?;
 
-            let mut stopped = false;
             let new_cards: Vec<_> = cards
                 .into_iter()
                 .filter(|c| processed_ids.insert(c.external_id.clone()))
@@ -212,12 +211,8 @@ impl NoFluffJobsScraper {
             for card in &new_cards {
                 checked_count += 1;
                 if db.job_exists(&platform, &card.external_id).await? {
-                    eprintln!(
-                        "  Stopping: '{}' already in DB ({})",
-                        card.title, card.external_id
-                    );
-                    stopped = true;
-                    break;
+                    eprint!("\r    Progress: {:>5}", checked_count);
+                    continue;
                 }
 
                 tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
@@ -265,13 +260,10 @@ impl NoFluffJobsScraper {
                     }
                 }
 
-                const SPIN: [char; 4] = ['-', '\\', '|', '/'];
-                let sp = SPIN[checked_count % SPIN.len()];
-                eprint!("\r    Progress: {:>5} {}", checked_count, sp);
-            }
-
-            if stopped {
-                break;
+                eprint!(
+                    "\r    Progress: {:>5} {:.40}\x1B[K",
+                    checked_count, &card.external_id
+                );
             }
 
             if !Self::click_load_more(&page, pause_ms).await {
