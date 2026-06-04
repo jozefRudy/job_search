@@ -3,7 +3,11 @@ use comfy_table::{Cell, CellAlignment, ContentArrangement, Table, presets::UTF8_
 
 /// Render HTML to plain text suitable for terminal display.
 fn html_to_text(html: &str) -> String {
-    html2text::from_read(html.as_bytes(), 80).unwrap_or_else(|_| html.to_string())
+    let text = html2text::from_read(html.as_bytes(), 80).unwrap_or_else(|_| html.to_string());
+    text.lines()
+        .filter(|l| !l.trim().chars().all(|c| c == '#'))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 pub fn fmt_relative(dt: Option<chrono::DateTime<chrono::Utc>>) -> String {
