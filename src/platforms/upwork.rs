@@ -246,6 +246,9 @@ impl PlatformClient for UpworkScraper {
 
         let mut all_jobs: Vec<Job> = Vec::new();
         let mut page_num = 1u32;
+        let mut checked_count = 0usize;
+
+        eprint!("\x1B[?25l"); // hide cursor
 
         loop {
             tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
@@ -254,6 +257,7 @@ impl PlatformClient for UpworkScraper {
 
             let mut stop = false;
             for v in &raw_jobs {
+                checked_count += 1;
                 let is_stale = v
                     .posted_at_text
                     .as_ref()
@@ -301,6 +305,8 @@ impl PlatformClient for UpworkScraper {
                         eprintln!("    Warning: failed to fetch detail for {}: {}", v.title, e);
                     }
                 }
+
+                eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, v.title);
                 tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
             }
 
@@ -338,7 +344,9 @@ impl PlatformClient for UpworkScraper {
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         }
 
+        eprintln!("\x1B[?25h"); // show cursor
         page.close().await.ok();
+        eprintln!("  Total new jobs: {}", all_jobs.len());
         Ok(all_jobs)
     }
 
