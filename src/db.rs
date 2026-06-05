@@ -22,10 +22,7 @@ impl Db {
         let tags = serde_json::to_string(&job.tags)?;
         let raw = serde_json::to_string(&job.raw)?;
         let platform = job.platform.to_string();
-        let created_at = job
-            .created_at
-            .map(|dt| dt.naive_utc())
-            .unwrap_or_else(|| chrono::Utc::now().naive_utc());
+        let created_at = job.created_at.naive_utc();
 
         let id = sqlx::query_scalar!(
             r#"
@@ -205,8 +202,8 @@ impl From<JobRow> for Job {
             budget: r.budget,
             tags: serde_json::from_str(&r.tags).unwrap_or_default(),
             raw,
-            created_at: Some(r.created_at.and_utc()),
-            updated_at: Some(r.updated_at.and_utc()),
+            created_at: r.created_at.and_utc(),
+            updated_at: r.updated_at.and_utc(),
             note: r.note,
             applied_at: r.applied_at.map(|dt| dt.and_utc()),
         }
@@ -247,8 +244,8 @@ mod tests {
             budget: None,
             tags: vec![],
             raw,
-            created_at: None,
-            updated_at: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
             note: None,
             applied_at: None,
         }
@@ -300,8 +297,8 @@ mod tests {
             raw: Data::Upwork {
                 detail: detail.clone(),
             },
-            created_at: None,
-            updated_at: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
             note: None,
             applied_at: None,
         };
@@ -347,8 +344,8 @@ mod tests {
             raw: Data::Nofluffjobs {
                 detail: detail.clone(),
             },
-            created_at: None,
-            updated_at: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
             note: None,
             applied_at: None,
         };

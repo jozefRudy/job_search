@@ -211,7 +211,7 @@ impl NoFluffJobsScraper {
             for card in &new_cards {
                 checked_count += 1;
                 if db.job_exists(&platform, &card.external_id).await? {
-                    eprint!("\r    Progress: {:>5}", checked_count);
+                    eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, "");
                     continue;
                 }
 
@@ -246,8 +246,8 @@ impl NoFluffJobsScraper {
                             budget,
                             tags: card.tags.clone(),
                             raw: Data::Nofluffjobs { detail },
-                            created_at: posted,
-                            updated_at: None,
+                            created_at: posted.unwrap_or_else(chrono::Utc::now),
+                            updated_at: chrono::Utc::now(),
                             note: None,
                             applied_at: None,
                         };

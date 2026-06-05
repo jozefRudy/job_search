@@ -10,11 +10,7 @@ fn html_to_text(html: &str) -> String {
         .join("\n")
 }
 
-pub fn fmt_relative(dt: Option<chrono::DateTime<chrono::Utc>>) -> String {
-    let dt = match dt {
-        Some(d) => d,
-        None => return String::new(),
-    };
+pub fn fmt_relative(dt: chrono::DateTime<chrono::Utc>) -> String {
     let dur = chrono::Utc::now().signed_duration_since(dt);
     let mins = dur.num_minutes();
     if mins < 1 {
@@ -49,7 +45,7 @@ pub fn render_table(jobs: &[Job]) -> String {
             Cell::new(job.platform.to_string()),
             Cell::new(fmt_relative(job.created_at)),
             Cell::new(job.budget.as_deref().unwrap_or("?")),
-            Cell::new(fmt_relative(job.applied_at)),
+            Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
             Cell::new(&job.title),
         ]);
     }
@@ -160,7 +156,7 @@ pub fn render_job_detailed(job: &Job) -> String {
     }
 
     if let Some(applied) = job.applied_at {
-        lines.push(format!("  Applied:        {}", fmt_relative(Some(applied))));
+        lines.push(format!("  Applied:        {}", fmt_relative(applied)));
     } else {
         lines.push("  Applied:        no".to_string());
     }
@@ -188,35 +184,30 @@ mod tests {
 
     #[test]
     fn test_fmt_relative_just_now() {
-        assert_eq!(fmt_relative(Some(Utc::now())), "just now");
+        assert_eq!(fmt_relative(Utc::now()), "just now");
     }
 
     #[test]
     fn test_fmt_relative_minutes() {
         let dt = Utc::now() - Duration::minutes(5);
-        assert_eq!(fmt_relative(Some(dt)), "5m ago");
+        assert_eq!(fmt_relative(dt), "5m ago");
     }
 
     #[test]
     fn test_fmt_relative_hours() {
         let dt = Utc::now() - Duration::hours(3);
-        assert_eq!(fmt_relative(Some(dt)), "3h ago");
+        assert_eq!(fmt_relative(dt), "3h ago");
     }
 
     #[test]
     fn test_fmt_relative_days() {
         let dt = Utc::now() - Duration::days(2);
-        assert_eq!(fmt_relative(Some(dt)), "2d ago");
+        assert_eq!(fmt_relative(dt), "2d ago");
     }
 
     #[test]
     fn test_fmt_relative_weeks() {
         let dt = Utc::now() - Duration::days(21);
-        assert_eq!(fmt_relative(Some(dt)), "3w ago");
-    }
-
-    #[test]
-    fn test_fmt_relative_none() {
-        assert_eq!(fmt_relative(None), "");
+        assert_eq!(fmt_relative(dt), "3w ago");
     }
 }

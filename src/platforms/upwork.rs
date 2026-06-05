@@ -478,8 +478,8 @@ impl PlatformClient for UpworkScraper {
                             budget: v.budget.clone(),
                             tags: v.tags.clone(),
                             raw: Data::Upwork { detail },
-                            created_at: posted,
-                            updated_at: None,
+                            created_at: posted.unwrap_or_else(chrono::Utc::now),
+                            updated_at: chrono::Utc::now(),
                             note: None,
                             applied_at: None,
                         };

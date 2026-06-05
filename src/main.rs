@@ -201,7 +201,7 @@ async fn cmd_list(
         Some(Recency(days)) => {
             let cutoff = chrono::Utc::now() - chrono::Duration::days(days);
             jobs.into_iter()
-                .filter(|j| j.created_at.is_some_and(|dt| dt >= cutoff))
+                .filter(|j| j.created_at >= cutoff)
                 .collect()
         }
         None => jobs,
@@ -250,12 +250,7 @@ async fn cmd_show(db: &Db, id: i64, json: bool) -> Result<()> {
         println!("Platform:  {}", job.platform);
         println!("Title:     {}", job.title);
         println!("URL:       {}", job.url);
-        println!(
-            "Posted:    {}",
-            job.created_at
-                .map(|d| d.to_rfc3339())
-                .unwrap_or_else(|| "?".to_string())
-        );
+        println!("Posted:    {}", job.created_at.to_rfc3339());
         println!("Budget:    {}", job.budget.as_deref().unwrap_or("?"));
         println!("Tags:      {}", job.tags.join(", "));
         println!("Desc:      {}", job.description.as_deref().unwrap_or("?"));
@@ -327,10 +322,10 @@ async fn cmd_detail(db: &Db, browser: &BrowserManager, id: i64, force: bool) -> 
 
     match job.platform {
         Platform::Upwork => {
-            let is_fresh = job.created_at.is_some_and(|created| {
-                let age = chrono::Utc::now() - created;
+            let is_fresh = {
+                let age = chrono::Utc::now() - job.created_at;
                 age.num_days() < 7
-            });
+            };
             let should_fetch = force || is_fresh;
 
             let detail = if should_fetch {

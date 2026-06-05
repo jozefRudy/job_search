@@ -94,8 +94,8 @@ pub struct Job {
     pub budget: Option<String>,
     pub tags: Vec<String>,
     pub raw: Data,
-    pub created_at: Option<DateTime<Utc>>,
-    pub updated_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub note: Option<String>,
     pub applied_at: Option<DateTime<Utc>>,
 }
