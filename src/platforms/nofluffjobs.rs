@@ -248,6 +248,7 @@ impl NoFluffJobsScraper {
                             raw: Data::Nofluffjobs { detail },
                             created_at: posted,
                             updated_at: None,
+                            note: None,
                         };
                         db.upsert_job(&job).await?;
                         all_jobs.push(job);

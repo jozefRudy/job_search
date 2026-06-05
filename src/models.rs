@@ -96,6 +96,7 @@ pub struct Job {
     pub raw: Data,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
+    pub note: Option<String>,
 }
 
 /// Parsed budget range with consistent formatting.
@@ -171,25 +172,6 @@ impl Budget {
             .collect::<String>()
             .parse()
             .ok()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ValueEnum)]
-#[clap(rename_all = "lower")]
-#[sqlx(rename_all = "lowercase")]
-pub enum Reaction {
-    Save,
-    Apply,
-    Hide,
-}
-
-impl fmt::Display for Reaction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Reaction::Save => write!(f, "save"),
-            Reaction::Apply => write!(f, "apply"),
-            Reaction::Hide => write!(f, "hide"),
-        }
     }
 }
 

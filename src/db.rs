@@ -1,4 +1,4 @@
-use crate::models::{Data, Job, Platform, Reaction};
+use crate::models::{Data, Job, Platform};
 use anyhow::Result;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use std::str::FromStr;
@@ -63,10 +63,14 @@ impl Db {
         let rows = sqlx::query_as!(
             JobRow,
             r#"
-            SELECT id, platform, external_id, title, description, url, budget, tags, raw, created_at, updated_at
-            FROM jobs
-            WHERE (?1 IS NULL OR platform = ?1)
-            ORDER BY created_at DESC LIMIT ?2
+            SELECT
+                j.id, j.platform, j.external_id, j.title, j.description,
+                j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
+                r.note
+            FROM jobs j
+            LEFT JOIN reactions r ON r.job_id = j.id
+            WHERE (?1 IS NULL OR j.platform = ?1)
+            ORDER BY j.created_at DESC LIMIT ?2
             "#,
             platform,
             limit
@@ -81,8 +85,13 @@ impl Db {
         let row = sqlx::query_as!(
             JobRow,
             r#"
-            SELECT id, platform, external_id, title, description, url, budget, tags, raw, created_at, updated_at
-            FROM jobs WHERE id = ?1
+            SELECT
+                j.id, j.platform, j.external_id, j.title, j.description,
+                j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
+                r.note
+            FROM jobs j
+            LEFT JOIN reactions r ON r.job_id = j.id
+            WHERE j.id = ?1
             "#,
             id
         )
@@ -92,18 +101,13 @@ impl Db {
         Ok(row.map(|r| r.into()))
     }
 
-    pub async fn add_reaction(
-        &self,
-        job_id: i64,
-        action: Reaction,
-        metadata: Option<String>,
-    ) -> Result<()> {
-        let action = action.to_string();
+    pub async fn set_applied(&self, job_id: i64, note: Option<String>) -> Result<()> {
+        let note = note.unwrap_or_default();
         sqlx::query!(
-            "INSERT INTO reactions (job_id, action, metadata) VALUES (?1, ?2, ?3)",
+            "INSERT INTO reactions (job_id, note) VALUES (?1, ?2)
+             ON CONFLICT(job_id) DO UPDATE SET note = excluded.note",
             job_id,
-            action,
-            metadata
+            note
         )
         .execute(&self.pool)
         .await?;
@@ -166,6 +170,7 @@ struct JobRow {
     raw: String,
     created_at: chrono::NaiveDateTime,
     updated_at: chrono::NaiveDateTime,
+    note: Option<String>,
 }
 
 impl From<JobRow> for Job {
@@ -201,6 +206,7 @@ impl From<JobRow> for Job {
             raw,
             created_at: Some(r.created_at.and_utc()),
             updated_at: Some(r.updated_at.and_utc()),
+            note: r.note,
         }
     }
 }
@@ -241,6 +247,7 @@ mod tests {
             raw,
             created_at: None,
             updated_at: None,
+            note: None,
         }
     }
 
@@ -292,6 +299,7 @@ mod tests {
             },
             created_at: None,
             updated_at: None,
+            note: None,
         };
 
         let id = db.upsert_job(&job).await?;
@@ -337,6 +345,7 @@ mod tests {
             },
             created_at: None,
             updated_at: None,
+            note: None,
         };
 
         let id = db.upsert_job(&job).await?;

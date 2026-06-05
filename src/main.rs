@@ -5,7 +5,7 @@ use jobsearch::browser::{BrowserExt, BrowserManager};
 use jobsearch::cli::{Cli, Commands, Recency, UpdatePlatform};
 use jobsearch::db::Db;
 use jobsearch::display;
-use jobsearch::models::{Data, Platform, Reaction};
+use jobsearch::models::{Data, Platform};
 use jobsearch::platforms::{
     PlatformClient, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper,
 };
@@ -144,8 +144,8 @@ async fn main() -> Result<()> {
         Commands::Show { id } => {
             cmd_show(&db, id, cli.json).await?;
         }
-        Commands::React { id, action } => {
-            cmd_react(&db, id, action).await?;
+        Commands::React { id, note } => {
+            cmd_react(&db, id, note).await?;
         }
         Commands::Stats => {
             cmd_stats(&db, cli.json).await?;
@@ -277,9 +277,15 @@ async fn cmd_show(db: &Db, id: i64, json: bool) -> Result<()> {
     Ok(())
 }
 
-async fn cmd_react(db: &Db, id: i64, action: Reaction) -> Result<()> {
-    db.add_reaction(id, action, None).await?;
-    println!("Job {} reacted: {:?}", id, action);
+async fn cmd_react(db: &Db, id: i64, note: Option<String>) -> Result<()> {
+    db.get_job(id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Job {} not found", id))?;
+    db.set_applied(id, note.clone()).await?;
+    match note {
+        Some(n) => println!("Job {} marked applied with note: {}", id, n),
+        None => println!("Job {} marked applied", id),
+    }
     Ok(())
 }
 

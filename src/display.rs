@@ -39,7 +39,9 @@ pub fn render_table(jobs: &[Job]) -> String {
     table
         .load_preset(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec!["Id", "Platform", "Posted", "Budget", "Title"]);
+        .set_header(vec![
+            "Id", "Platform", "Posted", "Budget", "Applied", "Title",
+        ]);
 
     for job in jobs {
         table.add_row(vec![
@@ -47,6 +49,7 @@ pub fn render_table(jobs: &[Job]) -> String {
             Cell::new(job.platform.to_string()),
             Cell::new(fmt_relative(job.created_at)),
             Cell::new(job.budget.as_deref().unwrap_or("?")),
+            Cell::new(if job.note.is_some() { "✓" } else { "" }),
             Cell::new(&job.title),
         ]);
     }
@@ -156,6 +159,22 @@ pub fn render_job_detailed(job: &Job) -> String {
         }
     }
 
+    if let Some(note) = &job.note {
+        lines.push("  Applied:        yes".to_string());
+        if !note.is_empty() {
+            lines.push("  Note:".to_string());
+            for line in note.lines() {
+                lines.push(format!("    {}", line));
+            }
+        }
+    } else {
+        lines.push("  Applied:        no".to_string());
+    }
+    lines.push("".to_string());
+    lines.push(format!(
+        "  Run: jobsearch react {} [--note \"...\"]",
+        job.id.unwrap_or(0)
+    ));
     lines.push("─".repeat(60));
     lines.join("\n")
 }

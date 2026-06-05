@@ -1,6 +1,6 @@
 use crate::browser::BrowserExt;
 use crate::db::Db;
-use crate::models::{Data, Job, Platform, Reaction, UpworkJobDetail};
+use crate::models::{Data, Job, Platform, UpworkJobDetail};
 use crate::platforms::PlatformClient;
 use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
@@ -480,6 +480,7 @@ impl PlatformClient for UpworkScraper {
                             raw: Data::Upwork { detail },
                             created_at: posted,
                             updated_at: None,
+                            note: None,
                         };
                         db.upsert_job(&job).await?;
                         all_jobs.push(job);
@@ -509,7 +510,7 @@ impl PlatformClient for UpworkScraper {
         Ok(all_jobs)
     }
 
-    async fn react(&self, _job: &Job, _action: Reaction) -> Result<()> {
+    async fn react(&self, _job: &Job, _note: Option<String>) -> Result<()> {
         Err(anyhow!("Upwork react not yet implemented"))
     }
 }

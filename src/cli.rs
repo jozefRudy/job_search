@@ -1,4 +1,4 @@
-use crate::models::{Platform, Reaction};
+use crate::models::Platform;
 use crate::platforms::upwork::UpworkTier;
 use clap::{Args, Parser, Subcommand};
 
@@ -76,7 +76,8 @@ pub enum Commands {
 
     React {
         id: i64,
-        action: Reaction,
+        #[arg(short, long)]
+        note: Option<String>,
     },
 
     Stats,

@@ -16,10 +16,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE TABLE IF NOT EXISTS reactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     job_id INTEGER NOT NULL REFERENCES jobs(id),
-    action TEXT NOT NULL,
-    metadata TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    note TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(job_id)
 );
-
-CREATE INDEX IF NOT EXISTS idx_jobs_platform ON jobs(platform);
-CREATE INDEX IF NOT EXISTS idx_jobs_external ON jobs(platform, external_id);

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO reactions (job_id, note) VALUES (?1, ?2)\n             ON CONFLICT(job_id) DO UPDATE SET note = excluded.note",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "793d74b4016da92a4d1b2d9b647a3196b669f94382fd061210c15e01a54891c7"
+}

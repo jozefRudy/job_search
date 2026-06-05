@@ -1,6 +1,6 @@
 use crate::browser::BrowserManager;
 use crate::db::Db;
-use crate::models::{Job, Reaction};
+use crate::models::Job;
 use anyhow::Result;
 use chromiumoxide::browser::Browser;
 
@@ -27,7 +27,7 @@ pub trait PlatformClient: Send + Sync {
         self.fetch_with_browser(&browser, db, query, pause_ms).await
     }
 
-    async fn react(&self, _job: &Job, _action: Reaction) -> Result<()> {
+    async fn react(&self, _job: &Job, _note: Option<String>) -> Result<()> {
         Err(anyhow::anyhow!("react not implemented for {}", self.name()))
     }
 }
