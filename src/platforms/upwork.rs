@@ -169,99 +169,7 @@ impl UpworkScraper {
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
         let detail: UpworkJobDetail = page
-            .evaluate(
-                r#"
-                (() => {
-                    const text = document.body.innerText;
-
-                    // Regex-based fields (no reliable DOM selectors)
-                    const proposalsMatch = text.match(/Proposals[:\s]*(?:Close[^\d]*)?(\d+\s+to\s+\d+|\d+)/i);
-                    const proposals = proposalsMatch ? proposalsMatch[1].trim() : '';
-                    const viewedMatch = text.match(/Last viewed by client[:\s]*([^\n]+)/i);
-                    const last_viewed = viewedMatch ? viewedMatch[1].trim().replace(/Close the tooltip.*$/, '').trim() : '';
-                    const interviewingMatch = text.match(/Interviewing[:\s]*(\d+)/i);
-                    const interviewing = interviewingMatch ? interviewingMatch[1] : '';
-                    const invitesMatch = text.match(/Invites sent[:\s]*(\d+)/i);
-                    const invites_sent = invitesMatch ? invitesMatch[1] : '';
-                    const unansweredMatch = text.match(/Unanswered invites[:\s]*(\d+)/i);
-                    const unanswered_invites = unansweredMatch ? unansweredMatch[1] : '';
-                    const hiresMatch = text.match(/Hires[:\s]*(\d+)/i);
-                    const hires = hiresMatch ? hiresMatch[1] : '';
-                    const typeMatch = text.match(/Project type[:\s]*([^\n]+)/i);
-                    const project_type = typeMatch ? typeMatch[1].trim() : '';
-
-                    // DOM-based fields (data-cy attributes on <li> elements)
-                    const expLi = document.querySelector('[data-cy="expertise"]')?.closest('li');
-                    let experience_level = '';
-                    if (expLi) {
-                        const t = expLi.innerText.replace(/\s+/g, ' ').trim();
-                        const m = t.match(/(Entry Level|Intermediate|Expert)/);
-                        experience_level = m ? m[1] : '';
-                    }
-
-                    const durLi = document.querySelector('[data-cy^="duration"]')?.closest('li');
-                    let duration = '';
-                    if (durLi) {
-                        duration = durLi.innerText.replace(/\s+/g, ' ').trim().replace(/\s*Duration\s*$/, '').trim();
-                    }
-
-                    const hoursLi = document.querySelector('[data-cy="clock-hourly"]')?.closest('li');
-                    let hours_per_week = '';
-                    if (hoursLi) {
-                        hours_per_week = hoursLi.innerText.replace(/\s+/g, ' ').trim().replace(/\s*Hourly\s*$/, '').trim();
-                    }
-
-                    // Description: prefer specific data-test attribute
-                    let description = '';
-                    const descEl = document.querySelector('[data-test="Description"]')
-                        || document.querySelector('[data-test="job-description"]');
-                    if (descEl) {
-                        description = descEl.innerText?.trim() || '';
-                    }
-                    // Fallback to longest non-history section
-                    if (!description || description.length < 200) {
-                        const sections = Array.from(document.querySelectorAll('section'));
-                        for (const section of sections) {
-                            const t = section.innerText?.trim() || '';
-                            if (t.length > description.length
-                                && t.length > 200
-                                && !t.includes('Footer navigation')
-                                && !t.includes('Rating is')
-                                && !t.includes('To freelancer:')
-                                && !t.includes('Billed: $')) {
-                                description = t;
-                            }
-                        }
-                    }
-
-                    // Budget: NUXT → DOM selector → regex fallback
-                    let exact_budget = '';
-                    try {
-                        if (window.__NUXT__?.state?.job?.budget) {
-                            const b = window.__NUXT__.state.job.budget;
-                            if (b.hourlyBudgetMin && b.hourlyBudgetMax) {
-                                exact_budget = `$${b.hourlyBudgetMin} - $${b.hourlyBudgetMax}/hr`;
-                            } else if (b.amount) {
-                                exact_budget = `$${b.amount}`;
-                            }
-                        }
-                    } catch(e) {}
-                    if (!exact_budget) {
-                        const budgetLi = document.querySelector('[data-cy="clock-timelog"]')?.closest('li');
-                        if (budgetLi) {
-                            exact_budget = budgetLi.innerText.replace(/\s+/g, ' ').trim().replace(/\s*Hourly\s*$/, '').trim();
-                        }
-                    }
-                    if (!exact_budget) {
-                        const budgetMatch = text.match(/\$\d+[\d,]*\.?\d*\s*[-]\s*\$\d+[\d,]*\.?\d*/)
-                            || text.match(/Budget[:\s]*([^\n]{0,50})/i);
-                        exact_budget = budgetMatch ? budgetMatch[0].replace(/\s+/g, ' ').trim() : '';
-                    }
-
-                    return { proposals, last_viewed, interviewing, invites_sent, unanswered_invites, description, exact_budget, experience_level, hires, project_type, duration, hours_per_week };
-                })()
-                "#,
-            )
+            .evaluate(crate::platforms::upwork_js::FETCH_JOB_DETAIL)
             .await?
             .into_value()?;
 
@@ -272,28 +180,7 @@ impl UpworkScraper {
     /// Scrape job cards from current search page.
     pub async fn scrape_page(page: &chromiumoxide::Page) -> Result<Vec<UpworkJobCard>> {
         let cards: Vec<UpworkJobCard> = page
-            .evaluate(
-                r#"
-                (() => {
-                    return Array.from(document.querySelectorAll("article[data-test='JobTile']")).map(el => {
-                        const titleLink = el.querySelector('a');
-                        const budgetEl = el.querySelector("[data-test='job-type-label']");
-                        const timeEl = el.querySelector('small');
-                        const skillsEls = el.querySelectorAll("[data-test='token']");
-                        const uid = el.getAttribute("data-ev-job-uid");
-                        return {
-                            external_id: uid || "",
-                            title: titleLink?.textContent?.trim() || "",
-                            description: null,
-                            url: titleLink?.href ? new URL(titleLink.href, location.href).href : "",
-                            budget: budgetEl?.textContent?.trim() || null,
-                            posted_at_text: timeEl?.textContent?.trim() || null,
-                            tags: Array.from(skillsEls).map(s => s.textContent.trim()).filter(Boolean)
-                        };
-                    });
-                })()
-                "#,
-            )
+            .evaluate(crate::platforms::upwork_js::SCRAPE_CARDS)
             .await?
             .into_value()?;
         Ok(cards)
@@ -303,22 +190,12 @@ impl UpworkScraper {
     pub async fn wait_for_jobs(page: &chromiumoxide::Page) -> Result<bool> {
         for i in 0..120 {
             let is_challenge: bool = page
-                .evaluate(
-                    r#"
-                    document.title.includes('Just a moment') ||
-                    document.title.includes('Challenge') ||
-                    !!document.querySelector('#cf-challenge-running')
-                "#,
-                )
+                .evaluate(crate::platforms::upwork_js::IS_CHALLENGE)
                 .await?
                 .into_value()?;
 
             let has_cards: bool = page
-                .evaluate(
-                    r#"
-                    !!document.querySelector("article[data-test='JobTile']")
-                "#,
-                )
+                .evaluate(crate::platforms::upwork_js::HAS_CARDS)
                 .await?
                 .into_value()?;
 
@@ -442,9 +319,7 @@ impl PlatformClient for UpworkScraper {
             }
 
             let has_next: bool = page
-                .evaluate(
-                    r#"!!document.querySelector('a[data-test="next-page"]:not(.is-disabled)')"#,
-                )
+                .evaluate(crate::platforms::upwork_js::HAS_NEXT_PAGE)
                 .await?
                 .into_value()?;
 
