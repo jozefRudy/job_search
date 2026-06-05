@@ -26,6 +26,8 @@ pub struct UpworkSearchParams {
     pub query: String,
     pub tier: Option<UpworkTier>,
     pub hourly_rate_min: Option<u32>,
+    pub client_hires: Option<String>,
+    pub page: u32,
 }
 
 #[derive(Debug, Clone, Copy, Default, ValueEnum)]
@@ -42,6 +44,7 @@ impl UpworkSearchParams {
     pub fn new(query: &str) -> Self {
         Self {
             query: query.to_string(),
+            page: 1,
             ..Default::default()
         }
     }
@@ -56,10 +59,49 @@ impl UpworkSearchParams {
         self
     }
 
+    pub fn client_hires(mut self, hires: Option<String>) -> Self {
+        self.client_hires = hires;
+        self
+    }
+
+    pub fn page(mut self, page: u32) -> Self {
+        self.page = page;
+        self
+    }
+
     pub fn build_url(&self) -> String {
-        // Most-recent feed has reliable "Load More" pagination.
-        // Search page uses infinite scroll / fixed results with no load-more button.
-        "https://www.upwork.com/nx/find-work/most-recent".to_string()
+        let mut url = url::Url::parse("https://www.upwork.com/nx/search/jobs/").unwrap();
+        {
+            let mut pairs = url.query_pairs_mut();
+            pairs.append_pair("q", &self.query);
+            pairs.append_pair("sort", "recency");
+            pairs.append_pair("per_page", "50");
+            if self.page > 1 {
+                pairs.append_pair("page", &self.page.to_string());
+            }
+            if let Some(tier) = self.tier {
+                match tier {
+                    UpworkTier::Expert => {
+                        pairs.append_pair("contractor_tier", "3");
+                    }
+                    UpworkTier::Intermediate => {
+                        pairs.append_pair("contractor_tier", "2");
+                    }
+                    UpworkTier::BothUpper => {
+                        pairs.append_pair("contractor_tier", "2,3");
+                    }
+                    UpworkTier::All => {}
+                }
+            }
+            pairs.append_pair("t", "0");
+            if let Some(min) = self.hourly_rate_min {
+                pairs.append_pair("hourly_rate", &format!("{}-", min));
+            }
+            if let Some(ref hires) = self.client_hires {
+                pairs.append_pair("client_hires", hires);
+            }
+        }
+        url.to_string()
     }
 }
 
@@ -67,6 +109,7 @@ impl UpworkSearchParams {
 pub struct UpworkScraper {
     pub tier: Option<UpworkTier>,
     pub hourly_rate_min: Option<u32>,
+    pub client_hires: Option<String>,
 }
 
 impl UpworkScraper {
@@ -74,10 +117,15 @@ impl UpworkScraper {
         Self::default()
     }
 
-    pub fn with_config(tier: Option<UpworkTier>, hourly_rate_min: Option<u32>) -> Self {
+    pub fn with_config(
+        tier: Option<UpworkTier>,
+        hourly_rate_min: Option<u32>,
+        client_hires: Option<String>,
+    ) -> Self {
         Self {
             tier,
             hourly_rate_min,
+            client_hires,
         }
     }
 
@@ -85,10 +133,14 @@ impl UpworkScraper {
         query: &str,
         tier: Option<UpworkTier>,
         hourly_rate_min: Option<u32>,
+        client_hires: Option<String>,
+        page: u32,
     ) -> String {
         UpworkSearchParams::new(query)
             .tier(tier)
             .hourly_rate_min(hourly_rate_min)
+            .client_hires(client_hires)
+            .page(page)
             .build_url()
     }
 
@@ -217,79 +269,26 @@ impl UpworkScraper {
         Ok(detail)
     }
 
-    /// Scrape job cards from current page (search page or most-recent feed).
+    /// Scrape job cards from current search page.
     pub async fn scrape_page(page: &chromiumoxide::Page) -> Result<Vec<UpworkJobCard>> {
         let cards: Vec<UpworkJobCard> = page
             .evaluate(
                 r#"
                 (() => {
-                    // Try search-page selector first
-                    const searchTiles = Array.from(document.querySelectorAll("article[data-test='JobTile']"));
-                    if (searchTiles.length > 0) {
-                        return searchTiles.map(el => {
-                            const titleLink = el.querySelector('a');
-                            const budgetEl = el.querySelector("[data-test='job-type-label']");
-                            const timeEl = el.querySelector('small');
-                            const skillsEls = el.querySelectorAll("[data-test='token']");
-                            const uid = el.getAttribute("data-ev-job-uid");
-                            return {
-                                external_id: uid || "",
-                                title: titleLink?.textContent?.trim() || "",
-                                description: null,
-                                url: titleLink?.href ? new URL(titleLink.href, location.href).href : "",
-                                budget: budgetEl?.textContent?.trim() || null,
-                                posted_at_text: timeEl?.textContent?.trim() || null,
-                                tags: Array.from(skillsEls).map(s => s.textContent.trim()).filter(Boolean)
-                            };
-                        });
-                    }
-
-                    // Fallback: most-recent feed page
-                    const sections = Array.from(document.querySelectorAll('section.air3-card-section')).filter(s => {
-                        return s.querySelector('a') && !s.querySelector('.air3-skeleton-shape');
-                    });
-                    return sections.map(s => {
-                        const titleLink = s.querySelector('.job-tile-title a') || s.querySelector('a.air3-link');
-                        const allSpans = Array.from(s.querySelectorAll('span, strong'));
-
-                        let posted_at_text = '';
-                        for (const el of allSpans) {
-                            const t = el.textContent.trim();
-                            if (/\d+\s+(minute|hour|day|week)s?\s+ago/i.test(t) || /just\s+now/i.test(t)) {
-                                posted_at_text = t;
-                                break;
-                            }
-                        }
-
-                        let budget = '';
-                        const fixedPrice = allSpans.find(el => el.textContent.trim() === 'Fixed-price');
-                        const hourly = allSpans.find(el => el.textContent.trim() === 'Hourly');
-                        if (fixedPrice) {
-                            const budgetSpan = allSpans.find(el => el.textContent.includes('Est. Budget:'));
-                            if (budgetSpan) {
-                                const m = budgetSpan.textContent.match(/\$[\d,]+/);
-                                budget = m ? 'Fixed-price: ' + m[0] : 'Fixed-price';
-                            } else {
-                                budget = 'Fixed-price';
-                            }
-                        } else if (hourly) {
-                            budget = 'Hourly';
-                        }
-
-                        const skills = Array.from(s.querySelectorAll('.air3-token')).map(el => el.textContent.trim()).filter(Boolean);
-
-                        const url = titleLink?.href || '';
-                        const idMatch = url.match(/~(\d+)/);
-                        const external_id = idMatch ? idMatch[1] : '';
-
+                    return Array.from(document.querySelectorAll("article[data-test='JobTile']")).map(el => {
+                        const titleLink = el.querySelector('a');
+                        const budgetEl = el.querySelector("[data-test='job-type-label']");
+                        const timeEl = el.querySelector('small');
+                        const skillsEls = el.querySelectorAll("[data-test='token']");
+                        const uid = el.getAttribute("data-ev-job-uid");
                         return {
-                            external_id,
-                            title: titleLink?.textContent?.trim() || '',
+                            external_id: uid || "",
+                            title: titleLink?.textContent?.trim() || "",
                             description: null,
-                            url: url ? new URL(url, location.href).href : '',
-                            budget: budget || null,
-                            posted_at_text: posted_at_text || null,
-                            tags: skills
+                            url: titleLink?.href ? new URL(titleLink.href, location.href).href : "",
+                            budget: budgetEl?.textContent?.trim() || null,
+                            posted_at_text: timeEl?.textContent?.trim() || null,
+                            tags: Array.from(skillsEls).map(s => s.textContent.trim()).filter(Boolean)
                         };
                     });
                 })()
@@ -298,77 +297,6 @@ impl UpworkScraper {
             .await?
             .into_value()?;
         Ok(cards)
-    }
-
-    /// Click "Load More" button and wait for new jobs. Returns true if more jobs loaded.
-    pub async fn click_load_more(page: &chromiumoxide::Page, pause_ms: u64) -> bool {
-        let has_more: Option<String> = page
-            .evaluate(
-                r#"
-                (() => {
-                    const btn = document.querySelector('[data-test="Load More Jobs"]')
-                        || document.querySelector('button[class*="load"]')
-                        || document.querySelector('button[class*="Load"]')
-                        || Array.from(document.querySelectorAll('button, [role="button"]'))
-                            .find(el => /load\s*more|show\s*more|view\s*more/i.test(el.textContent || ''));
-                    if (btn && !btn.disabled && btn.offsetParent !== null) {
-                        btn.scrollIntoView({ block: 'center' });
-                        return 'click';
-                    }
-                    return 'none';
-                })()
-                "#,
-            )
-            .await
-            .ok()
-            .and_then(|v| v.into_value().ok());
-
-        if has_more.as_deref() != Some("click") {
-            return false;
-        }
-
-        let _ = page
-            .evaluate(
-                r#"
-                (() => {
-                    const btn = document.querySelector('[data-test="Load More Jobs"]')
-                        || document.querySelector('button[class*="load"]')
-                        || document.querySelector('button[class*="Load"]')
-                        || Array.from(document.querySelectorAll('button, [role="button"]'))
-                            .find(el => /load\s*more|show\s*more|view\s*more/i.test(el.textContent || ''));
-                    if (btn) btn.click();
-                })()
-                "#,
-            )
-            .await;
-
-        // Count real job sections (most-recent page uses section.air3-card-section)
-        let prev_count: i32 = page
-            .evaluate(r#"
-                Array.from(document.querySelectorAll('section.air3-card-section')).filter(s => s.querySelector('a') && !s.querySelector('.air3-skeleton-shape')).length
-            "#)
-            .await
-            .ok()
-            .and_then(|v| v.into_value().ok())
-            .unwrap_or(0);
-
-        tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
-
-        for _ in 0..30 {
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            let count: i32 = page
-                .evaluate(r#"
-                    Array.from(document.querySelectorAll('section.air3-card-section')).filter(s => s.querySelector('a') && !s.querySelector('.air3-skeleton-shape')).length
-                "#)
-                .await
-                .ok()
-                .and_then(|v| v.into_value().ok())
-                .unwrap_or(0);
-            if count > prev_count {
-                return true;
-            }
-        }
-        false
     }
 
     /// Wait for job cards to appear (or CAPTCHA). Returns true if cards found.
@@ -388,8 +316,7 @@ impl UpworkScraper {
             let has_cards: bool = page
                 .evaluate(
                     r#"
-                    !!document.querySelector("article[data-test='JobTile']") ||
-                    Array.from(document.querySelectorAll('section.air3-card-section')).some(s => s.querySelector('a') && !s.querySelector('.air3-skeleton-shape'))
+                    !!document.querySelector("article[data-test='JobTile']")
                 "#,
                 )
                 .await?
@@ -421,13 +348,17 @@ impl PlatformClient for UpworkScraper {
         query: &str,
         pause_ms: u64,
     ) -> Result<Vec<Job>> {
-        let search_url = Self::build_search_url(query, self.tier, self.hourly_rate_min);
-
         let hosts = browser.get_page_hosts().await?;
         if !hosts.iter().any(|h| h.contains("upwork.com")) {
             bail!("Upwork requires open upwork.com tab in Brave");
         }
 
+        let base_params = UpworkSearchParams::new(query)
+            .tier(self.tier)
+            .hourly_rate_min(self.hourly_rate_min)
+            .client_hires(self.client_hires.clone());
+
+        let search_url = base_params.clone().build_url();
         let page = browser.new_tab(&search_url).await?;
 
         if !Self::wait_for_jobs(&page).await? {
@@ -437,12 +368,14 @@ impl PlatformClient for UpworkScraper {
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
         let mut all_jobs: Vec<Job> = Vec::new();
+        let mut page_num = 1u32;
 
         loop {
             tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
 
             let raw_jobs = Self::scrape_page(&page).await?;
 
+            let mut stop = false;
             for v in &raw_jobs {
                 let is_stale = v
                     .posted_at_text
@@ -460,6 +393,7 @@ impl PlatformClient for UpworkScraper {
                         v.posted_at_text.as_deref().unwrap_or("?"),
                         v.external_id
                     );
+                    stop = true;
                     break;
                 }
 
@@ -494,7 +428,8 @@ impl PlatformClient for UpworkScraper {
             }
 
             eprintln!(
-                "  Page: +{} jobs (total: {})",
+                "  Page {}: +{} jobs (total: {})",
+                page_num,
                 raw_jobs
                     .iter()
                     .filter(|v| !v.external_id.is_empty())
@@ -502,9 +437,30 @@ impl PlatformClient for UpworkScraper {
                 all_jobs.len()
             );
 
-            if !Self::click_load_more(&page, pause_ms).await {
+            if stop {
                 break;
             }
+
+            let has_next: bool = page
+                .evaluate(
+                    r#"!!document.querySelector('a[data-test="next-page"]:not(.is-disabled)')"#,
+                )
+                .await?
+                .into_value()?;
+
+            if !has_next {
+                break;
+            }
+
+            page_num += 1;
+            let next_url = base_params.clone().page(page_num).build_url();
+            page.goto(&next_url).await?;
+            page.wait_for_navigation().await?;
+
+            if !Self::wait_for_jobs(&page).await? {
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         }
 
         page.close().await.ok();
@@ -541,36 +497,54 @@ mod tests {
 
     #[test]
     fn test_build_search_url() {
-        let url = UpworkScraper::build_search_url("quant trading", None, None);
-        assert!(url.contains("most-recent"));
+        let url = UpworkScraper::build_search_url("quant trading", None, None, None, 1);
+        assert!(url.contains("/nx/search/jobs/"));
+        assert!(url.contains("q=quant+trading"));
+        assert!(url.contains("sort=recency"));
+        assert!(url.contains("per_page=50"));
+        assert!(url.contains("t=0"));
     }
 
     #[test]
-    fn test_build_search_url_ignores_query_and_filters() {
-        // most-recent feed does not support query/filters in URL.
-        let url =
-            UpworkScraper::build_search_url("quant trading", Some(UpworkTier::BothUpper), Some(65));
-        assert!(url.contains("most-recent"));
-        assert!(!url.contains("q="));
-        assert!(!url.contains("hourly_rate"));
-        assert!(!url.contains("contractor_tier"));
+    fn test_build_search_url_with_filters() {
+        let url = UpworkScraper::build_search_url(
+            "quant trading",
+            Some(UpworkTier::BothUpper),
+            Some(65),
+            Some("1-9,10-".to_string()),
+            2,
+        );
+        assert!(url.contains("/nx/search/jobs/"));
+        assert!(url.contains("q=quant+trading"));
+        assert!(url.contains("contractor_tier=2%2C3"));
+        assert!(url.contains("hourly_rate=65-"));
+        assert!(url.contains("t=0"));
+        assert!(url.contains("client_hires=1-9%2C10-"));
+        assert!(url.contains("page=2"));
     }
 
     #[test]
     fn test_upwork_search_params_defaults() {
         let params = UpworkSearchParams::new("rust");
         let url = params.build_url();
-        assert!(url.contains("most-recent"));
+        assert_eq!(
+            url,
+            "https://www.upwork.com/nx/search/jobs/?q=rust&sort=recency&per_page=50&t=0"
+        );
     }
 
     #[test]
-    fn test_upwork_search_params_builder_ignores_filters() {
+    fn test_upwork_search_params_builder_applies_filters() {
         let url = UpworkSearchParams::new("rust")
-            .tier(Some(UpworkTier::BothUpper))
-            .hourly_rate_min(Some(65))
+            .tier(Some(UpworkTier::Expert))
+            .hourly_rate_min(Some(100))
+            .client_hires(Some("10-".to_string()))
+            .page(3)
             .build_url();
-        assert!(url.contains("most-recent"));
-        assert!(!url.contains("contractor_tier"));
-        assert!(!url.contains("hourly_rate"));
+        assert!(url.contains("contractor_tier=3"));
+        assert!(url.contains("hourly_rate=100-"));
+        assert!(url.contains("t=0"));
+        assert!(url.contains("client_hires=10-"));
+        assert!(url.contains("page=3"));
     }
 }

@@ -49,7 +49,7 @@ async fn test_upwork_search_page_has_cards() {
 
     tokio::time::timeout(Duration::from_secs(45), async {
         let browser = manager.ensure().await.expect("Brave should connect");
-        let search_url = UpworkScraper::build_search_url("rust", None, None);
+        let search_url = UpworkScraper::build_search_url("rust", None, None, None, 1);
         let page = browser
             .new_tab(&search_url)
             .await
@@ -94,7 +94,7 @@ async fn test_upwork_job_detail_fetch() {
         let browser = manager.ensure().await.expect("Brave should connect");
 
         // Grab a job URL from search
-        let search_url = UpworkScraper::build_search_url("rust", None, None);
+        let search_url = UpworkScraper::build_search_url("rust", None, None, None, 1);
         let page = browser.new_tab(&search_url).await.expect("open search");
 
         assert!(
@@ -127,17 +127,17 @@ async fn test_upwork_job_detail_fetch() {
     .expect("test should complete within 60s");
 }
 
-// --- Upwork: load more ---
+// --- Upwork: pagination ---
 
 #[tokio::test]
 #[ignore = "requires Brave browser installed and upwork.com logged in"]
-async fn test_upwork_load_more_adds_jobs() {
+async fn test_upwork_pagination_has_next_page() {
     let _guard = get_guard();
     let manager = BrowserManager::new();
 
     tokio::time::timeout(Duration::from_secs(60), async {
         let browser = manager.ensure().await.expect("Brave should connect");
-        let search_url = UpworkScraper::build_search_url("rust", None, None);
+        let search_url = UpworkScraper::build_search_url("rust", None, None, None, 1);
         let page = browser
             .new_tab(&search_url)
             .await
@@ -158,25 +158,38 @@ async fn test_upwork_load_more_adds_jobs() {
         let first_count = first_page.len();
         println!("first page: {} jobs", first_count);
 
-        let more_loaded = UpworkScraper::click_load_more(&page, 2000).await;
-        if !more_loaded {
-            println!("No load-more button or no more jobs — skipping assertion");
+        let has_next: bool = page
+            .evaluate(r#"!!document.querySelector('a[data-test="next-page"]:not(.is-disabled)')"#)
+            .await
+            .ok()
+            .and_then(|v| v.into_value().ok())
+            .unwrap_or(false);
+
+        if !has_next {
+            println!("No next page — skipping pagination assertion");
             page.close().await.ok();
             return;
         }
 
+        let next_url = UpworkScraper::build_search_url("rust", None, None, None, 2);
+        page.goto(&next_url).await.expect("goto page 2");
+        page.wait_for_navigation().await.expect("navigation");
+
+        assert!(
+            UpworkScraper::wait_for_jobs(&page)
+                .await
+                .expect("wait_for_jobs page 2"),
+            "jobs should appear on page 2"
+        );
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
         let second_page = UpworkScraper::scrape_page(&page)
             .await
             .expect("scrape second page");
-        let total = second_page.len();
-        println!("after load-more: {} jobs", total);
+        let second_count = second_page.len();
+        println!("second page: {} jobs", second_count);
 
-        assert!(
-            total > first_count,
-            "after load-more, total should increase: {} vs {}",
-            total,
-            first_count
-        );
+        assert!(!second_page.is_empty(), "page 2 should have jobs");
 
         page.close().await.ok();
     })
