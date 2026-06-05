@@ -68,6 +68,10 @@ pub enum Commands {
         /// Filter by recency, e.g. 1d, 4w
         #[arg(long)]
         recency: Option<Recency>,
+
+        /// Filter by applied status: true/false. Omit for all.
+        #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+        applied: Option<bool>,
     },
 
     Show {

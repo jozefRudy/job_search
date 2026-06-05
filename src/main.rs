@@ -124,6 +124,7 @@ async fn main() -> Result<()> {
             id,
             detailed,
             recency,
+            applied,
         } => {
             if let Some(job_id) = id {
                 let job = db
@@ -138,7 +139,7 @@ async fn main() -> Result<()> {
                     println!("{}", display::render_table(&[job]));
                 }
             } else {
-                cmd_list(&db, platform, limit, recency, detailed, cli.json).await?;
+                cmd_list(&db, platform, limit, recency, detailed, applied, cli.json).await?;
             }
         }
         Commands::Show { id } => {
@@ -191,6 +192,7 @@ async fn cmd_list(
     limit: Option<i64>,
     recency: Option<Recency>,
     detailed: bool,
+    applied: Option<bool>,
     json: bool,
 ) -> Result<()> {
     let jobs = db.list_jobs(platform, limit.unwrap_or(i64::MAX)).await?;
@@ -202,6 +204,12 @@ async fn cmd_list(
                 .filter(|j| j.created_at.is_some_and(|dt| dt >= cutoff))
                 .collect()
         }
+        None => jobs,
+    };
+
+    let jobs: Vec<_> = match applied {
+        Some(true) => jobs.into_iter().filter(|j| j.note.is_some()).collect(),
+        Some(false) => jobs.into_iter().filter(|j| j.note.is_none()).collect(),
         None => jobs,
     };
 
