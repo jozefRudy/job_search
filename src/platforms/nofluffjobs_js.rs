@@ -2,30 +2,20 @@
 
 pub const SCRAPE_CARDS: &str = r#"
 (() => {
-    const cards = Array.from(document.querySelectorAll('a.posting-list-item'));
-    return cards.map(el => {
-        const titleEl = el.querySelector('h3');
-        let title = titleEl?.textContent?.trim() || '';
-        // Strip trailing NEW badge that Angular hydrates inside h3
-        title = title.replace(/\s+NEW$/, '').trim();
+    const text = (el, sel) => el.querySelector(sel)?.textContent?.trim() || null;
 
+    return Array.from(document.querySelectorAll('a.posting-list-item')).map(el => {
+        const title = (text(el, 'h3') || '').replace(/\s+NEW$/, '').trim();
         const href = el.href || '';
         const slug = href.split('/').pop() || '';
-
-        // Salary from dedicated data-cy element
-        const salaryEl = el.querySelector('[data-cy="salary ranges on the job offer listing"]');
-        const budget = salaryEl?.textContent?.trim() || null;
-
-        // Tags from dedicated category spans
-        const tagEls = el.querySelectorAll('[data-cy="category name on the job offer listing"]');
-        const tags = Array.from(tagEls).map(t => t.textContent.trim()).filter(Boolean);
 
         return {
             external_id: slug,
             title,
             url: href,
-            budget,
-            tags
+            budget: text(el, '[data-cy="salary ranges on the job offer listing"]'),
+            tags: Array.from(el.querySelectorAll('[data-cy="category name on the job offer listing"]'))
+                .map(t => t.textContent.trim()).filter(Boolean)
         };
     });
 })()
@@ -48,17 +38,13 @@ pub const CLICK_LOAD_MORE: &str = r#"
 "#;
 
 pub const COUNT_CARDS: &str = r#"
-(() => document.querySelectorAll('a.posting-list-item').length)()
+document.querySelectorAll('a.posting-list-item').length
 "#;
 
 /// Extract total results count from the list header, e.g. "Jobs (135)" -> 135
 pub const GET_TOTAL_RESULTS: &str = r#"
 (() => {
-    const header = document.querySelector('header.list-title');
-    if (!header) return null;
-    const span = header.querySelector('span');
-    if (!span) return null;
-    const match = span.textContent.match(/\((\d+)\)/);
+    const match = document.querySelector('header.list-title')?.querySelector('span')?.textContent.match(/\((\d+)\)/);
     return match ? parseInt(match[1], 10) : null;
 })()
 "#;

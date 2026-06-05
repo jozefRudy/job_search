@@ -94,11 +94,19 @@ cargo test -- --include-ignored
 - **Plan refactor scope before touching files.** Cascading type changes across 5+ files cause compile-error whack-a-mole. Map all affected files first (models, db, platform modules, main.rs, tests).
 - **Prefer `#[allow(...)]` over boxing enum variants.** `Box<T>` adds indirection and noise. For large enum variants that are rarely cloned, suppress the lint instead.
 
+## Browser Scraping JS
+
+- **Extract JS snippets to dedicated `*_js.rs` module.** Follow existing `nofluffjobs_js.rs` / `upwork_js.rs` pattern. Inline JS in Rust files becomes unmanageable.
+- **Avoid framework-internal state.** `window.__NUXT__`, React props, hydrated globals break silently on site updates. Prefer stable DOM selectors or visible text (`document.body.innerText`).
+- **Simple fallback chain:** DOM selector first → regex on `innerText` fallback → empty string default. No `try/catch` around optional chaining.
+- **Simplify with small JS helpers.** A 2-line `rx(pattern)` or `liText(selector)` helper removes repetitive `match`/`?.trim()` boilerplate.
+
 ## Session Efficiency
 
 - If user says "don't use X", stop immediately — don't keep trying. (e.g. `browser_navigate` after user said use rust code)
 - Read docs **before** trying 3 variants of a feature. (e.g. checked md_docs for window state only after trying hidden/minimized/offscreen)
 - `grep` for all field usages before renaming — prevents dead references.
+- **Changing public function signatures:** `grep` all call sites including tests and ignored integration tests before editing. Saves compile-error whack-a-mole.
 - When adding CLI commands, update both `cli.rs` enum AND `main.rs` match arm.
 
 ## CLI Design
