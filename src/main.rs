@@ -208,8 +208,14 @@ async fn cmd_list(
     };
 
     let jobs: Vec<_> = match applied {
-        Some(true) => jobs.into_iter().filter(|j| j.note.is_some()).collect(),
-        Some(false) => jobs.into_iter().filter(|j| j.note.is_none()).collect(),
+        Some(true) => jobs
+            .into_iter()
+            .filter(|j| j.applied_at.is_some())
+            .collect(),
+        Some(false) => jobs
+            .into_iter()
+            .filter(|j| j.applied_at.is_none())
+            .collect(),
         None => jobs,
     };
 

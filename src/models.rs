@@ -97,6 +97,7 @@ pub struct Job {
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
     pub note: Option<String>,
+    pub applied_at: Option<DateTime<Utc>>,
 }
 
 /// Parsed budget range with consistent formatting.

@@ -66,7 +66,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
-                r.note
+                r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
@@ -88,7 +88,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
-                r.note
+                r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE j.id = ?1
@@ -171,6 +171,7 @@ struct JobRow {
     created_at: chrono::NaiveDateTime,
     updated_at: chrono::NaiveDateTime,
     note: Option<String>,
+    applied_at: Option<chrono::NaiveDateTime>,
 }
 
 impl From<JobRow> for Job {
@@ -207,6 +208,7 @@ impl From<JobRow> for Job {
             created_at: Some(r.created_at.and_utc()),
             updated_at: Some(r.updated_at.and_utc()),
             note: r.note,
+            applied_at: r.applied_at.map(|dt| dt.and_utc()),
         }
     }
 }
@@ -248,6 +250,7 @@ mod tests {
             created_at: None,
             updated_at: None,
             note: None,
+            applied_at: None,
         }
     }
 
@@ -300,6 +303,7 @@ mod tests {
             created_at: None,
             updated_at: None,
             note: None,
+            applied_at: None,
         };
 
         let id = db.upsert_job(&job).await?;
@@ -346,6 +350,7 @@ mod tests {
             created_at: None,
             updated_at: None,
             note: None,
+            applied_at: None,
         };
 
         let id = db.upsert_job(&job).await?;

@@ -249,6 +249,7 @@ impl NoFluffJobsScraper {
                             created_at: posted,
                             updated_at: None,
                             note: None,
+                            applied_at: None,
                         };
                         db.upsert_job(&job).await?;
                         all_jobs.push(job);

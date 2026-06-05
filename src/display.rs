@@ -49,7 +49,7 @@ pub fn render_table(jobs: &[Job]) -> String {
             Cell::new(job.platform.to_string()),
             Cell::new(fmt_relative(job.created_at)),
             Cell::new(job.budget.as_deref().unwrap_or("?")),
-            Cell::new(if job.note.is_some() { "✓" } else { "" }),
+            Cell::new(fmt_relative(job.applied_at)),
             Cell::new(&job.title),
         ]);
     }
@@ -159,16 +159,18 @@ pub fn render_job_detailed(job: &Job) -> String {
         }
     }
 
-    if let Some(note) = &job.note {
-        lines.push("  Applied:        yes".to_string());
-        if !note.is_empty() {
-            lines.push("  Note:".to_string());
-            for line in note.lines() {
-                lines.push(format!("    {}", line));
-            }
-        }
+    if let Some(applied) = job.applied_at {
+        lines.push(format!("  Applied:        {}", fmt_relative(Some(applied))));
     } else {
         lines.push("  Applied:        no".to_string());
+    }
+    if let Some(note) = &job.note
+        && !note.is_empty()
+    {
+        lines.push("  Note:".to_string());
+        for line in note.lines() {
+            lines.push(format!("    {}", line));
+        }
     }
     lines.push("".to_string());
     lines.push(format!(
