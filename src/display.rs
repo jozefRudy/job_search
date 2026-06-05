@@ -13,7 +13,7 @@ fn html_to_text(html: &str) -> String {
 pub fn fmt_relative(dt: Option<chrono::DateTime<chrono::Utc>>) -> String {
     let dt = match dt {
         Some(d) => d,
-        None => return "?".to_string(),
+        None => return String::new(),
     };
     let dur = chrono::Utc::now().signed_duration_since(dt);
     let mins = dur.num_minutes();
@@ -217,6 +217,6 @@ mod tests {
 
     #[test]
     fn test_fmt_relative_none() {
-        assert_eq!(fmt_relative(None), "?");
+        assert_eq!(fmt_relative(None), "");
     }
 }
