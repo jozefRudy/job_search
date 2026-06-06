@@ -9,6 +9,12 @@ use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use tokio::time::{Duration, sleep};
 
+const FETCH_JOB_DETAIL_JS: &str = include_str!("upwork/fetch_job_detail.js");
+const SCRAPE_CARDS_JS: &str = include_str!("upwork/scrape_cards.js");
+const IS_CHALLENGE_JS: &str = include_str!("upwork/is_challenge.js");
+const HAS_CARDS_JS: &str = include_str!("upwork/has_cards.js");
+const HAS_NEXT_PAGE_JS: &str = include_str!("upwork/has_next_page.js");
+
 /// Job card as scraped from the Upwork list page.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpworkJobCard {
@@ -169,10 +175,7 @@ impl UpworkScraper {
 
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
-        let detail: UpworkJobDetail = page
-            .evaluate(crate::platforms::upwork_js::FETCH_JOB_DETAIL)
-            .await?
-            .into_value()?;
+        let detail: UpworkJobDetail = page.evaluate(FETCH_JOB_DETAIL_JS).await?.into_value()?;
 
         page.close().await.ok();
         Ok(detail)
@@ -180,25 +183,16 @@ impl UpworkScraper {
 
     /// Scrape job cards from current search page.
     pub async fn scrape_page(page: &chromiumoxide::Page) -> Result<Vec<UpworkJobCard>> {
-        let cards: Vec<UpworkJobCard> = page
-            .evaluate(crate::platforms::upwork_js::SCRAPE_CARDS)
-            .await?
-            .into_value()?;
+        let cards: Vec<UpworkJobCard> = page.evaluate(SCRAPE_CARDS_JS).await?.into_value()?;
         Ok(cards)
     }
 
     /// Wait for job cards to appear (or CAPTCHA). Returns true if cards found.
     pub async fn wait_for_jobs(page: &chromiumoxide::Page) -> Result<bool> {
         for i in 0..120 {
-            let is_challenge: bool = page
-                .evaluate(crate::platforms::upwork_js::IS_CHALLENGE)
-                .await?
-                .into_value()?;
+            let is_challenge: bool = page.evaluate(IS_CHALLENGE_JS).await?.into_value()?;
 
-            let has_cards: bool = page
-                .evaluate(crate::platforms::upwork_js::HAS_CARDS)
-                .await?
-                .into_value()?;
+            let has_cards: bool = page.evaluate(HAS_CARDS_JS).await?.into_value()?;
 
             if !is_challenge && has_cards {
                 return Ok(true);
@@ -317,10 +311,7 @@ impl PlatformClient for UpworkScraper {
                 sleep(Duration::from_millis(pause_ms)).await;
             }
 
-            let has_next: bool = page
-                .evaluate(crate::platforms::upwork_js::HAS_NEXT_PAGE)
-                .await?
-                .into_value()?;
+            let has_next: bool = page.evaluate(HAS_NEXT_PAGE_JS).await?.into_value()?;
 
             if !has_next {
                 break;

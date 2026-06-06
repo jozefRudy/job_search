@@ -34,4 +34,3 @@ pub trait PlatformClient: Send + Sync {
 
 pub mod nofluffjobs;
 pub mod upwork;
-pub mod upwork_js;

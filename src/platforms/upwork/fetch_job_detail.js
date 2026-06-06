@@ -1,7 +1,3 @@
-//! JS snippets for Upwork browser scraping.
-
-/// Extract job detail fields from job detail page.
-pub const FETCH_JOB_DETAIL: &str = r#"
 (() => {
     const text = document.body.innerText;
     const rx = (pattern) => {
@@ -66,43 +62,3 @@ pub const FETCH_JOB_DETAIL: &str = r#"
 
     return { proposals, last_viewed, interviewing, invites_sent, unanswered_invites, description, exact_budget, experience_level, hires, project_type, duration, hours_per_week };
 })()
-"#;
-
-/// Scrape job cards from search page.
-pub const SCRAPE_CARDS: &str = r#"
-(() => {
-    return Array.from(document.querySelectorAll("article[data-test='JobTile']")).map(el => {
-        const titleLink = el.querySelector('a');
-        const budgetEl = el.querySelector("[data-test='job-type-label']");
-        const timeEl = el.querySelector('small');
-        const skillsEls = el.querySelectorAll("[data-test='token']");
-        const uid = el.getAttribute("data-ev-job-uid");
-        return {
-            external_id: uid || "",
-            title: titleLink?.textContent?.trim() || "",
-            description: null,
-            url: titleLink?.href ? new URL(titleLink.href, location.href).href : "",
-            budget: budgetEl?.textContent?.trim() || null,
-            posted_at_text: timeEl?.textContent?.trim() || null,
-            tags: Array.from(skillsEls).map(s => s.textContent.trim()).filter(Boolean)
-        };
-    });
-})()
-"#;
-
-/// Check if page is showing a CAPTCHA / challenge.
-pub const IS_CHALLENGE: &str = r#"
-document.title.includes('Just a moment') ||
-document.title.includes('Challenge') ||
-!!document.querySelector('#cf-challenge-running')
-"#;
-
-/// Check if search page has job tiles loaded.
-pub const HAS_CARDS: &str = r#"
-!!document.querySelector("article[data-test='JobTile']")
-"#;
-
-/// Check if pagination has a next page link.
-pub const HAS_NEXT_PAGE: &str = r#"
-!!document.querySelector('a[data-test="next-page"]:not(.is-disabled)')
-"#;
