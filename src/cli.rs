@@ -57,10 +57,6 @@ pub enum Commands {
         #[arg(short, long)]
         limit: Option<i64>,
 
-        /// Show only this job ID
-        #[arg(long)]
-        id: Option<i64>,
-
         /// Show platform-specific details below each row
         #[arg(long)]
         detailed: bool,
@@ -85,13 +81,6 @@ pub enum Commands {
     },
 
     Stats,
-
-    Detail {
-        id: i64,
-
-        #[arg(short, long)]
-        force: bool,
-    },
 }
 
 #[derive(Parser)]

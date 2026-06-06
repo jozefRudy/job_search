@@ -55,9 +55,11 @@ pub struct NoFluffJobDetail {
     #[serde(default)]
     pub must_have: Vec<String>,
     #[serde(default)]
+    pub description: String,
+    #[serde(default)]
     pub requirements: String,
     #[serde(default)]
-    pub offer_description: String,
+    pub nice_to_have: String,
     #[serde(default)]
     pub offer_valid_until: String,
     #[serde(default)]

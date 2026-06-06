@@ -144,13 +144,21 @@ pub fn render_job_detailed(job: &Job) -> String {
                     .join("\n    ");
                 lines.push(format!("  Requirements:\n    {}", text));
             }
-            if !detail.offer_description.is_empty() {
-                let text = html_to_text(&detail.offer_description)
+            if !detail.nice_to_have.is_empty() {
+                let text = html_to_text(&detail.nice_to_have)
                     .lines()
                     .map(|l| l.trim_end())
                     .collect::<Vec<_>>()
                     .join("\n    ");
-                lines.push(format!("  Offer desc:\n    {}", text));
+                lines.push(format!("  Nice to have:\n    {}", text));
+            }
+            if !detail.description.is_empty() {
+                let text = html_to_text(&detail.description)
+                    .lines()
+                    .map(|l| l.trim_end())
+                    .collect::<Vec<_>>()
+                    .join("\n    ");
+                lines.push(format!("  Description:\n    {}", text));
             }
         }
     }

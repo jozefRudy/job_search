@@ -371,9 +371,11 @@ impl NoFluffJobsScraper {
             })
             .collect();
 
+        let description = detail.details.description;
+
         let requirements = detail.requirements.description.clone();
 
-        let offer_description = detail
+        let nice_to_have = detail
             .requirements
             .nices
             .iter()
@@ -418,9 +420,10 @@ impl NoFluffJobsScraper {
             seniority,
             remote,
             locations,
+            description,
             must_have,
             requirements,
-            offer_description,
+            nice_to_have,
             offer_valid_until: detail.expires_at.unwrap_or_default(),
             languages,
             posted_at,
