@@ -169,10 +169,6 @@ pub fn render_job_detailed(job: &Job) -> String {
         }
     }
     lines.push("".to_string());
-    lines.push(format!(
-        "  Run: jobsearch react {} [--note \"...\"]",
-        job.id.unwrap_or(0)
-    ));
     lines.push("─".repeat(60));
     lines.join("\n")
 }
