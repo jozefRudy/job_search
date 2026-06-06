@@ -97,7 +97,7 @@ pub fn render_job_detailed(job: &Job) -> String {
                 lines.push(format!("  Proposals:      {}", detail.proposals));
             }
             if !detail.last_viewed.is_empty() {
-                lines.push(format!("  Last viewed:    {}", detail.last_viewed));
+                lines.push(format!("  Last viewed by client: {}", detail.last_viewed));
             }
             if !detail.interviewing.is_empty() {
                 lines.push(format!("  Interviewing:   {}", detail.interviewing));
