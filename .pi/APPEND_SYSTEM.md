@@ -102,7 +102,7 @@ Use `use` for repeated paths. No fully-qualified repetition.
 
 ## Browser Scraping JS
 
-- **Extract JS snippets to dedicated `*_js.rs` module.** Follow existing `nofluffjobs_js.rs` / `upwork_js.rs` pattern. Inline JS in Rust files becomes unmanageable.
+- **Extract JS snippets to `.js` files, use `include_str!` directly in scraper module.** Create `src/platforms/<platform>/snippet.js` files, load with `const SNIPPET_JS: &str = include_str!("<platform>/snippet.js");` in the scraper `.rs` file. No thin `*_js.rs` loader modules needed.
 - **Avoid framework-internal state.** `window.__NUXT__`, React props, hydrated globals break silently on site updates. Prefer stable DOM selectors or visible text (`document.body.innerText`).
 - **Simple fallback chain:** DOM selector first → regex on `innerText` fallback → empty string default. No `try/catch` around optional chaining.
 - **Simplify with small JS helpers.** A 2-line `rx(pattern)` or `liText(selector)` helper removes repetitive `match`/`?.trim()` boilerplate.
