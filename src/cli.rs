@@ -81,6 +81,9 @@ pub enum Commands {
     React(ReactCmd),
 
     Stats,
+
+    /// Show diagnostic info (DB path, job count, env)
+    Diagnose,
 }
 
 #[derive(Parser)]

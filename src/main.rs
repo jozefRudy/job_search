@@ -138,6 +138,9 @@ async fn main() -> Result<()> {
         Commands::Stats => {
             cmd_stats(&db, cli.json).await?;
         }
+        Commands::Diagnose => {
+            cmd_diagnose(&db, &db_path).await?;
+        }
     }
 
     // Browser stays alive for reuse
@@ -291,6 +294,42 @@ async fn cmd_stats(db: &Db, json: bool) -> Result<()> {
         for (p, c) in &stats.by_platform {
             println!("  {}: {}", p, c);
         }
+    }
+
+    Ok(())
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const UNITS: &[&str] = &["bytes", "KB", "MB", "GB", "TB"];
+    if bytes == 0 {
+        return "0 bytes".to_string();
+    }
+    let exp = (bytes as f64).log(1024.0).min(UNITS.len() as f64 - 1.0) as usize;
+    let val = bytes as f64 / 1024f64.powi(exp as i32);
+    if exp == 0 {
+        format!("{} {}", bytes, UNITS[exp])
+    } else {
+        format!("{:.2} {}", val, UNITS[exp])
+    }
+}
+
+async fn cmd_diagnose(db: &Db, db_path: &std::path::Path) -> Result<()> {
+    let file_size = std::fs::metadata(db_path).ok().map(|m| m.len());
+    let stats = db.stats().await?;
+
+    let abs_path = db_path
+        .canonicalize()
+        .unwrap_or_else(|_| db_path.to_path_buf());
+
+    println!("DB path: {}", abs_path.display());
+    println!(
+        "DB file size: {}",
+        file_size.map_or("unknown".to_string(), format_bytes)
+    );
+    println!("Total jobs: {}", stats.total);
+    println!("\nBy platform:");
+    for (p, c) in &stats.by_platform {
+        println!("  {}: {}", p, c);
     }
 
     Ok(())
