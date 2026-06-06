@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::browser::BrowserExt;
 use crate::db::Db;
 use crate::models::{Data, Job, Platform, UpworkJobDetail};
@@ -7,6 +9,7 @@ use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
+use tokio::time::sleep;
 
 /// Job card as scraped from the Upwork list page.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -159,7 +162,7 @@ impl UpworkScraper {
                 found = true;
                 break;
             }
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            sleep(Duration::from_millis(500)).await;
         }
         if !found {
             page.close().await.ok();
@@ -206,7 +209,7 @@ impl UpworkScraper {
             if i == 30 {
                 eprintln!("  Upwork showing CAPTCHA. Login in Brave first, then retry.");
             }
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+            sleep(Duration::from_millis(500)).await;
         }
         Ok(false)
     }
@@ -242,7 +245,7 @@ impl PlatformClient for UpworkScraper {
             bail!("Upwork job cards did not appear. Login at upwork.com in Brave first.");
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        sleep(Duration::from_secs(2)).await;
 
         let mut all_jobs: Vec<Job> = Vec::new();
         let mut page_num = 1u32;
@@ -253,7 +256,7 @@ impl PlatformClient for UpworkScraper {
         eprint!("\x1B[?25l"); // hide cursor
 
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
+            sleep(Duration::from_millis(pause_ms)).await;
 
             let raw_jobs = Self::scrape_page(&page).await?;
 
@@ -313,7 +316,7 @@ impl PlatformClient for UpworkScraper {
                 }
 
                 eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, v.title);
-                tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
+                sleep(Duration::from_millis(pause_ms)).await;
             }
 
             let has_next: bool = page
@@ -333,7 +336,7 @@ impl PlatformClient for UpworkScraper {
             if !Self::wait_for_jobs(&page).await? {
                 break;
             }
-            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            sleep(Duration::from_millis(pause_ms)).await;
         }
 
         eprintln!("\x1B[?25h"); // show cursor
