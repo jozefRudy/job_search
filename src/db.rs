@@ -98,7 +98,7 @@ impl Db {
         Ok(row.map(|r| r.into()))
     }
 
-    pub async fn set_applied(&self, job_id: i64, note: String) -> Result<()> {
+    pub async fn set_applied(&self, job_id: i64, note: Option<&str>) -> Result<()> {
         sqlx::query!(
             "INSERT INTO reactions (job_id, note) VALUES (?1, ?2)
              ON CONFLICT(job_id) DO UPDATE SET note = excluded.note",

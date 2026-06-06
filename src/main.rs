@@ -242,8 +242,13 @@ async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
             db.get_job(id)
                 .await?
                 .ok_or_else(|| anyhow::anyhow!("Job {} not found", id))?;
-            db.set_applied(id, note.clone()).await?;
-            println!("Job {} marked applied with note: {}", id, note);
+            db.set_applied(id, note.as_deref()).await?;
+            match note {
+                Some(n) if !n.is_empty() => {
+                    println!("Job {} marked applied with note: {}", id, n);
+                }
+                _ => println!("Job {} marked applied", id),
+            }
         }
         ReactAction::Like { ids } => {
             for &id in &ids {

@@ -97,8 +97,8 @@ pub struct ReactCmd {
 
 #[derive(Subcommand)]
 pub enum ReactAction {
-    /// Apply to a job (requires note)
-    Apply { id: i64, note: String },
+    /// Apply to a job (optional note)
+    Apply { id: i64, note: Option<String> },
 
     /// Like one or more jobs
     Like { ids: Vec<i64> },
