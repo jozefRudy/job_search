@@ -10,6 +10,11 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+const SCRAPE_CARDS_JS: &str = include_str!("nofluffjobs/scrape_cards.js");
+const CLICK_LOAD_MORE_JS: &str = include_str!("nofluffjobs/click_load_more.js");
+const COUNT_CARDS_JS: &str = include_str!("nofluffjobs/count_cards.js");
+const GET_TOTAL_RESULTS_JS: &str = include_str!("nofluffjobs/get_total_results.js");
+
 /// Card scraped from NoFluffJobs search page DOM.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NofluffJobCard {
@@ -180,7 +185,7 @@ impl NoFluffJobsScraper {
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
         let total_results: Option<usize> = page
-            .evaluate(super::nofluffjobs_js::GET_TOTAL_RESULTS)
+            .evaluate(GET_TOTAL_RESULTS_JS)
             .await
             .ok()
             .and_then(|v| v.into_value().ok())
@@ -198,10 +203,7 @@ impl NoFluffJobsScraper {
         eprint!("\x1B[?25l"); // hide cursor
 
         loop {
-            let cards: Vec<NofluffJobCard> = page
-                .evaluate(super::nofluffjobs_js::SCRAPE_CARDS)
-                .await?
-                .into_value()?;
+            let cards: Vec<NofluffJobCard> = page.evaluate(SCRAPE_CARDS_JS).await?.into_value()?;
 
             let new_cards: Vec<_> = cards
                 .into_iter()
@@ -296,17 +298,14 @@ impl NoFluffJobsScraper {
 
     /// Scrape job cards from current page.
     pub async fn scrape_page(page: &chromiumoxide::Page) -> Result<Vec<NofluffJobCard>> {
-        let cards: Vec<NofluffJobCard> = page
-            .evaluate(super::nofluffjobs_js::SCRAPE_CARDS)
-            .await?
-            .into_value()?;
+        let cards: Vec<NofluffJobCard> = page.evaluate(SCRAPE_CARDS_JS).await?.into_value()?;
         Ok(cards)
     }
 
     /// Click "See more offers" button and wait for new cards. Returns true if more loaded.
     pub async fn click_load_more(page: &chromiumoxide::Page, pause_ms: u64) -> bool {
         let prev_count: i32 = page
-            .evaluate(super::nofluffjobs_js::COUNT_CARDS)
+            .evaluate(COUNT_CARDS_JS)
             .await
             .ok()
             .and_then(|v| v.into_value().ok())
@@ -314,7 +313,7 @@ impl NoFluffJobsScraper {
 
         // Single JS: check, scroll, click in one go. Returns true if button was found.
         let clicked: bool = page
-            .evaluate(super::nofluffjobs_js::CLICK_LOAD_MORE)
+            .evaluate(CLICK_LOAD_MORE_JS)
             .await
             .ok()
             .and_then(|v| v.into_value().ok())
@@ -329,7 +328,7 @@ impl NoFluffJobsScraper {
         for _ in 0..30 {
             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
             let count: i32 = page
-                .evaluate(super::nofluffjobs_js::COUNT_CARDS)
+                .evaluate(COUNT_CARDS_JS)
                 .await
                 .ok()
                 .and_then(|v| v.into_value().ok())
