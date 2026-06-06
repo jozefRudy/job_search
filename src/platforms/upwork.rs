@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::browser::BrowserExt;
 use crate::db::Db;
 use crate::models::{Data, Job, Platform, UpworkJobDetail};
@@ -9,7 +7,7 @@ use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
-use tokio::time::sleep;
+use tokio::time::{Duration, sleep};
 
 /// Job card as scraped from the Upwork list page.
 #[derive(Debug, Clone, Serialize, Deserialize)]

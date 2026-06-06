@@ -39,6 +39,12 @@ cargo test -- --include-ignored
    - Bad: Rename fields without checking all usages
    - Good: `grep` for all references first
 
+## Imports
+
+Use `use` for repeated paths. No fully-qualified repetition.
+- Bad: `tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;`
+- Good: `use tokio::time::{sleep, Duration};` then `sleep(Duration::from_secs(2)).await;`
+
 ## Testing
 
 - Use `?` in async tests — return `Result<()>` instead of `unwrap`. Cleaner error messages, no panic backtraces.
