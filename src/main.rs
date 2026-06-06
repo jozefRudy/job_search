@@ -2,13 +2,22 @@ use anyhow::Result;
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager};
-use jobsearch::cli::{Cli, Commands, Recency, UpdatePlatform};
+use jobsearch::cli::{Cli, Commands, ReactAction, Recency, UpdatePlatform};
 use jobsearch::db::Db;
 use jobsearch::display;
 use jobsearch::models::Platform;
 use jobsearch::platforms::{
     PlatformClient, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper,
 };
+
+struct ListOpts {
+    platform: Option<Platform>,
+    limit: Option<i64>,
+    recency: Option<Recency>,
+    detailed: bool,
+    applied: Option<bool>,
+    liked: Option<bool>,
+}
 
 const DEFAULT_INIT_URLS: &[&str] = &[
     "https://www.upwork.com/freelancers/~01dba08086390dc196",
@@ -108,14 +117,23 @@ async fn main() -> Result<()> {
             detailed,
             recency,
             applied,
+            liked,
         } => {
-            cmd_list(&db, platform, limit, recency, detailed, applied, cli.json).await?;
+            let opts = ListOpts {
+                platform,
+                limit,
+                recency,
+                detailed,
+                applied,
+                liked,
+            };
+            cmd_list(&db, opts, cli.json).await?;
         }
         Commands::Show { id } => {
             cmd_show(&db, id, cli.json).await?;
         }
-        Commands::React { id, note } => {
-            cmd_react(&db, id, note).await?;
+        Commands::React(cmd) => {
+            cmd_react(&db, cmd.action).await?;
         }
         Commands::Stats => {
             cmd_stats(&db, cli.json).await?;
@@ -152,18 +170,12 @@ async fn fetch_and_store(
     Ok(())
 }
 
-async fn cmd_list(
-    db: &Db,
-    platform: Option<Platform>,
-    limit: Option<i64>,
-    recency: Option<Recency>,
-    detailed: bool,
-    applied: Option<bool>,
-    json: bool,
-) -> Result<()> {
-    let jobs = db.list_jobs(platform, limit.unwrap_or(i64::MAX)).await?;
+async fn cmd_list(db: &Db, opts: ListOpts, json: bool) -> Result<()> {
+    let jobs = db
+        .list_jobs(opts.platform, opts.limit.unwrap_or(i64::MAX))
+        .await?;
 
-    let jobs: Vec<_> = match recency {
+    let jobs: Vec<_> = match opts.recency {
         Some(Recency(days)) => {
             let cutoff = chrono::Utc::now() - chrono::Duration::days(days);
             jobs.into_iter()
@@ -173,7 +185,7 @@ async fn cmd_list(
         None => jobs,
     };
 
-    let jobs: Vec<_> = match applied {
+    let jobs: Vec<_> = match opts.applied {
         Some(true) => jobs
             .into_iter()
             .filter(|j| j.applied_at.is_some())
@@ -185,12 +197,18 @@ async fn cmd_list(
         None => jobs,
     };
 
+    let jobs: Vec<_> = match opts.liked {
+        Some(true) => jobs.into_iter().filter(|j| j.liked == Some(true)).collect(),
+        Some(false) => jobs.into_iter().filter(|j| j.liked != Some(true)).collect(),
+        None => jobs,
+    };
+
     if json {
         println!("{}", serde_json::to_string_pretty(&jobs)?);
         return Ok(());
     }
 
-    if detailed {
+    if opts.detailed {
         for job in &jobs {
             println!("{}", display::render_job_detailed(job));
         }
@@ -218,14 +236,41 @@ async fn cmd_show(db: &Db, id: i64, json: bool) -> Result<()> {
     Ok(())
 }
 
-async fn cmd_react(db: &Db, id: i64, note: Option<String>) -> Result<()> {
-    db.get_job(id)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("Job {} not found", id))?;
-    db.set_applied(id, note.clone()).await?;
-    match note {
-        Some(n) => println!("Job {} marked applied with note: {}", id, n),
-        None => println!("Job {} marked applied", id),
+async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
+    match cmd {
+        ReactAction::Apply { id, note } => {
+            db.get_job(id)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Job {} not found", id))?;
+            db.set_applied(id, note.clone()).await?;
+            println!("Job {} marked applied with note: {}", id, note);
+        }
+        ReactAction::Like { ids } => {
+            for &id in &ids {
+                db.get_job(id)
+                    .await?
+                    .ok_or_else(|| anyhow::anyhow!("Job {} not found", id))?;
+            }
+            db.set_liked(&ids, true).await?;
+            println!(
+                "Liked {} job{}",
+                ids.len(),
+                if ids.len() == 1 { "" } else { "s" }
+            );
+        }
+        ReactAction::Unlike { ids } => {
+            for &id in &ids {
+                db.get_job(id)
+                    .await?
+                    .ok_or_else(|| anyhow::anyhow!("Job {} not found", id))?;
+            }
+            db.set_liked(&ids, false).await?;
+            println!(
+                "Unliked {} job{}",
+                ids.len(),
+                if ids.len() == 1 { "" } else { "s" }
+            );
+        }
     }
     Ok(())
 }

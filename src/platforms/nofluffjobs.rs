@@ -250,6 +250,7 @@ impl NoFluffJobsScraper {
                             raw: Data::Nofluffjobs { detail },
                             created_at: posted.unwrap_or_else(chrono::Utc::now),
                             updated_at: chrono::Utc::now(),
+                            liked: None,
                             note: None,
                             applied_at: None,
                         };

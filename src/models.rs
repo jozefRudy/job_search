@@ -99,6 +99,7 @@ pub struct Job {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub note: Option<String>,
+    pub liked: Option<bool>,
     pub applied_at: Option<DateTime<Utc>>,
 }
 

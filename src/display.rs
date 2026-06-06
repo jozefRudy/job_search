@@ -36,7 +36,7 @@ pub fn render_table(jobs: &[Job]) -> String {
         .load_preset(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
         .set_header(vec![
-            "Id", "Platform", "Posted", "Budget", "Applied", "Title",
+            "Id", "Platform", "Posted", "Budget", "Applied", "Liked", "Title",
         ]);
 
     for job in jobs {
@@ -46,6 +46,7 @@ pub fn render_table(jobs: &[Job]) -> String {
             Cell::new(fmt_relative(job.created_at)),
             Cell::new(job.budget.as_deref().unwrap_or("?")),
             Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
+            Cell::new(if job.liked == Some(true) { "♥" } else { "" }),
             Cell::new(&job.title),
         ]);
     }
@@ -163,6 +164,10 @@ pub fn render_job_detailed(job: &Job) -> String {
         }
     }
 
+    lines.push(format!(
+        "  Liked:          {}",
+        if job.liked == Some(true) { "yes" } else { "no" }
+    ));
     if let Some(applied) = job.applied_at {
         lines.push(format!("  Applied:        {}", fmt_relative(applied)));
     } else {

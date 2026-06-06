@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     budget TEXT,
     tags TEXT NOT NULL,
     raw TEXT NOT NULL,
+    liked BOOL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     UNIQUE(platform, external_id)

@@ -66,19 +66,19 @@ pub enum Commands {
         recency: Option<Recency>,
 
         /// Filter by applied status: true/false. Omit for all.
-        #[arg(long, num_args = 0..=1, default_missing_value = "true")]
+        #[arg(long)]
         applied: Option<bool>,
+
+        /// Filter by liked status: true/false. Omit for all.
+        #[arg(long)]
+        liked: Option<bool>,
     },
 
     Show {
         id: i64,
     },
 
-    React {
-        id: i64,
-        #[arg(short, long)]
-        note: Option<String>,
-    },
+    React(ReactCmd),
 
     Stats,
 }
@@ -87,6 +87,24 @@ pub enum Commands {
 pub struct UpdateCmd {
     #[command(subcommand)]
     pub platform: UpdatePlatform,
+}
+
+#[derive(Parser)]
+pub struct ReactCmd {
+    #[command(subcommand)]
+    pub action: ReactAction,
+}
+
+#[derive(Subcommand)]
+pub enum ReactAction {
+    /// Apply to a job (requires note)
+    Apply { id: i64, note: String },
+
+    /// Like one or more jobs
+    Like { ids: Vec<i64> },
+
+    /// Unlike one or more jobs
+    Unlike { ids: Vec<i64> },
 }
 
 #[derive(Subcommand)]

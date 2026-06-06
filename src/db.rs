@@ -63,7 +63,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
-                r.note, r.applied_at
+                j.liked, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
@@ -85,7 +85,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
-                r.note, r.applied_at
+                j.liked, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE j.id = ?1
@@ -98,13 +98,24 @@ impl Db {
         Ok(row.map(|r| r.into()))
     }
 
-    pub async fn set_applied(&self, job_id: i64, note: Option<String>) -> Result<()> {
-        let note = note.unwrap_or_default();
+    pub async fn set_applied(&self, job_id: i64, note: String) -> Result<()> {
         sqlx::query!(
             "INSERT INTO reactions (job_id, note) VALUES (?1, ?2)
              ON CONFLICT(job_id) DO UPDATE SET note = excluded.note",
             job_id,
             note
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn set_liked(&self, ids: &[i64], liked: bool) -> Result<()> {
+        let ids_json = serde_json::to_string(ids)?;
+        sqlx::query!(
+            "UPDATE jobs SET liked = ?1 WHERE id IN (SELECT value FROM json_each(?2))",
+            liked,
+            ids_json
         )
         .execute(&self.pool)
         .await?;
@@ -185,6 +196,7 @@ struct JobRow {
     raw: String,
     created_at: chrono::NaiveDateTime,
     updated_at: chrono::NaiveDateTime,
+    liked: Option<bool>,
     note: Option<String>,
     applied_at: Option<chrono::NaiveDateTime>,
 }
@@ -223,6 +235,7 @@ impl From<JobRow> for Job {
             created_at: r.created_at.and_utc(),
             updated_at: r.updated_at.and_utc(),
             note: r.note,
+            liked: r.liked,
             applied_at: r.applied_at.map(|dt| dt.and_utc()),
         }
     }
@@ -264,6 +277,7 @@ mod tests {
             raw,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
+            liked: None,
             note: None,
             applied_at: None,
         }
@@ -317,6 +331,7 @@ mod tests {
             },
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
+            liked: None,
             note: None,
             applied_at: None,
         };
@@ -365,6 +380,7 @@ mod tests {
             },
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
+            liked: None,
             note: None,
             applied_at: None,
         };
