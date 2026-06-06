@@ -136,6 +136,24 @@ impl Db {
         Ok(count > 0)
     }
 
+    /// Fetch updated_at for a job by platform + external_id.
+    pub async fn job_updated_at(
+        &self,
+        platform: &Platform,
+        external_id: &str,
+    ) -> Result<Option<chrono::DateTime<chrono::Utc>>> {
+        let platform = platform.to_string();
+        let row = sqlx::query_scalar!(
+            "SELECT updated_at FROM jobs WHERE platform = ?1 AND external_id = ?2",
+            platform,
+            external_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|dt| dt.and_utc()))
+    }
+
     pub async fn stats(&self) -> Result<Stats> {
         let total = sqlx::query_scalar!("SELECT COUNT(*) FROM jobs")
             .fetch_one(&self.pool)

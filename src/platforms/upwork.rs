@@ -247,6 +247,8 @@ impl PlatformClient for UpworkScraper {
         let mut all_jobs: Vec<Job> = Vec::new();
         let mut page_num = 1u32;
         let mut checked_count = 0usize;
+        let fetch_started_at = chrono::Utc::now();
+        let detail_ttl = chrono::Duration::hours(24);
 
         eprint!("\x1B[?25l"); // hide cursor
 
@@ -255,7 +257,6 @@ impl PlatformClient for UpworkScraper {
 
             let raw_jobs = Self::scrape_page(&page).await?;
 
-            let mut stop = false;
             for v in &raw_jobs {
                 checked_count += 1;
                 let is_stale = v
@@ -267,15 +268,20 @@ impl PlatformClient for UpworkScraper {
                         age.num_days() >= 7
                     });
 
-                if is_stale && db.job_exists(&Platform::Upwork, &v.external_id).await? {
-                    eprintln!(
-                        "  Stopping: '{}' is {} old and already in DB ({})",
-                        v.title,
-                        v.posted_at_text.as_deref().unwrap_or("?"),
-                        v.external_id
-                    );
-                    stop = true;
-                    break;
+                match db.job_updated_at(&Platform::Upwork, &v.external_id).await? {
+                    // updated recently
+                    Some(updated_at) if fetch_started_at - updated_at < detail_ttl => {
+                        eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, "");
+                        continue;
+                    }
+                    //old
+                    Some(_) if is_stale => {
+                        eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, "");
+                        continue;
+                    }
+                    //young and not updated recently
+                    // does not exist fetch
+                    _ => {}
                 }
 
                 let job_url = v.url.clone();
@@ -308,20 +314,6 @@ impl PlatformClient for UpworkScraper {
 
                 eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, v.title);
                 tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
-            }
-
-            eprintln!(
-                "  Page {}: +{} jobs (total: {})",
-                page_num,
-                raw_jobs
-                    .iter()
-                    .filter(|v| !v.external_id.is_empty())
-                    .count(),
-                all_jobs.len()
-            );
-
-            if stop {
-                break;
             }
 
             let has_next: bool = page
