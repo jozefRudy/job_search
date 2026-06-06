@@ -2,7 +2,7 @@
     return Array.from(document.querySelectorAll("article[data-test='JobTile']")).map(el => {
         const titleLink = el.querySelector('a');
         const budgetEl = el.querySelector("[data-test='job-type-label']");
-        const timeEl = el.querySelector('small');
+        const timeEl = el.querySelector('small[data-test="job-pubilshed-date"]');
         const skillsEls = el.querySelectorAll("[data-test='token']");
         const uid = el.getAttribute("data-ev-job-uid");
         return {

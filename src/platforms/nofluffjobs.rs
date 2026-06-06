@@ -248,7 +248,9 @@ impl NoFluffJobsScraper {
                             budget,
                             tags: card.tags.clone(),
                             raw: Data::Nofluffjobs { detail },
-                            created_at: posted.unwrap_or_else(chrono::Utc::now),
+                            created_at: posted.unwrap_or_else(|| {
+                                chrono::Utc::now() - chrono::Duration::days(365)
+                            }),
                             updated_at: chrono::Utc::now(),
                             liked: None,
                             note: None,
