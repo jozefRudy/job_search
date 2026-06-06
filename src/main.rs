@@ -160,11 +160,7 @@ async fn fetch_and_store(
             .fetch_with_manager(browser, db, query, pause_ms)
             .await
         {
-            Ok(jobs) => {
-                for job in &jobs {
-                    db.upsert_job(job).await?;
-                }
-            }
+            Ok(_jobs) => {}
             Err(e) => {
                 eprintln!("  Error from {}: {}", client.name(), e);
             }
