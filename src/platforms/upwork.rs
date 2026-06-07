@@ -244,6 +244,8 @@ impl PlatformClient for UpworkScraper {
         let mut all_jobs: Vec<Job> = Vec::new();
         let mut page_num = 1u32;
         let mut checked_count = 0usize;
+        let mut new_count = 0usize;
+        let mut updated_count = 0usize;
         let fetch_started_at = chrono::Utc::now();
         let detail_ttl = chrono::Duration::hours(24);
 
@@ -261,21 +263,18 @@ impl PlatformClient for UpworkScraper {
                     age.num_days() >= 7
                 });
 
-                match db.job_updated_at(&Platform::Upwork, &v.external_id).await? {
-                    // updated recently
+                let exists = match db.job_updated_at(&Platform::Upwork, &v.external_id).await? {
                     Some(updated_at) if fetch_started_at - updated_at < detail_ttl => {
                         eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, "");
                         continue;
                     }
-                    //old
                     Some(_) if is_stale => {
                         eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, "");
                         continue;
                     }
-                    //young and not updated recently
-                    // does not exist fetch
-                    _ => {}
-                }
+                    Some(_) => true,
+                    None => false,
+                };
 
                 let job_url = v.url.clone();
 
@@ -298,6 +297,11 @@ impl PlatformClient for UpworkScraper {
                             applied_at: None,
                         };
                         db.upsert_job(&job).await?;
+                        if exists {
+                            updated_count += 1;
+                        } else {
+                            new_count += 1;
+                        }
                         all_jobs.push(job);
                     }
                     Err(e) => {
@@ -328,7 +332,12 @@ impl PlatformClient for UpworkScraper {
 
         eprintln!("\x1B[?25h"); // show cursor
         page.close().await.ok();
-        eprintln!("  Total new jobs: {}", all_jobs.len());
+        eprintln!(
+            "  Fetched: {} ({} new, {} updated)",
+            all_jobs.len(),
+            new_count,
+            updated_count
+        );
         Ok(all_jobs)
     }
 
