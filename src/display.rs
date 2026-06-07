@@ -30,6 +30,16 @@ pub fn fmt_relative(dt: chrono::DateTime<chrono::Utc>) -> String {
     format!("{}w ago", days / 7)
 }
 
+fn align_columns(table: &mut Table, headers: &[&str], align: &[(&str, CellAlignment)]) {
+    for (idx, header) in headers.iter().enumerate() {
+        if let Some((_, a)) = align.iter().find(|(name, _)| *name == *header)
+            && let Some(col) = table.column_mut(idx)
+        {
+            col.set_cell_alignment(*a);
+        }
+    }
+}
+
 pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
     let mut table = Table::new();
     table
@@ -38,12 +48,12 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
 
     match platform {
         None => {
-            table.set_header(vec![
-                "#", "Id", "Platform", "Posted", "Budget", "Applied", "Rating", "Title",
-            ]);
+            let headers = [
+                "Id", "Platform", "Posted", "Budget", "Applied", "Rating", "Title", "#",
+            ];
+            table.set_header(headers);
             for (i, job) in jobs.iter().enumerate() {
                 table.add_row(vec![
-                    Cell::new(i + 1),
                     Cell::new(job.id.unwrap_or(0)),
                     Cell::new(job.platform.to_string()),
                     Cell::new(fmt_relative(job.created_at)),
@@ -55,12 +65,17 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                         None => "",
                     }),
                     Cell::new(&job.title),
+                    Cell::new(i + 1),
                 ]);
             }
+            align_columns(
+                &mut table,
+                &headers,
+                &[("Id", CellAlignment::Right), ("#", CellAlignment::Right)],
+            );
         }
         Some(Platform::Upwork) => {
-            table.set_header(vec![
-                "#",
+            let headers = [
                 "Id",
                 "Posted",
                 "Budget",
@@ -68,14 +83,15 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                 "Rating",
                 "Last viewed",
                 "Title",
-            ]);
+                "#",
+            ];
+            table.set_header(headers);
             for (i, job) in jobs.iter().enumerate() {
                 let Data::Upwork { detail } = &job.raw else {
                     unreachable!("upwork table only renders upwork jobs");
                 };
                 let last_viewed = detail.last_viewed.map(fmt_relative).unwrap_or_default();
                 table.add_row(vec![
-                    Cell::new(i + 1),
                     Cell::new(job.id.unwrap_or(0)),
                     Cell::new(fmt_relative(job.created_at)),
                     Cell::new(job.budget.as_deref().unwrap_or("?")),
@@ -87,16 +103,20 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                     }),
                     Cell::new(last_viewed),
                     Cell::new(&job.title),
+                    Cell::new(i + 1),
                 ]);
             }
+            align_columns(
+                &mut table,
+                &headers,
+                &[("Id", CellAlignment::Right), ("#", CellAlignment::Right)],
+            );
         }
         Some(Platform::NoFluffJobs) => {
-            table.set_header(vec![
-                "#", "Id", "Posted", "Budget", "Applied", "Rating", "Title",
-            ]);
+            let headers = ["Id", "Posted", "Budget", "Applied", "Rating", "Title", "#"];
+            table.set_header(headers);
             for (i, job) in jobs.iter().enumerate() {
                 table.add_row(vec![
-                    Cell::new(i + 1),
                     Cell::new(job.id.unwrap_or(0)),
                     Cell::new(fmt_relative(job.created_at)),
                     Cell::new(job.budget.as_deref().unwrap_or("?")),
@@ -107,16 +127,15 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                         None => "",
                     }),
                     Cell::new(&job.title),
+                    Cell::new(i + 1),
                 ]);
             }
+            align_columns(
+                &mut table,
+                &headers,
+                &[("Id", CellAlignment::Right), ("#", CellAlignment::Right)],
+            );
         }
-    }
-
-    if let Some(column) = table.column_mut(0) {
-        column.set_cell_alignment(CellAlignment::Right);
-    }
-    if let Some(column) = table.column_mut(1) {
-        column.set_cell_alignment(CellAlignment::Right);
     }
 
     table.to_string()
