@@ -31,12 +31,14 @@ pub fn fmt_relative(dt: chrono::DateTime<chrono::Utc>) -> String {
 }
 
 fn align_columns(table: &mut Table, headers: &[&str], align: &[(&str, CellAlignment)]) {
-    for (idx, header) in headers.iter().enumerate() {
-        if let Some((_, a)) = align.iter().find(|(name, _)| *name == *header)
-            && let Some(col) = table.column_mut(idx)
-        {
-            col.set_cell_alignment(*a);
-        }
+    for &(name, a) in align {
+        let Some(idx) = headers.iter().position(|&h| h == name) else {
+            continue;
+        };
+        table
+            .column_mut(idx)
+            .expect("header was just set, column must exist")
+            .set_cell_alignment(a);
     }
 }
 
