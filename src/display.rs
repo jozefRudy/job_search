@@ -49,7 +49,11 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                     Cell::new(fmt_relative(job.created_at)),
                     Cell::new(job.budget.as_deref().unwrap_or("?")),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
-                    Cell::new(if job.liked == Some(true) { "♥" } else { "" }),
+                    Cell::new(match job.liked {
+                        Some(true) => "👍",
+                        Some(false) => "👎",
+                        None => "",
+                    }),
                     Cell::new(&job.title),
                 ]);
             }
@@ -76,7 +80,11 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                     Cell::new(fmt_relative(job.created_at)),
                     Cell::new(job.budget.as_deref().unwrap_or("?")),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
-                    Cell::new(if job.liked == Some(true) { "♥" } else { "" }),
+                    Cell::new(match job.liked {
+                        Some(true) => "👍",
+                        Some(false) => "👎",
+                        None => "",
+                    }),
                     Cell::new(last_viewed),
                     Cell::new(&job.title),
                 ]);
@@ -93,7 +101,11 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                     Cell::new(fmt_relative(job.created_at)),
                     Cell::new(job.budget.as_deref().unwrap_or("?")),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
-                    Cell::new(if job.liked == Some(true) { "♥" } else { "" }),
+                    Cell::new(match job.liked {
+                        Some(true) => "👍",
+                        Some(false) => "👎",
+                        None => "",
+                    }),
                     Cell::new(&job.title),
                 ]);
             }
@@ -219,8 +231,12 @@ pub fn render_job_detailed(job: &Job) -> String {
     }
 
     lines.push(format!(
-        "  Liked:          {}",
-        if job.liked == Some(true) { "yes" } else { "no" }
+        "  Rating:         {}",
+        match job.liked {
+            Some(true) => "liked",
+            Some(false) => "disliked",
+            None => "neutral",
+        }
     ));
     if let Some(applied) = job.applied_at {
         lines.push(format!("  Applied:        {}", fmt_relative(applied)));

@@ -120,6 +120,17 @@ impl Db {
         Ok(())
     }
 
+    pub async fn set_neutral(&self, ids: &[i64]) -> Result<()> {
+        let ids_json = serde_json::to_string(ids)?;
+        sqlx::query!(
+            "UPDATE jobs SET liked = NULL WHERE id IN (SELECT value FROM json_each(?1))",
+            ids_json
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn update_raw(&self, id: i64, raw: &Data) -> Result<()> {
         let raw_str = serde_json::to_string(raw)?;
         sqlx::query!(

@@ -274,11 +274,6 @@ async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
             }
         }
         ReactAction::Like { ids } => {
-            for &id in &ids {
-                db.get_job(id)
-                    .await?
-                    .ok_or_else(|| anyhow::anyhow!("Job {} not found", id))?;
-            }
             db.set_liked(&ids, true).await?;
             println!(
                 "Liked {} job{}",
@@ -286,15 +281,18 @@ async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
                 if ids.len() == 1 { "" } else { "s" }
             );
         }
-        ReactAction::Unlike { ids } => {
-            for &id in &ids {
-                db.get_job(id)
-                    .await?
-                    .ok_or_else(|| anyhow::anyhow!("Job {} not found", id))?;
-            }
+        ReactAction::Dislike { ids } => {
             db.set_liked(&ids, false).await?;
             println!(
-                "Unliked {} job{}",
+                "Disliked {} job{}",
+                ids.len(),
+                if ids.len() == 1 { "" } else { "s" }
+            );
+        }
+        ReactAction::Neutral { ids } => {
+            db.set_neutral(&ids).await?;
+            println!(
+                "Reset {} job{} to neutral",
                 ids.len(),
                 if ids.len() == 1 { "" } else { "s" }
             );

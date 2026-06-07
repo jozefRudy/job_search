@@ -103,8 +103,11 @@ pub enum ReactAction {
     /// Like one or more jobs
     Like { ids: Vec<i64> },
 
-    /// Unlike one or more jobs
-    Unlike { ids: Vec<i64> },
+    /// Dislike one or more jobs
+    Dislike { ids: Vec<i64> },
+
+    /// Reset one or more jobs to neutral
+    Neutral { ids: Vec<i64> },
 }
 
 #[derive(Subcommand)]

@@ -199,7 +199,7 @@ impl JobFilter {
 
         match self.liked {
             Some(true) => jobs.retain(|j| j.liked == Some(true)),
-            Some(false) => jobs.retain(|j| j.liked != Some(true)),
+            Some(false) => jobs.retain(|j| j.liked == Some(false)),
             None => {}
         }
 

@@ -1,5 +1,7 @@
 # ChainSignals Project Rules
 
+> **Keep this file lean.** Each rule = 1–2 lines max. Long explanations belong in `PATTERNS.md` or inline comments, not here. System prompt bloat degrades performance.
+
 ## After Code Changes
 
 After completing code changes, run validation:
@@ -107,7 +109,7 @@ Use `use` for repeated paths. No fully-qualified repetition.
 ## Refactoring
 
 - **Avoid sed for code transformations.** sed corrupts imports, breaks syntax, and produces unhelpful errors. Use `write` for full-file rewrites or `edit` with exact text matches.
-- **Avoid scripted bulk rewrites across multiple files.** Python string replacement, bash heredocs, and sed silently corrupt escaping, formatting, and macro syntax. Enumerate exact per-file changes first, then apply with targeted `edit`. Full-file rewrites only for small, fully-controlled files.
+- **Avoid scripted bulk rewrites across files.** Python/sed/heredocs corrupt escaping and formatting. Use `edit` with exact text matches. Full-file rewrites only for small, controlled files.
 - **Plan refactor scope before touching files.** Cascading type changes across 5+ files cause compile-error whack-a-mole. Map all affected files first (models, db, platform modules, main.rs, tests).
 - **Prefer `#[allow(...)]` over boxing enum variants.** `Box<T>` adds indirection and noise. For large enum variants that are rarely cloned, suppress the lint instead.
 
