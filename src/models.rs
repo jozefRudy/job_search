@@ -458,4 +458,184 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_job_filter_rating() {
+        fn job(id: i64, liked: Option<bool>) -> Job {
+            Job {
+                id: Some(id),
+                platform: Platform::Upwork,
+                external_id: format!("j{id}"),
+                title: format!("Job {id}"),
+                description: None,
+                url: "https://e.com".into(),
+                budget: None,
+                tags: vec![],
+                raw: Data::Upwork {
+                    detail: UpworkJobDetail::default(),
+                },
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                liked,
+                note: None,
+                applied_at: None,
+            }
+        }
+
+        let jobs = vec![job(1, Some(true)), job(2, Some(false)), job(3, None)];
+
+        let ids = |f: JobFilter| {
+            f.apply(jobs.clone())
+                .into_iter()
+                .map(|j| j.id)
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(
+            ids(JobFilter {
+                liked: Some(Rating::Liked),
+                ..Default::default()
+            }),
+            vec![Some(1)]
+        );
+        assert_eq!(
+            ids(JobFilter {
+                liked: Some(Rating::Disliked),
+                ..Default::default()
+            }),
+            vec![Some(2)]
+        );
+        assert_eq!(
+            ids(JobFilter {
+                liked: Some(Rating::Neutral),
+                ..Default::default()
+            }),
+            vec![Some(3)]
+        );
+        assert_eq!(
+            ids(JobFilter {
+                liked: None,
+                ..Default::default()
+            }),
+            vec![Some(1), Some(2), Some(3)]
+        );
+    }
+
+    #[test]
+    fn test_job_filter_recency() {
+        fn job(id: i64, created_at: DateTime<Utc>) -> Job {
+            Job {
+                id: Some(id),
+                platform: Platform::Upwork,
+                external_id: format!("j{id}"),
+                title: format!("Job {id}"),
+                description: None,
+                url: "https://e.com".into(),
+                budget: None,
+                tags: vec![],
+                raw: Data::Upwork {
+                    detail: UpworkJobDetail::default(),
+                },
+                created_at,
+                updated_at: Utc::now(),
+                liked: None,
+                note: None,
+                applied_at: None,
+            }
+        }
+
+        let jobs = vec![
+            job(1, Utc::now() - chrono::Duration::hours(1)),
+            job(2, Utc::now() - chrono::Duration::days(2)),
+            job(3, Utc::now() - chrono::Duration::days(10)),
+        ];
+
+        let ids = |f: JobFilter| {
+            f.apply(jobs.clone())
+                .into_iter()
+                .map(|j| j.id)
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(
+            ids(JobFilter {
+                recency: Some(Recency(1)),
+                ..Default::default()
+            }),
+            vec![Some(1)]
+        );
+        assert_eq!(
+            ids(JobFilter {
+                recency: Some(Recency(5)),
+                ..Default::default()
+            }),
+            vec![Some(1), Some(2)]
+        );
+        assert_eq!(
+            ids(JobFilter {
+                recency: None,
+                ..Default::default()
+            }),
+            vec![Some(1), Some(2), Some(3)]
+        );
+    }
+
+    #[test]
+    fn test_job_filter_applied() {
+        fn job(id: i64, applied_at: Option<DateTime<Utc>>) -> Job {
+            Job {
+                id: Some(id),
+                platform: Platform::Upwork,
+                external_id: format!("j{id}"),
+                title: format!("Job {id}"),
+                description: None,
+                url: "https://e.com".into(),
+                budget: None,
+                tags: vec![],
+                raw: Data::Upwork {
+                    detail: UpworkJobDetail::default(),
+                },
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                liked: None,
+                note: None,
+                applied_at,
+            }
+        }
+
+        let jobs = vec![
+            job(1, Some(Utc::now() - chrono::Duration::days(1))),
+            job(2, None),
+            job(3, Some(Utc::now() - chrono::Duration::days(5))),
+        ];
+
+        let ids = |f: JobFilter| {
+            f.apply(jobs.clone())
+                .into_iter()
+                .map(|j| j.id)
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(
+            ids(JobFilter {
+                applied: Some(true),
+                ..Default::default()
+            }),
+            vec![Some(1), Some(3)]
+        );
+        assert_eq!(
+            ids(JobFilter {
+                applied: Some(false),
+                ..Default::default()
+            }),
+            vec![Some(2)]
+        );
+        assert_eq!(
+            ids(JobFilter {
+                applied: None,
+                ..Default::default()
+            }),
+            vec![Some(1), Some(2), Some(3)]
+        );
+    }
 }
