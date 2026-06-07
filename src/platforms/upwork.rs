@@ -263,18 +263,14 @@ impl PlatformClient for UpworkScraper {
                     age.num_days() >= 7
                 });
 
-                let exists = match db.job_updated_at(&Platform::Upwork, &v.external_id).await? {
-                    Some(updated_at) if fetch_started_at - updated_at < detail_ttl => {
-                        eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, "");
-                        continue;
-                    }
-                    Some(_) if is_stale => {
-                        eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, "");
-                        continue;
-                    }
-                    Some(_) => true,
-                    None => false,
-                };
+                let updated_at = db.job_updated_at(&Platform::Upwork, &v.external_id).await?;
+
+                if let Some(ts) = updated_at
+                    && (fetch_started_at - ts < detail_ttl || is_stale)
+                {
+                    eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, "");
+                    continue;
+                }
 
                 let job_url = v.url.clone();
 
@@ -297,6 +293,8 @@ impl PlatformClient for UpworkScraper {
                             applied_at: None,
                         };
                         db.upsert_job(&job).await?;
+
+                        let exists = updated_at.is_some();
                         if exists {
                             updated_count += 1;
                         } else {
