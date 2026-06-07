@@ -98,7 +98,15 @@ pub struct ReactCmd {
 #[derive(Subcommand)]
 pub enum ReactAction {
     /// Apply to a job (optional note)
-    Apply { id: i64, note: Option<String> },
+    Apply {
+        id: i64,
+        /// Short single-line note
+        #[arg(long, short, conflicts_with = "note_file")]
+        note: Option<String>,
+        /// Read note from file (for multiline cover letters)
+        #[arg(long, short = 'f', conflicts_with = "note")]
+        note_file: Option<std::path::PathBuf>,
+    },
 
     /// Like one or more jobs
     Like { ids: Vec<i64> },

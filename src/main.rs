@@ -261,14 +261,28 @@ async fn cmd_show(db: &Db, id: i64, json: bool) -> Result<()> {
 
 async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
     match cmd {
-        ReactAction::Apply { id, note } => {
+        ReactAction::Apply {
+            id,
+            note,
+            note_file,
+        } => {
             db.get_job(id)
                 .await?
                 .ok_or_else(|| anyhow::anyhow!("Job {} not found", id))?;
+            let note = if let Some(n) = note {
+                Some(n)
+            } else if let Some(path) = note_file {
+                Some(tokio::fs::read_to_string(shellexpand::path::tilde(&path)).await?)
+            } else {
+                None
+            };
             db.set_applied(id, note.as_deref()).await?;
             match note {
                 Some(n) if !n.is_empty() => {
-                    println!("Job {} marked applied with note: {}", id, n);
+                    println!("Job {} marked applied with note:", id);
+                    for line in n.lines() {
+                        println!("  {}", line);
+                    }
                 }
                 _ => println!("Job {} marked applied", id),
             }
