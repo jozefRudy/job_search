@@ -102,7 +102,11 @@ async fn main() -> Result<()> {
                 let filter = JobFilter {
                     recency: args.recency,
                     applied: args.applied,
-                    liked: args.liked,
+                    liked: args.rating.and_then(|r| match r {
+                        jobsearch::models::Rating::Liked => Some(true),
+                        jobsearch::models::Rating::Disliked => Some(false),
+                        jobsearch::models::Rating::Neutral => None,
+                    }),
                 };
                 cmd_list(
                     &db,
@@ -118,7 +122,11 @@ async fn main() -> Result<()> {
                 let filter = JobFilter {
                     recency: args.common.recency,
                     applied: args.common.applied,
-                    liked: args.common.liked,
+                    liked: args.common.rating.and_then(|r| match r {
+                        jobsearch::models::Rating::Liked => Some(true),
+                        jobsearch::models::Rating::Disliked => Some(false),
+                        jobsearch::models::Rating::Neutral => None,
+                    }),
                 };
                 match args.sort {
                     UpworkSortBy::Created => {
@@ -160,7 +168,11 @@ async fn main() -> Result<()> {
                 let filter = JobFilter {
                     recency: args.recency,
                     applied: args.applied,
-                    liked: args.liked,
+                    liked: args.rating.and_then(|r| match r {
+                        jobsearch::models::Rating::Liked => Some(true),
+                        jobsearch::models::Rating::Disliked => Some(false),
+                        jobsearch::models::Rating::Neutral => None,
+                    }),
                 };
                 cmd_list(
                     &db,

@@ -131,6 +131,13 @@ impl fmt::Display for Platform {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
+pub enum Rating {
+    Liked,
+    Disliked,
+    Neutral,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Job {
     pub id: Option<i64>,

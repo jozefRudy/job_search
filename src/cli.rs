@@ -62,9 +62,9 @@ pub struct CommonListArgs {
     #[arg(long)]
     pub applied: Option<bool>,
 
-    /// Filter by liked status: true/false. Omit for all.
+    /// Filter by rating: liked, disliked, or neutral. Omit for all.
     #[arg(long)]
-    pub liked: Option<bool>,
+    pub rating: Option<crate::models::Rating>,
 }
 
 #[derive(Args)]

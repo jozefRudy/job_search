@@ -39,7 +39,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
     match platform {
         None => {
             table.set_header(vec![
-                "#", "Id", "Platform", "Posted", "Budget", "Applied", "Liked", "Title",
+                "#", "Id", "Platform", "Posted", "Budget", "Applied", "Rating", "Title",
             ]);
             for (i, job) in jobs.iter().enumerate() {
                 table.add_row(vec![
@@ -65,7 +65,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                 "Posted",
                 "Budget",
                 "Applied",
-                "Liked",
+                "Rating",
                 "Last viewed",
                 "Title",
             ]);
@@ -92,7 +92,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
         }
         Some(Platform::NoFluffJobs) => {
             table.set_header(vec![
-                "#", "Id", "Posted", "Budget", "Applied", "Liked", "Title",
+                "#", "Id", "Posted", "Budget", "Applied", "Rating", "Title",
             ]);
             for (i, job) in jobs.iter().enumerate() {
                 table.add_row(vec![
