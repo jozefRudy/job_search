@@ -213,7 +213,7 @@ async fn cmd_list(db: &Db, opts: ListOpts, json: bool) -> Result<()> {
         }
         println!("\nTotal: {} jobs", jobs.len());
     } else {
-        println!("{}", display::render_table(&jobs));
+        println!("{}", display::render_table(&jobs, opts.platform));
         println!("\nTotal: {} jobs", jobs.len());
     }
 

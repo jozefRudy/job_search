@@ -1,4 +1,4 @@
-use crate::models::{Data, Job};
+use crate::models::{Data, Job, Platform};
 use comfy_table::{Cell, CellAlignment, ContentArrangement, Table, presets::UTF8_FULL};
 
 /// Render HTML to plain text suitable for terminal display.
@@ -30,25 +30,70 @@ pub fn fmt_relative(dt: chrono::DateTime<chrono::Utc>) -> String {
     format!("{}w ago", days / 7)
 }
 
-pub fn render_table(jobs: &[Job]) -> String {
+pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
     let mut table = Table::new();
     table
         .load_preset(UTF8_FULL)
-        .set_content_arrangement(ContentArrangement::Dynamic)
-        .set_header(vec![
-            "Id", "Platform", "Posted", "Budget", "Applied", "Liked", "Title",
-        ]);
+        .set_content_arrangement(ContentArrangement::Dynamic);
 
-    for job in jobs {
-        table.add_row(vec![
-            Cell::new(job.id.unwrap_or(0)),
-            Cell::new(job.platform.to_string()),
-            Cell::new(fmt_relative(job.created_at)),
-            Cell::new(job.budget.as_deref().unwrap_or("?")),
-            Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
-            Cell::new(if job.liked == Some(true) { "♥" } else { "" }),
-            Cell::new(&job.title),
-        ]);
+    match platform {
+        None => {
+            table.set_header(vec![
+                "Id", "Platform", "Posted", "Budget", "Applied", "Liked", "Title",
+            ]);
+            for job in jobs {
+                table.add_row(vec![
+                    Cell::new(job.id.unwrap_or(0)),
+                    Cell::new(job.platform.to_string()),
+                    Cell::new(fmt_relative(job.created_at)),
+                    Cell::new(job.budget.as_deref().unwrap_or("?")),
+                    Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
+                    Cell::new(if job.liked == Some(true) { "♥" } else { "" }),
+                    Cell::new(&job.title),
+                ]);
+            }
+        }
+        Some(Platform::Upwork) => {
+            table.set_header(vec![
+                "Id",
+                "Posted",
+                "Budget",
+                "Applied",
+                "Liked",
+                "Last viewed",
+                "Title",
+            ]);
+            for job in jobs {
+                let last_viewed = match &job.raw {
+                    Data::Upwork { detail } => {
+                        detail.last_viewed.map(fmt_relative).unwrap_or_default()
+                    }
+                    _ => String::new(),
+                };
+                table.add_row(vec![
+                    Cell::new(job.id.unwrap_or(0)),
+                    Cell::new(fmt_relative(job.created_at)),
+                    Cell::new(job.budget.as_deref().unwrap_or("?")),
+                    Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
+                    Cell::new(if job.liked == Some(true) { "♥" } else { "" }),
+                    Cell::new(last_viewed),
+                    Cell::new(&job.title),
+                ]);
+            }
+        }
+        Some(Platform::NoFluffJobs) => {
+            table.set_header(vec!["Id", "Posted", "Budget", "Applied", "Liked", "Title"]);
+            for job in jobs {
+                table.add_row(vec![
+                    Cell::new(job.id.unwrap_or(0)),
+                    Cell::new(fmt_relative(job.created_at)),
+                    Cell::new(job.budget.as_deref().unwrap_or("?")),
+                    Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
+                    Cell::new(if job.liked == Some(true) { "♥" } else { "" }),
+                    Cell::new(&job.title),
+                ]);
+            }
+        }
     }
 
     if let Some(column) = table.column_mut(0) {
