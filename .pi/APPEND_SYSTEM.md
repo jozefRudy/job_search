@@ -46,9 +46,7 @@ cargo test -- --include-ignored
    - Good: `#[serde(deserialize_with)]`; single regex that captures the pattern regardless of surrounding text
    - Rule: Reaching for `mut` or chained string transforms to shape data = missed abstraction
 
-5. **Check existing types before adding new ones.** Nullable booleans (`Option<bool>`) encode 3 states already. Don't propose migrations until verifying schema can't satisfy requirement.
-
-6. **Invalid states unrepresentable.** If runtime checks (`bail!`, `if` guards) validate argument combinations, the type system wasn't used.
+5. **Invalid states unrepresentable.** If runtime checks (`bail!`, `if` guards) validate argument combinations, the type system wasn't used.
    - Bad: Flat `--sort` flag with `--platform`, runtime `bail!("--sort viewed only for upwork")`
    - Good: Clap subcommands — `list upwork --sort viewed`, `list nofluff` — platform-specific args live only where valid
    - Same for `let-else` / `unreachable!` in caller: push the invariant into the data model (`Job::upwork()` method) so misuse panics at compile time or in one central place
@@ -140,4 +138,3 @@ Use `use` for repeated paths. No fully-qualified repetition.
 - `PATTERNS.md` — LanceDB, Postgres, Auth, API, Frontend patterns with code examples. Read when building new feature.
 - `PLAN.md` — Current project roadmap and priorities. Read before starting new work.
 - `README.md` — Project overview, pricing, competition. Read once for context.
-
