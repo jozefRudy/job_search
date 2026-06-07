@@ -305,7 +305,7 @@ mod tests {
 
         let detail = UpworkJobDetail {
             proposals: "5 to 10".to_string(),
-            last_viewed: "2 hours ago".to_string(),
+            last_viewed: None,
             interviewing: "1".to_string(),
             invites_sent: "3".to_string(),
             unanswered_invites: "0".to_string(),

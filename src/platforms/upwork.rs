@@ -5,6 +5,7 @@ use crate::platforms::PlatformClient;
 use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
+use chrono::{DateTime, Utc};
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 use tokio::time::{Duration, sleep};
@@ -23,7 +24,8 @@ pub struct UpworkJobCard {
     pub description: Option<String>,
     pub url: String,
     pub budget: Option<String>,
-    pub posted_at_text: Option<String>,
+    #[serde(default, deserialize_with = "crate::models::deserialize_relative_time")]
+    pub posted_at_text: Option<DateTime<Utc>>,
     #[serde(default)]
     pub tags: Vec<String>,
 }
@@ -254,14 +256,10 @@ impl PlatformClient for UpworkScraper {
 
             for v in &raw_jobs {
                 checked_count += 1;
-                let is_stale = v
-                    .posted_at_text
-                    .as_ref()
-                    .and_then(|t| parse_upwork_time(t))
-                    .is_some_and(|posted| {
-                        let age = chrono::Utc::now() - posted;
-                        age.num_days() >= 7
-                    });
+                let is_stale = v.posted_at_text.is_some_and(|posted| {
+                    let age = chrono::Utc::now() - posted;
+                    age.num_days() >= 7
+                });
 
                 match db.job_updated_at(&Platform::Upwork, &v.external_id).await? {
                     // updated recently
@@ -283,7 +281,6 @@ impl PlatformClient for UpworkScraper {
 
                 match self.fetch_job_detail(browser, &job_url).await {
                     Ok(detail) => {
-                        let posted = v.posted_at_text.as_ref().and_then(|t| parse_upwork_time(t));
                         let job = Job {
                             id: None,
                             platform: Platform::Upwork,
@@ -294,7 +291,7 @@ impl PlatformClient for UpworkScraper {
                             budget: v.budget.clone(),
                             tags: v.tags.clone(),
                             raw: Data::Upwork { detail },
-                            created_at: posted.unwrap_or_else(|| {
+                            created_at: v.posted_at_text.unwrap_or_else(|| {
                                 chrono::Utc::now() - chrono::Duration::days(365)
                             }),
                             updated_at: chrono::Utc::now(),
@@ -339,43 +336,6 @@ impl PlatformClient for UpworkScraper {
 
     async fn react(&self, _job: &Job, _note: Option<String>) -> Result<()> {
         Err(anyhow!("Upwork react not yet implemented"))
-    }
-}
-
-fn parse_upwork_time(text: &str) -> Option<chrono::DateTime<chrono::Utc>> {
-    let now = chrono::Utc::now();
-    let text = text.to_lowercase();
-    let text = text.strip_prefix("posted ")?;
-
-    if text == "yesterday" {
-        return Some(now - chrono::Duration::days(1));
-    }
-    if text == "last week" {
-        return Some(now - chrono::Duration::days(7));
-    }
-    if text == "last month" {
-        return Some(now - chrono::Duration::days(30));
-    }
-    if text == "last quarter" {
-        return Some(now - chrono::Duration::days(90));
-    }
-
-    let parts: Vec<&str> = text.split_whitespace().collect();
-    if parts.len() < 3 || parts[parts.len() - 1] != "ago" {
-        return None;
-    }
-
-    let n: i64 = parts[0].parse().ok()?;
-    let unit = parts[1];
-
-    match unit {
-        "minute" | "minutes" | "min" | "mins" => Some(now - chrono::Duration::minutes(n)),
-        "hour" | "hours" | "hr" | "hrs" => Some(now - chrono::Duration::hours(n)),
-        "day" | "days" => Some(now - chrono::Duration::days(n)),
-        "week" | "weeks" => Some(now - chrono::Duration::days(n * 7)),
-        "month" | "months" => Some(now - chrono::Duration::days(n * 30)),
-        "quarter" | "quarters" => Some(now - chrono::Duration::days(n * 90)),
-        _ => None,
     }
 }
 
@@ -434,41 +394,5 @@ mod tests {
         assert!(url.contains("t=0"));
         assert!(url.contains("client_hires=10-"));
         assert!(url.contains("page=3"));
-    }
-
-    #[test]
-    fn test_parse_upwork_time() {
-        let now = chrono::Utc::now();
-
-        let cases = [
-            ("Posted 5 minutes ago", chrono::Duration::minutes(5)),
-            ("Posted 1 hour ago", chrono::Duration::hours(1)),
-            ("Posted 3 hours ago", chrono::Duration::hours(3)),
-            ("Posted yesterday", chrono::Duration::days(1)),
-            ("Posted 2 days ago", chrono::Duration::days(2)),
-            ("Posted last week", chrono::Duration::days(7)),
-            ("Posted 3 weeks ago", chrono::Duration::days(21)),
-            ("Posted last month", chrono::Duration::days(30)),
-            ("Posted 2 months ago", chrono::Duration::days(60)),
-            ("Posted last quarter", chrono::Duration::days(90)),
-            ("Posted 1 quarter ago", chrono::Duration::days(90)),
-        ];
-
-        for (input, expected_duration) in cases {
-            let result = parse_upwork_time(input);
-            assert!(
-                result.is_some(),
-                "expected parse_upwork_time({:?}) to succeed",
-                input
-            );
-            let diff = now - result.unwrap();
-            assert!(
-                (diff - expected_duration).num_seconds().abs() < 2,
-                "expected ~{:?} for {:?}, got {:?}",
-                expected_duration,
-                input,
-                diff
-            );
-        }
     }
 }

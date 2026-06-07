@@ -96,8 +96,10 @@ pub fn render_job_detailed(job: &Job) -> String {
             if !detail.proposals.is_empty() {
                 lines.push(format!("  Proposals:      {}", detail.proposals));
             }
-            if !detail.last_viewed.is_empty() {
-                lines.push(format!("  Last viewed by client: {}", detail.last_viewed));
+            if let Some(dt) = detail.last_viewed {
+                lines.push(format!("  Last viewed by client: {}", fmt_relative(dt)));
+            } else {
+                lines.push("  Last viewed by client: never".to_string());
             }
             if !detail.interviewing.is_empty() {
                 lines.push(format!("  Interviewing:   {}", detail.interviewing));

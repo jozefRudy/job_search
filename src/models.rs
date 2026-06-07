@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
 use clap::ValueEnum;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::sync::LazyLock;
 
 /// Platform-specific scraped data stored on each job.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,8 +19,8 @@ pub enum Data {
 pub struct UpworkJobDetail {
     #[serde(default)]
     pub proposals: String,
-    #[serde(default)]
-    pub last_viewed: String,
+    #[serde(default, deserialize_with = "deserialize_relative_time")]
+    pub last_viewed: Option<DateTime<Utc>>,
     #[serde(default)]
     pub interviewing: String,
     #[serde(default)]
@@ -39,6 +41,50 @@ pub struct UpworkJobDetail {
     pub duration: String,
     #[serde(default)]
     pub hours_per_week: String,
+}
+
+static RELATIVE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(yesterday|last\s+(?:week|month|quarter))|(\d+)\s*([a-z]+)(?:\s+ago)?")
+        .unwrap()
+});
+
+pub fn parse_relative_time(text: &str) -> Option<DateTime<Utc>> {
+    let now = Utc::now();
+    let caps = RELATIVE_RE.captures(text)?;
+
+    if let Some(special) = caps.get(1) {
+        match special.as_str().to_lowercase().as_str() {
+            "yesterday" => return Some(now - chrono::Duration::days(1)),
+            "last week" => return Some(now - chrono::Duration::days(7)),
+            "last month" => return Some(now - chrono::Duration::days(30)),
+            "last quarter" => return Some(now - chrono::Duration::days(90)),
+            _ => {}
+        }
+    }
+
+    let n: i64 = caps.get(2)?.as_str().parse().ok()?;
+    let unit = caps.get(3)?.as_str().to_lowercase();
+    unit_to_duration(&unit, n, now)
+}
+
+fn unit_to_duration(unit: &str, n: i64, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    match unit {
+        "m" | "min" | "mins" | "minute" | "minutes" => Some(now - chrono::Duration::minutes(n)),
+        "h" | "hr" | "hrs" | "hour" | "hours" => Some(now - chrono::Duration::hours(n)),
+        "d" | "day" | "days" => Some(now - chrono::Duration::days(n)),
+        "w" | "week" | "weeks" => Some(now - chrono::Duration::days(n * 7)),
+        "mo" | "month" | "months" => Some(now - chrono::Duration::days(n * 30)),
+        "quarter" | "quarters" => Some(now - chrono::Duration::days(n * 90)),
+        _ => None,
+    }
+}
+
+pub fn deserialize_relative_time<'de, D>(deserializer: D) -> Result<Option<DateTime<Utc>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = Option::<String>::deserialize(deserializer)?;
+    Ok(s.and_then(|s| parse_relative_time(&s)))
 }
 
 /// Full detail scraped from an individual NoFluffJobs job page.
@@ -240,5 +286,110 @@ mod tests {
     fn test_budget_parse_unknown_returns_none() {
         assert!(Budget::parse("Negotiable").is_none());
         assert!(Budget::parse("").is_none());
+    }
+
+    #[test]
+    fn test_parse_relative_time() {
+        let now = Utc::now();
+
+        let cases = [
+            ("20m ago", chrono::Duration::minutes(20)),
+            ("20 minutes ago", chrono::Duration::minutes(20)),
+            ("1h ago", chrono::Duration::hours(1)),
+            ("3 hours ago", chrono::Duration::hours(3)),
+            ("2d ago", chrono::Duration::days(2)),
+            ("1 day ago", chrono::Duration::days(1)),
+            ("3w ago", chrono::Duration::days(21)),
+            ("1 week ago", chrono::Duration::days(7)),
+            ("yesterday", chrono::Duration::days(1)),
+            ("last quarter", chrono::Duration::days(90)),
+            ("1 quarter ago", chrono::Duration::days(90)),
+        ];
+
+        for (input, expected) in cases {
+            let result = parse_relative_time(input);
+            assert!(
+                result.is_some(),
+                "expected parse_relative_time({:?}) to succeed",
+                input
+            );
+            let diff = now - result.unwrap();
+            assert!(
+                (diff - expected).num_seconds().abs() < 2,
+                "expected ~{:?} for {:?}, got {:?}",
+                expected,
+                input,
+                diff
+            );
+        }
+
+        assert!(parse_relative_time("").is_none());
+        assert!(parse_relative_time("unknown").is_none());
+    }
+
+    #[test]
+    fn test_parse_relative_time_special_and_long() {
+        let now = Utc::now();
+
+        let cases = [
+            ("5 minutes ago", chrono::Duration::minutes(5)),
+            ("1 hour ago", chrono::Duration::hours(1)),
+            ("3 hours ago", chrono::Duration::hours(3)),
+            ("yesterday", chrono::Duration::days(1)),
+            ("2 days ago", chrono::Duration::days(2)),
+            ("last week", chrono::Duration::days(7)),
+            ("3 weeks ago", chrono::Duration::days(21)),
+            ("last month", chrono::Duration::days(30)),
+            ("2 months ago", chrono::Duration::days(60)),
+            ("last quarter", chrono::Duration::days(90)),
+            ("1 quarter ago", chrono::Duration::days(90)),
+        ];
+
+        for (input, expected_duration) in cases {
+            let result = parse_relative_time(input);
+            assert!(
+                result.is_some(),
+                "expected parse_relative_time({:?}) to succeed",
+                input
+            );
+            let diff = now - result.unwrap();
+            assert!(
+                (diff - expected_duration).num_seconds().abs() < 2,
+                "expected ~{:?} for {:?}, got {:?}",
+                expected_duration,
+                input,
+                diff
+            );
+        }
+    }
+
+    #[test]
+    fn test_parse_relative_time_with_prefixes() {
+        let now = Utc::now();
+
+        let cases = [
+            ("Posted 5m ago", chrono::Duration::minutes(5)),
+            ("Posted 1 hour ago", chrono::Duration::hours(1)),
+            ("viewed 2h ago", chrono::Duration::hours(2)),
+            ("last viewed by client: 3d ago", chrono::Duration::days(3)),
+            ("Last Viewed By Client 1w ago", chrono::Duration::days(7)),
+        ];
+
+        for (input, expected) in cases {
+            let result = parse_relative_time(input);
+            assert!(
+                result.is_some(),
+                "expected parse_relative_time({:?}) to succeed",
+                input
+            );
+            let diff = now - result.unwrap();
+            assert!(
+                (diff - expected).num_seconds().abs() < 2,
+                "expected ~{:?} for {:?}, got {:?}",
+                expected,
+                input,
+                diff
+            );
+        }
     }
 }
