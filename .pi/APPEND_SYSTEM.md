@@ -44,6 +44,11 @@ cargo test -- --include-ignored
    - Good: `#[serde(deserialize_with)]`; single regex that captures the pattern regardless of surrounding text
    - Rule: Reaching for `mut` or chained string transforms to shape data = missed abstraction
 
+5. **Invalid states unrepresentable.** If runtime checks (`bail!`, `if` guards) validate argument combinations, the type system wasn't used.
+   - Bad: Flat `--sort` flag with `--platform`, runtime `bail!("--sort viewed only for upwork")`
+   - Good: Clap subcommands — `list upwork --sort viewed`, `list nofluff` — platform-specific args live only where valid
+   - Same for `let-else` / `unreachable!` in caller: push the invariant into the data model (`Job::upwork()` method) so misuse panics at compile time or in one central place
+
 ## Imports
 
 Use `use` for repeated paths. No fully-qualified repetition.
