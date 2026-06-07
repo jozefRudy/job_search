@@ -2,7 +2,9 @@ use anyhow::Result;
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager};
-use jobsearch::cli::{Cli, Commands, ReactAction, Recency, UpdatePlatform};
+use jobsearch::cli::{
+    Cli, Commands, ListTarget, ReactAction, Recency, UpdatePlatform, UpworkSortBy,
+};
 use jobsearch::db::Db;
 use jobsearch::display;
 use jobsearch::models::Platform;
@@ -71,13 +73,8 @@ async fn main() -> Result<()> {
     let browser = BrowserManager::new();
 
     match cli.command {
-        Commands::Init { urls } => {
-            let init_urls: Vec<String> = match urls {
-                Some(u) => u.clone(),
-                None => DEFAULT_INIT_URLS.iter().map(|s| s.to_string()).collect(),
-            };
-            let init_urls: Vec<&str> = init_urls.iter().map(|s| s.as_str()).collect();
-            cmd_init(&browser, &init_urls).await?;
+        Commands::Init {} => {
+            cmd_init(&browser, &DEFAULT_INIT_URLS).await?;
         }
         Commands::Update(update_cmd) => match update_cmd.platform {
             UpdatePlatform::Upwork(args) => {
@@ -111,24 +108,66 @@ async fn main() -> Result<()> {
                 .await?;
             }
         },
-        Commands::List {
-            platform,
-            limit,
-            detailed,
-            recency,
-            applied,
-            liked,
-        } => {
-            let opts = ListOpts {
-                platform,
-                limit,
-                recency,
-                detailed,
-                applied,
-                liked,
-            };
-            cmd_list(&db, opts, cli.json).await?;
-        }
+        Commands::List(cmd) => match cmd.target {
+            ListTarget::All(args) => {
+                let opts = ListOpts {
+                    platform: None,
+                    limit: args.limit,
+                    recency: args.recency,
+                    detailed: args.detailed,
+                    applied: args.applied,
+                    liked: args.liked,
+                };
+                cmd_list(&db, opts, |a, b| b.created_at.cmp(&a.created_at), cli.json).await?;
+            }
+            ListTarget::Upwork(args) => {
+                let opts = ListOpts {
+                    platform: Some(Platform::Upwork),
+                    limit: args.common.limit,
+                    recency: args.common.recency,
+                    detailed: args.common.detailed,
+                    applied: args.common.applied,
+                    liked: args.common.liked,
+                };
+                match args.sort {
+                    UpworkSortBy::Created => {
+                        cmd_list(&db, opts, |a, b| b.created_at.cmp(&a.created_at), cli.json)
+                            .await?;
+                    }
+                    UpworkSortBy::Viewed => {
+                        cmd_list(
+                            &db,
+                            opts,
+                            |a, b| {
+                                use jobsearch::models::Data;
+                                let Data::Upwork { detail: ad } = &a.raw else {
+                                    unreachable!("upwork sort only for upwork jobs")
+                                };
+                                let Data::Upwork { detail: bd } = &b.raw else {
+                                    unreachable!("upwork sort only for upwork jobs")
+                                };
+                                let av = ad.last_viewed;
+                                let bv = bd.last_viewed;
+                                (bv.is_some(), bv).cmp(&(av.is_some(), av))
+                            },
+                            cli.json,
+                        )
+                        .await?;
+                    }
+                }
+            }
+            ListTarget::Nofluff(args) => {
+                let opts = ListOpts {
+                    platform: Some(Platform::NoFluffJobs),
+                    limit: args.limit,
+                    recency: args.recency,
+                    detailed: args.detailed,
+                    applied: args.applied,
+                    liked: args.liked,
+                };
+                cmd_list(&db, opts, |a, b| b.created_at.cmp(&a.created_at), cli.json).await?;
+            }
+        },
         Commands::Show { id } => {
             cmd_show(&db, id, cli.json).await?;
         }
@@ -169,10 +208,13 @@ async fn fetch_and_store(
     Ok(())
 }
 
-async fn cmd_list(db: &Db, opts: ListOpts, json: bool) -> Result<()> {
-    let jobs = db
-        .list_jobs(opts.platform, opts.limit.unwrap_or(i64::MAX))
-        .await?;
+async fn cmd_list(
+    db: &Db,
+    opts: ListOpts,
+    mut sort: impl FnMut(&jobsearch::models::Job, &jobsearch::models::Job) -> std::cmp::Ordering,
+    json: bool,
+) -> Result<()> {
+    let jobs = db.list_jobs(opts.platform, i64::MAX).await?;
 
     let jobs: Vec<_> = match opts.recency {
         Some(Recency(days)) => {
@@ -196,11 +238,17 @@ async fn cmd_list(db: &Db, opts: ListOpts, json: bool) -> Result<()> {
         None => jobs,
     };
 
-    let jobs: Vec<_> = match opts.liked {
+    let mut jobs: Vec<_> = match opts.liked {
         Some(true) => jobs.into_iter().filter(|j| j.liked == Some(true)).collect(),
         Some(false) => jobs.into_iter().filter(|j| j.liked != Some(true)).collect(),
         None => jobs,
     };
+
+    jobs.sort_by(&mut sort);
+
+    if let Some(limit) = opts.limit {
+        jobs.truncate(limit as usize);
+    }
 
     if json {
         println!("{}", serde_json::to_string_pretty(&jobs)?);

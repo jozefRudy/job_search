@@ -64,12 +64,10 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                 "Title",
             ]);
             for job in jobs {
-                let last_viewed = match &job.raw {
-                    Data::Upwork { detail } => {
-                        detail.last_viewed.map(fmt_relative).unwrap_or_default()
-                    }
-                    _ => String::new(),
+                let Data::Upwork { detail } = &job.raw else {
+                    unreachable!("upwork table only renders upwork jobs");
                 };
+                let last_viewed = detail.last_viewed.map(fmt_relative).unwrap_or_default();
                 table.add_row(vec![
                     Cell::new(job.id.unwrap_or(0)),
                     Cell::new(fmt_relative(job.created_at)),

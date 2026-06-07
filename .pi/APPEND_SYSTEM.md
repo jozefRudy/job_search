@@ -44,6 +44,11 @@ cargo test -- --include-ignored
    - Good: `#[serde(deserialize_with)]`; single regex that captures the pattern regardless of surrounding text
    - Rule: Reaching for `mut` or chained string transforms to shape data = missed abstraction
 
+6. **Default values over `Option` wrapping.** If a parameter has a sensible default, use it directly instead of `Option<T>` + manual `unwrap_or`.
+   - Bad: `sort: Option<UpworkSortBy>` then `args.sort.unwrap_or(UpworkSortBy::Viewed)` + `Some(x) | None` match arms
+   - Good: `#[arg(default_value = "viewed")] sort: UpworkSortBy` + exhaustive `match` on concrete type
+   - Benefit: `--help` shows default, no `Option` noise, downstream code is cleaner
+
 5. **Invalid states unrepresentable.** If runtime checks (`bail!`, `if` guards) validate argument combinations, the type system wasn't used.
    - Bad: Flat `--sort` flag with `--platform`, runtime `bail!("--sort viewed only for upwork")`
    - Good: Clap subcommands — `list upwork --sort viewed`, `list nofluff` — platform-specific args live only where valid

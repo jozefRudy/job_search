@@ -1,6 +1,5 @@
-use crate::models::Platform;
 use crate::platforms::upwork::UpworkTier;
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 
 /// Parsed recency like "1d" or "4w". Stores days.
 #[derive(Debug, Clone)]
@@ -41,38 +40,12 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Initialize browser session (opens Brave with required tabs)
-    Init {
-        /// Platform-specific URLs to open (default: upwork, nofluffjobs)
-        #[arg(short, long)]
-        urls: Option<Vec<String>>,
-    },
+    Init {},
 
     /// Fetch fresh jobs from platforms
     Update(UpdateCmd),
 
-    List {
-        #[arg(short, long)]
-        platform: Option<Platform>,
-
-        #[arg(short, long)]
-        limit: Option<i64>,
-
-        /// Show platform-specific details below each row
-        #[arg(long)]
-        detailed: bool,
-
-        /// Filter by recency, e.g. 1d, 4w
-        #[arg(long)]
-        recency: Option<Recency>,
-
-        /// Filter by applied status: true/false. Omit for all.
-        #[arg(long)]
-        applied: Option<bool>,
-
-        /// Filter by liked status: true/false. Omit for all.
-        #[arg(long)]
-        liked: Option<bool>,
-    },
+    List(ListCmd),
 
     Show {
         id: i64,
@@ -84,6 +57,57 @@ pub enum Commands {
 
     /// Show diagnostic info (DB path, job count, env)
     Diagnose,
+}
+
+#[derive(Parser)]
+pub struct ListCmd {
+    #[command(subcommand)]
+    pub target: ListTarget,
+}
+
+#[derive(Subcommand)]
+pub enum ListTarget {
+    All(CommonListArgs),
+    Upwork(UpworkListArgs),
+    Nofluff(CommonListArgs),
+}
+
+#[derive(Args)]
+pub struct CommonListArgs {
+    #[arg(short, long)]
+    pub limit: Option<i64>,
+
+    /// Show platform-specific details below each row
+    #[arg(long)]
+    pub detailed: bool,
+
+    /// Filter by recency, e.g. 1d, 4w
+    #[arg(long)]
+    pub recency: Option<Recency>,
+
+    /// Filter by applied status: true/false. Omit for all.
+    #[arg(long)]
+    pub applied: Option<bool>,
+
+    /// Filter by liked status: true/false. Omit for all.
+    #[arg(long)]
+    pub liked: Option<bool>,
+}
+
+#[derive(Args)]
+pub struct UpworkListArgs {
+    #[command(flatten)]
+    pub common: CommonListArgs,
+
+    /// Sort order: created, viewed
+    #[arg(long, value_enum, default_value = "viewed")]
+    pub sort: UpworkSortBy,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum UpworkSortBy {
+    Created,
+    Viewed,
 }
 
 #[derive(Parser)]
