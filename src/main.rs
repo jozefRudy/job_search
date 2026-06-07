@@ -74,7 +74,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Init {} => {
-            cmd_init(&browser, &DEFAULT_INIT_URLS).await?;
+            cmd_init(&browser, DEFAULT_INIT_URLS).await?;
         }
         Commands::Update(update_cmd) => match update_cmd.platform {
             UpdatePlatform::Upwork(args) => {

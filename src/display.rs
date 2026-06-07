@@ -39,10 +39,11 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
     match platform {
         None => {
             table.set_header(vec![
-                "Id", "Platform", "Posted", "Budget", "Applied", "Liked", "Title",
+                "#", "Id", "Platform", "Posted", "Budget", "Applied", "Liked", "Title",
             ]);
-            for job in jobs {
+            for (i, job) in jobs.iter().enumerate() {
                 table.add_row(vec![
+                    Cell::new(i + 1),
                     Cell::new(job.id.unwrap_or(0)),
                     Cell::new(job.platform.to_string()),
                     Cell::new(fmt_relative(job.created_at)),
@@ -55,6 +56,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
         }
         Some(Platform::Upwork) => {
             table.set_header(vec![
+                "#",
                 "Id",
                 "Posted",
                 "Budget",
@@ -63,12 +65,13 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                 "Last viewed",
                 "Title",
             ]);
-            for job in jobs {
+            for (i, job) in jobs.iter().enumerate() {
                 let Data::Upwork { detail } = &job.raw else {
                     unreachable!("upwork table only renders upwork jobs");
                 };
                 let last_viewed = detail.last_viewed.map(fmt_relative).unwrap_or_default();
                 table.add_row(vec![
+                    Cell::new(i + 1),
                     Cell::new(job.id.unwrap_or(0)),
                     Cell::new(fmt_relative(job.created_at)),
                     Cell::new(job.budget.as_deref().unwrap_or("?")),
@@ -80,9 +83,12 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
             }
         }
         Some(Platform::NoFluffJobs) => {
-            table.set_header(vec!["Id", "Posted", "Budget", "Applied", "Liked", "Title"]);
-            for job in jobs {
+            table.set_header(vec![
+                "#", "Id", "Posted", "Budget", "Applied", "Liked", "Title",
+            ]);
+            for (i, job) in jobs.iter().enumerate() {
                 table.add_row(vec![
+                    Cell::new(i + 1),
                     Cell::new(job.id.unwrap_or(0)),
                     Cell::new(fmt_relative(job.created_at)),
                     Cell::new(job.budget.as_deref().unwrap_or("?")),
@@ -95,6 +101,9 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
     }
 
     if let Some(column) = table.column_mut(0) {
+        column.set_cell_alignment(CellAlignment::Right);
+    }
+    if let Some(column) = table.column_mut(1) {
         column.set_cell_alignment(CellAlignment::Right);
     }
 
