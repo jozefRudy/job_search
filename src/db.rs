@@ -21,7 +21,7 @@ impl Db {
     pub async fn upsert_job(&self, job: &Job) -> Result<i64> {
         let tags = serde_json::to_string(&job.tags)?;
         let raw = serde_json::to_string(&job.raw)?;
-        let platform = job.platform.to_string();
+        let platform = &job.platform;
         let created_at = job.created_at.naive_utc();
 
         let id = sqlx::query_scalar!(
@@ -55,8 +55,6 @@ impl Db {
     }
 
     pub async fn list_jobs(&self, platform: Option<Platform>, limit: i64) -> Result<Vec<Job>> {
-        let platform = platform.map(|p| p.to_string());
-
         let rows = sqlx::query_as!(
             JobRow,
             r#"
@@ -136,7 +134,6 @@ impl Db {
 
     /// Returns true if a job with this platform+external_id already exists.
     pub async fn job_exists(&self, platform: &Platform, external_id: &str) -> Result<bool> {
-        let platform = platform.to_string();
         let count: i64 = sqlx::query_scalar!(
             "SELECT COUNT(*) FROM jobs WHERE platform = ?1 AND external_id = ?2",
             platform,
@@ -153,7 +150,6 @@ impl Db {
         platform: &Platform,
         external_id: &str,
     ) -> Result<Option<chrono::DateTime<chrono::Utc>>> {
-        let platform = platform.to_string();
         let row = sqlx::query_scalar!(
             "SELECT updated_at FROM jobs WHERE platform = ?1 AND external_id = ?2",
             platform,
@@ -204,26 +200,23 @@ struct JobRow {
 impl From<JobRow> for Job {
     fn from(r: JobRow) -> Self {
         // Deserialize raw; fall back to default if old schema (missing `platform` tag)
-        let raw: Data = serde_json::from_str(&r.raw).unwrap_or_else(|_| {
-            let platform = match r.platform.as_str() {
-                "upwork" => Platform::Upwork,
-                _ => Platform::NoFluffJobs,
-            };
-            match platform {
-                Platform::Upwork => Data::Upwork {
+        let raw: Data =
+            serde_json::from_str(&r.raw).unwrap_or_else(|_| match r.platform.as_str() {
+                "upwork" => Data::Upwork {
                     detail: crate::models::UpworkJobDetail::default(),
                 },
-                Platform::NoFluffJobs => Data::Nofluffjobs {
+                "nofluffjobs" => Data::Nofluffjobs {
                     detail: crate::models::NoFluffJobDetail::default(),
                 },
-            }
-        });
+                _ => panic!("unknown platform in db: '{}'", r.platform),
+            });
 
         Job {
             id: Some(r.id),
             platform: match r.platform.as_str() {
                 "upwork" => Platform::Upwork,
-                _ => Platform::NoFluffJobs,
+                "nofluffjobs" => Platform::NoFluffJobs,
+                _ => panic!("unknown platform in db: '{}'", r.platform),
             },
             external_id: r.external_id,
             title: r.title,

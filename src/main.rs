@@ -2,24 +2,13 @@ use anyhow::Result;
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager};
-use jobsearch::cli::{
-    Cli, Commands, ListTarget, ReactAction, Recency, UpdatePlatform, UpworkSortBy,
-};
+use jobsearch::cli::{Cli, Commands, ListTarget, ReactAction, UpdatePlatform, UpworkSortBy};
 use jobsearch::db::Db;
 use jobsearch::display;
-use jobsearch::models::Platform;
+use jobsearch::models::{JobFilter, Platform};
 use jobsearch::platforms::{
     PlatformClient, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper,
 };
-
-struct ListOpts {
-    platform: Option<Platform>,
-    limit: Option<i64>,
-    recency: Option<Recency>,
-    detailed: bool,
-    applied: Option<bool>,
-    liked: Option<bool>,
-}
 
 const DEFAULT_INIT_URLS: &[&str] = &[
     "https://www.upwork.com/freelancers/~01dba08086390dc196",
@@ -110,34 +99,45 @@ async fn main() -> Result<()> {
         },
         Commands::List(cmd) => match cmd.target {
             ListTarget::All(args) => {
-                let opts = ListOpts {
-                    platform: None,
-                    limit: args.limit,
+                let filter = JobFilter {
                     recency: args.recency,
-                    detailed: args.detailed,
                     applied: args.applied,
                     liked: args.liked,
                 };
-                cmd_list(&db, opts, |a, b| b.created_at.cmp(&a.created_at), cli.json).await?;
+                cmd_list(
+                    &db,
+                    None,
+                    filter,
+                    args.detailed,
+                    |a, b| b.created_at.cmp(&a.created_at),
+                    cli.json,
+                )
+                .await?;
             }
             ListTarget::Upwork(args) => {
-                let opts = ListOpts {
-                    platform: Some(Platform::Upwork),
-                    limit: args.common.limit,
+                let filter = JobFilter {
                     recency: args.common.recency,
-                    detailed: args.common.detailed,
                     applied: args.common.applied,
                     liked: args.common.liked,
                 };
                 match args.sort {
                     UpworkSortBy::Created => {
-                        cmd_list(&db, opts, |a, b| b.created_at.cmp(&a.created_at), cli.json)
-                            .await?;
+                        cmd_list(
+                            &db,
+                            Some(Platform::Upwork),
+                            filter,
+                            args.common.detailed,
+                            |a, b| b.created_at.cmp(&a.created_at),
+                            cli.json,
+                        )
+                        .await?;
                     }
                     UpworkSortBy::Viewed => {
                         cmd_list(
                             &db,
-                            opts,
+                            Some(Platform::Upwork),
+                            filter,
+                            args.common.detailed,
                             |a, b| {
                                 use jobsearch::models::Data;
                                 let Data::Upwork { detail: ad } = &a.raw else {
@@ -157,15 +157,20 @@ async fn main() -> Result<()> {
                 }
             }
             ListTarget::Nofluff(args) => {
-                let opts = ListOpts {
-                    platform: Some(Platform::NoFluffJobs),
-                    limit: args.limit,
+                let filter = JobFilter {
                     recency: args.recency,
-                    detailed: args.detailed,
                     applied: args.applied,
                     liked: args.liked,
                 };
-                cmd_list(&db, opts, |a, b| b.created_at.cmp(&a.created_at), cli.json).await?;
+                cmd_list(
+                    &db,
+                    Some(Platform::NoFluffJobs),
+                    filter,
+                    args.detailed,
+                    |a, b| b.created_at.cmp(&a.created_at),
+                    cli.json,
+                )
+                .await?;
             }
         },
         Commands::Show { id } => {
@@ -210,58 +215,29 @@ async fn fetch_and_store(
 
 async fn cmd_list(
     db: &Db,
-    opts: ListOpts,
+    platform: Option<Platform>,
+    filter: JobFilter,
+    detailed: bool,
     mut sort: impl FnMut(&jobsearch::models::Job, &jobsearch::models::Job) -> std::cmp::Ordering,
     json: bool,
 ) -> Result<()> {
-    let jobs = db.list_jobs(opts.platform, i64::MAX).await?;
-
-    let jobs: Vec<_> = match opts.recency {
-        Some(Recency(days)) => {
-            let cutoff = chrono::Utc::now() - chrono::Duration::days(days);
-            jobs.into_iter()
-                .filter(|j| j.created_at >= cutoff)
-                .collect()
-        }
-        None => jobs,
-    };
-
-    let jobs: Vec<_> = match opts.applied {
-        Some(true) => jobs
-            .into_iter()
-            .filter(|j| j.applied_at.is_some())
-            .collect(),
-        Some(false) => jobs
-            .into_iter()
-            .filter(|j| j.applied_at.is_none())
-            .collect(),
-        None => jobs,
-    };
-
-    let mut jobs: Vec<_> = match opts.liked {
-        Some(true) => jobs.into_iter().filter(|j| j.liked == Some(true)).collect(),
-        Some(false) => jobs.into_iter().filter(|j| j.liked != Some(true)).collect(),
-        None => jobs,
-    };
+    let jobs = db.list_jobs(platform, i64::MAX).await?;
+    let mut jobs = filter.apply(jobs);
 
     jobs.sort_by(&mut sort);
-
-    if let Some(limit) = opts.limit {
-        jobs.truncate(limit as usize);
-    }
 
     if json {
         println!("{}", serde_json::to_string_pretty(&jobs)?);
         return Ok(());
     }
 
-    if opts.detailed {
+    if detailed {
         for job in &jobs {
             println!("{}", display::render_job_detailed(job));
         }
         println!("\nTotal: {} jobs", jobs.len());
     } else {
-        println!("{}", display::render_table(&jobs, opts.platform));
+        println!("{}", display::render_table(&jobs, platform));
         println!("\nTotal: {} jobs", jobs.len());
     }
 

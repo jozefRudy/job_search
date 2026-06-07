@@ -149,6 +149,64 @@ pub struct Job {
     pub applied_at: Option<DateTime<Utc>>,
 }
 
+/// Parsed recency like "1d" or "4w". Stores days.
+#[derive(Debug, Clone)]
+pub struct Recency(pub i64);
+
+impl std::str::FromStr for Recency {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim();
+        if s.len() < 2 {
+            anyhow::bail!("recency must be like 1d or 4w, got '{}'", s);
+        }
+        let (num, unit) = s.split_at(s.len() - 1);
+        let n: i64 = num
+            .parse()
+            .map_err(|_| anyhow::anyhow!("invalid recency number '{}'", num))?;
+        let days = match unit {
+            "d" => n,
+            "w" => n * 7,
+            _ => anyhow::bail!("recency unit must be 'd' or 'w', got '{}'", unit),
+        };
+        Ok(Recency(days))
+    }
+}
+
+/// Filter criteria for job lists.
+#[derive(Debug, Clone, Default)]
+pub struct JobFilter {
+    pub recency: Option<Recency>,
+    pub applied: Option<bool>,
+    pub liked: Option<bool>,
+}
+
+impl JobFilter {
+    pub fn apply(&self, jobs: Vec<Job>) -> Vec<Job> {
+        let mut jobs = jobs;
+
+        if let Some(Recency(days)) = &self.recency {
+            let cutoff = Utc::now() - chrono::Duration::days(*days);
+            jobs.retain(|j| j.created_at >= cutoff);
+        }
+
+        match self.applied {
+            Some(true) => jobs.retain(|j| j.applied_at.is_some()),
+            Some(false) => jobs.retain(|j| j.applied_at.is_none()),
+            None => {}
+        }
+
+        match self.liked {
+            Some(true) => jobs.retain(|j| j.liked == Some(true)),
+            Some(false) => jobs.retain(|j| j.liked != Some(true)),
+            None => {}
+        }
+
+        jobs
+    }
+}
+
 /// Parsed budget range with consistent formatting.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Budget {

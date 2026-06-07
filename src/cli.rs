@@ -1,30 +1,6 @@
+use crate::models::Recency;
 use crate::platforms::upwork::UpworkTier;
 use clap::{Args, Parser, Subcommand, ValueEnum};
-
-/// Parsed recency like "1d" or "4w". Stores days.
-#[derive(Debug, Clone)]
-pub struct Recency(pub i64);
-
-impl std::str::FromStr for Recency {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.trim();
-        if s.len() < 2 {
-            anyhow::bail!("recency must be like 1d or 4w, got '{}'", s);
-        }
-        let (num, unit) = s.split_at(s.len() - 1);
-        let n: i64 = num
-            .parse()
-            .map_err(|_| anyhow::anyhow!("invalid recency number '{}'", num))?;
-        let days = match unit {
-            "d" => n,
-            "w" => n * 7,
-            _ => anyhow::bail!("recency unit must be 'd' or 'w', got '{}'", unit),
-        };
-        Ok(Recency(days))
-    }
-}
 
 #[derive(Parser)]
 #[command(name = "jobsearch")]
@@ -74,9 +50,6 @@ pub enum ListTarget {
 
 #[derive(Args)]
 pub struct CommonListArgs {
-    #[arg(short, long)]
-    pub limit: Option<i64>,
-
     /// Show platform-specific details below each row
     #[arg(long)]
     pub detailed: bool,
