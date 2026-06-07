@@ -107,6 +107,7 @@ Use `use` for repeated paths. No fully-qualified repetition.
 ## Refactoring
 
 - **Avoid sed for code transformations.** sed corrupts imports, breaks syntax, and produces unhelpful errors. Use `write` for full-file rewrites or `edit` with exact text matches.
+- **Avoid scripted bulk rewrites across multiple files.** Python string replacement, bash heredocs, and sed silently corrupt escaping, formatting, and macro syntax. Enumerate exact per-file changes first, then apply with targeted `edit`. Full-file rewrites only for small, fully-controlled files.
 - **Plan refactor scope before touching files.** Cascading type changes across 5+ files cause compile-error whack-a-mole. Map all affected files first (models, db, platform modules, main.rs, tests).
 - **Prefer `#[allow(...)]` over boxing enum variants.** `Box<T>` adds indirection and noise. For large enum variants that are rarely cloned, suppress the lint instead.
 
@@ -135,3 +136,4 @@ Use `use` for repeated paths. No fully-qualified repetition.
 - `PATTERNS.md` — LanceDB, Postgres, Auth, API, Frontend patterns with code examples. Read when building new feature.
 - `PLAN.md` — Current project roadmap and priorities. Read before starting new work.
 - `README.md` — Project overview, pricing, competition. Read once for context.
+
