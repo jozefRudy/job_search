@@ -186,7 +186,7 @@ impl std::str::FromStr for Recency {
 pub struct JobFilter {
     pub recency: Option<Recency>,
     pub applied: Option<bool>,
-    pub liked: Option<bool>,
+    pub liked: Option<Rating>,
 }
 
 impl JobFilter {
@@ -205,8 +205,9 @@ impl JobFilter {
         }
 
         match self.liked {
-            Some(true) => jobs.retain(|j| j.liked == Some(true)),
-            Some(false) => jobs.retain(|j| j.liked == Some(false)),
+            Some(Rating::Liked) => jobs.retain(|j| j.liked == Some(true)),
+            Some(Rating::Disliked) => jobs.retain(|j| j.liked == Some(false)),
+            Some(Rating::Neutral) => jobs.retain(|j| j.liked.is_none()),
             None => {}
         }
 
