@@ -39,6 +39,11 @@ cargo test -- --include-ignored
    - Bad: Rename fields without checking all usages
    - Good: `grep` for all references first
 
+4. **Types and immutability first.** When data doesn't fit your type, fix it at the boundary (deserializers, `From`/`TryFrom`) — never with manual mutation or pre-processing.
+   - Bad: Mutate `serde_json::Value` before deserializing; chain `.strip_prefix("posted ").strip_suffix(" ago")` for every text variant
+   - Good: `#[serde(deserialize_with)]`; single regex that captures the pattern regardless of surrounding text
+   - Rule: Reaching for `mut` or chained string transforms to shape data = missed abstraction
+
 ## Imports
 
 Use `use` for repeated paths. No fully-qualified repetition.
