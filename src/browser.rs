@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 const CDP_URL: &str = "http://localhost:9222";
+const BROWSER_APP: &str = "Brave Browser";
 
 pub fn host_of(url: &str) -> Option<String> {
     url::Url::parse(url)
@@ -112,11 +113,26 @@ impl BrowserManager {
         Ok((browser, handle))
     }
 
+    fn is_browser_running_without_cdp() -> bool {
+        std::process::Command::new("pgrep")
+            .arg("-x")
+            .arg(BROWSER_APP)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+
     async fn launch() -> Result<(Browser, tokio::task::JoinHandle<()>)> {
+        if Self::is_browser_running_without_cdp() {
+            anyhow::bail!(
+                "{BROWSER_APP} is running without remote debugging. Quit it and try again."
+            );
+        }
+
         let mut cmd = std::process::Command::new("open");
         cmd.arg("-g");
         cmd.arg("-a");
-        cmd.arg("Brave Browser");
+        cmd.arg(BROWSER_APP);
         cmd.arg("--args");
         cmd.arg("--remote-debugging-port=9222");
         cmd.spawn()?;
@@ -129,7 +145,7 @@ impl BrowserManager {
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
         }
-        browser_and_handler.ok_or_else(|| anyhow::anyhow!("Brave did not start in time"))
+        browser_and_handler.ok_or_else(|| anyhow::anyhow!("{BROWSER_APP} did not start in time"))
     }
 }
 
