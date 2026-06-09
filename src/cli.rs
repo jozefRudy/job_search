@@ -77,16 +77,19 @@ pub struct UpworkListArgs {
     #[command(flatten)]
     pub common: CommonListArgs,
 
-    /// Sort order: created, viewed
-    #[arg(long, value_enum, default_value = "viewed")]
+    /// Sort order: created, upwork_viewed
+    #[arg(long, value_enum, default_value = "upwork_viewed")]
     pub sort: UpworkSortBy,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum UpworkSortBy {
     Created,
-    Viewed,
+    #[value(name = "upwork_viewed")]
+    UpworkViewed,
 }
+
+
 
 #[derive(Parser)]
 pub struct UpdateCmd {

@@ -5,7 +5,7 @@ use jobsearch::browser::{BrowserExt, BrowserManager};
 use jobsearch::cli::{Cli, Commands, ListTarget, ReactAction, UpdatePlatform, UpworkSortBy};
 use jobsearch::db::Db;
 use jobsearch::display;
-use jobsearch::models::{JobFilter, Platform};
+use jobsearch::models::{JobFilter, Platform, Sort};
 use jobsearch::platforms::{
     PlatformClient, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper,
 };
@@ -110,7 +110,7 @@ async fn main() -> Result<()> {
                     None,
                     filter,
                     args.detailed,
-                    |a, b| b.created_at.cmp(&a.created_at),
+                    Sort::Created,
                     cli.json,
                 )
                 .await?;
@@ -121,41 +121,19 @@ async fn main() -> Result<()> {
                     applied: args.common.applied,
                     liked: args.common.rating,
                 };
-                match args.sort {
-                    UpworkSortBy::Created => {
-                        cmd_list(
-                            &db,
-                            Some(Platform::Upwork),
-                            filter,
-                            args.common.detailed,
-                            |a, b| b.created_at.cmp(&a.created_at),
-                            cli.json,
-                        )
-                        .await?;
-                    }
-                    UpworkSortBy::Viewed => {
-                        cmd_list(
-                            &db,
-                            Some(Platform::Upwork),
-                            filter,
-                            args.common.detailed,
-                            |a, b| {
-                                use jobsearch::models::Data;
-                                let Data::Upwork { detail: ad } = &a.raw else {
-                                    unreachable!("upwork sort only for upwork jobs")
-                                };
-                                let Data::Upwork { detail: bd } = &b.raw else {
-                                    unreachable!("upwork sort only for upwork jobs")
-                                };
-                                let av = ad.last_viewed;
-                                let bv = bd.last_viewed;
-                                (bv.is_some(), bv).cmp(&(av.is_some(), av))
-                            },
-                            cli.json,
-                        )
-                        .await?;
-                    }
-                }
+                let sort = match args.sort {
+                    UpworkSortBy::Created => Sort::Created,
+                    UpworkSortBy::UpworkViewed => Sort::UpworkViewed,
+                };
+                cmd_list(
+                    &db,
+                    Some(Platform::Upwork),
+                    filter,
+                    args.common.detailed,
+                    sort,
+                    cli.json,
+                )
+                .await?;
             }
             ListTarget::Nofluff(args) => {
                 let filter = JobFilter {
@@ -168,7 +146,7 @@ async fn main() -> Result<()> {
                     Some(Platform::NoFluffJobs),
                     filter,
                     args.detailed,
-                    |a, b| b.created_at.cmp(&a.created_at),
+                    Sort::Created,
                     cli.json,
                 )
                 .await?;
@@ -222,13 +200,11 @@ async fn cmd_list(
     platform: Option<Platform>,
     filter: JobFilter,
     detailed: bool,
-    mut sort: impl FnMut(&jobsearch::models::Job, &jobsearch::models::Job) -> std::cmp::Ordering,
+    sort: Sort,
     json: bool,
 ) -> Result<()> {
-    let jobs = db.list_jobs(platform, i64::MAX).await?;
-    let mut jobs = filter.apply(jobs);
-
-    jobs.sort_by(&mut sort);
+    let jobs = db.list_jobs(platform, sort, i64::MAX).await?;
+    let jobs = filter.apply(jobs);
 
     if json {
         println!("{}", serde_json::to_string_pretty(&jobs)?);

@@ -1,4 +1,4 @@
-use crate::models::{Data, Job, Platform, Rating};
+use crate::models::{Data, Job, Paginated, Platform, Rating, Sort};
 use anyhow::Result;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use std::str::FromStr;
@@ -54,9 +54,14 @@ impl Db {
         Ok(id)
     }
 
-    pub async fn list_jobs(&self, platform: Option<Platform>, limit: i64) -> Result<Vec<Job>> {
-        let rows = sqlx::query_as!(
-            JobRow,
+    pub async fn list_jobs(
+        &self,
+        platform: Option<Platform>,
+        sort: Sort,
+        limit: i64,
+    ) -> Result<Vec<Job>> {
+        let order_by = sort.order_by_sql();
+        let sql = format!(
             r#"
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
@@ -65,14 +70,15 @@ impl Db {
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
-            ORDER BY j.created_at DESC LIMIT ?2
+            ORDER BY {} LIMIT ?2
             "#,
-            platform,
-            limit
-        )
-        .fetch_all(&self.pool)
-        .await?;
-
+            order_by
+        );
+        let rows = sqlx::query_as::<_, JobRow>(&sql)
+            .bind(platform)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?;
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
@@ -80,15 +86,36 @@ impl Db {
         &self,
         platform: Option<Platform>,
         liked: Option<Rating>,
+        sort: Sort,
         limit: i64,
-    ) -> Result<Vec<Job>> {
+        offset: i64,
+    ) -> Result<Paginated<Job>> {
         let liked_str = liked.as_ref().map(|r| match r {
             Rating::Liked => "liked",
             Rating::Disliked => "disliked",
             Rating::Neutral => "neutral",
         });
-        let rows = sqlx::query_as!(
-            JobRow,
+
+        let total: i64 = sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)
+            FROM jobs j
+            LEFT JOIN reactions r ON r.job_id = j.id
+            WHERE (?1 IS NULL OR j.platform = ?1)
+              AND (?2 IS NULL OR (
+                (?2 = 'liked' AND j.liked = 1) OR
+                (?2 = 'disliked' AND j.liked = 0) OR
+                (?2 = 'neutral' AND j.liked IS NULL)
+              ))
+            "#,
+            platform,
+            liked_str,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let order_by = sort.order_by_sql();
+        let sql = format!(
             r#"
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
@@ -102,16 +129,20 @@ impl Db {
                 (?2 = 'disliked' AND j.liked = 0) OR
                 (?2 = 'neutral' AND j.liked IS NULL)
               ))
-            ORDER BY j.created_at DESC LIMIT ?3
+            ORDER BY {} LIMIT ?3 OFFSET ?4
             "#,
-            platform,
-            liked_str,
-            limit
-        )
-        .fetch_all(&self.pool)
-        .await?;
+            order_by
+        );
+        let rows = sqlx::query_as::<_, JobRow>(&sql)
+            .bind(platform)
+            .bind(liked_str)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?;
 
-        Ok(rows.into_iter().map(|r| r.into()).collect())
+        let items = rows.into_iter().map(|r| r.into()).collect();
+        Ok(Paginated { items, total })
     }
 
     pub async fn get_job(&self, id: i64) -> Result<Option<Job>> {
@@ -334,7 +365,7 @@ mod tests {
         let id = db.upsert_job(&job).await?;
         assert!(id > 0);
 
-        let jobs = db.list_jobs(None, 10).await?;
+        let jobs = db.list_jobs(None, Sort::Created, 10).await?;
         assert_eq!(jobs.len(), 1);
         assert_eq!(jobs[0].title, "Rust Dev");
         Ok(())

@@ -140,6 +140,40 @@ pub enum Rating {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Paginated<T> {
+    pub items: Vec<T>,
+    pub total: i64,
+}
+
+/**
+ * Sorts available in the API and CLI.
+ *
+ * All sorts are DB-sortable via generated columns.
+ */
+#[derive(Debug, Clone, Copy)]
+pub enum Sort {
+    Created,
+    UpworkViewed,
+}
+
+impl Sort {
+    pub fn parse(s: &str, _platform: Option<Platform>) -> Self {
+        match s {
+            "created" => Sort::Created,
+            "upwork_viewed" => Sort::UpworkViewed,
+            _ => Sort::Created,
+        }
+    }
+
+    pub fn order_by_sql(&self) -> &'static str {
+        match self {
+            Sort::Created => "j.created_at DESC",
+            Sort::UpworkViewed => "j.upwork_last_viewed_at DESC NULLS LAST",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Job {
     pub id: Option<i64>,
     pub platform: Platform,

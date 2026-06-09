@@ -1,5 +1,5 @@
 use crate::db::Db;
-use crate::models::{Data, Job, Platform, Rating};
+use crate::models::{Job, Platform, Rating, Sort};
 use anyhow::Result;
 use axum::{
     Json, Router,
@@ -24,15 +24,26 @@ struct ListQuery {
     rating: Option<String>,
     #[serde(default = "default_sort")]
     sort: String,
+    #[serde(default = "default_page")]
+    page: usize,
+    #[serde(default = "default_page_size")]
+    page_size: usize,
 }
 
 fn default_sort() -> String {
     "created".to_string()
 }
+fn default_page() -> usize {
+    1
+}
+fn default_page_size() -> usize {
+    20
+}
 
 #[derive(Debug, Serialize)]
 struct JobListResponse {
     jobs: Vec<Job>,
+    total: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -86,31 +97,23 @@ async fn list_jobs(
         _ => None,
     });
 
-    let mut jobs = state
+    let page = query.page.max(1);
+    let page_size = query.page_size.clamp(1, 100);
+
+    let sort = Sort::parse(&query.sort, platform);
+    let offset = ((page - 1) * page_size) as i64;
+    let limit = page_size as i64;
+
+    let paginated = state
         .db
-        .list_jobs_filtered(platform, liked, 500)
+        .list_jobs_filtered(platform, liked, sort, limit, offset)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    match query.sort.as_str() {
-        "viewed" => {
-            jobs.sort_by(|a, b| {
-                if let (Data::Upwork { detail: ad }, Data::Upwork { detail: bd }) = (&a.raw, &b.raw)
-                {
-                    let av = ad.last_viewed;
-                    let bv = bd.last_viewed;
-                    (bv.is_some(), bv).cmp(&(av.is_some(), av))
-                } else {
-                    std::cmp::Ordering::Equal
-                }
-            });
-        }
-        _ => {
-            jobs.sort_by_key(|b| std::cmp::Reverse(b.created_at));
-        }
-    }
-
-    Ok(Json(JobListResponse { jobs }))
+    Ok(Json(JobListResponse {
+        jobs: paginated.items,
+        total: paginated.total as usize,
+    }))
 }
 
 async fn get_job(
