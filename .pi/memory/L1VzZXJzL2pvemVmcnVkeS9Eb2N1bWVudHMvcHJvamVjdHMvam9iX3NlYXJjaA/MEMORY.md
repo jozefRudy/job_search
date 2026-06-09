@@ -3,6 +3,7 @@
 
 ## lesson
 
+- [[agents-md-location]] - Project-wide agent instructions live in `.pi/APPEND_SYSTEM.md` (pi-native, auto-
 - [[brave-cdp-macos-launch]] - macOS `open -a "Brave Browser" --args --remote-debugging-port=9222` silently dro
 - [[browser-eval-over-screenshots]] - When model doesn't support image rendering, use `browser_eval` with JS extractio
 - [[copy-ui-components-checklist]] - When copying UI components from another project, always verify: 1) missing depen
@@ -15,4 +16,6 @@
 
 ## context
 
+- [[frontend-validation-pipeline]] - Frontend validation pipeline lives in `frontend/` dir: `pnpm typecheck && pnpm c
+- [[utils-extraction-pattern]] - Pure helper functions (e.g. `fmtRelative`, `ratingEmoji`, `ratingClass`) belong 
 - [[web-server-design]] - Frontend stack: SolidJS + Tailwind + DaisyUI, built locally in `frontend/` dir a

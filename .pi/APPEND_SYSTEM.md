@@ -133,6 +133,18 @@ Use `use` for repeated paths. No fully-qualified repetition.
 - **Platform-specific options = subcommands, not flags.** When different platforms need different args (`--tier` for Upwork, `--employment` for NoFluffJobs), use clap subcommands (`update upwork`, `update nofluff`) instead of flat flags with `--platform`. Clean, self-documenting, no ambiguity.
 - **Generic traits stay generic.** Never put platform-specific types (`UpworkTier`, `hourly_rate_min`) into a generic `PlatformClient` trait. Store config in scraper struct fields instead.
 
+## Frontend
+
+After frontend changes, run:
+```bash
+cd frontend && pnpm typecheck && pnpm check && pnpm test run && pnpm build
+```
+
+- **SolidJS reactivity** — derived values must be functions or inline in JSX. Const assignments stale after first render.
+- **Design system** — reuse primitives in `src/components/ui/` before raw Daisy/Tailwind.
+- **Pattern matching** — prefer `ts-pattern` exhaustive matching over `if/else` chains and `switch`.
+- **E2E check** — for all UI changes, run backend (`cargo run`) + frontend (`pnpm start`) together, verify key flows in browser. Frontend proxies `/api` to `localhost:8080`.
+
 ## Architecture Reference
 
 - `PATTERNS.md` — LanceDB, Postgres, Auth, API, Frontend patterns with code examples. Read when building new feature.
