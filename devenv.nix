@@ -37,6 +37,9 @@
     frontend = {
       exec = "(cd frontend && pnpm start)";
     };
+    backend = {
+      exec = "cargo run -- serve";
+    };
   };
   scripts = {
     test.exec = ''

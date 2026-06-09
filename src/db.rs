@@ -90,6 +90,7 @@ impl Db {
         limit: i64,
         offset: i64,
     ) -> Result<Paginated<Job>> {
+        let order_by = sort.order_by_sql();
         let liked_str = liked.as_ref().map(|r| match r {
             Rating::Liked => "liked",
             Rating::Disliked => "disliked",
@@ -113,8 +114,6 @@ impl Db {
         )
         .fetch_one(&self.pool)
         .await?;
-
-        let order_by = sort.order_by_sql();
         let sql = format!(
             r#"
             SELECT

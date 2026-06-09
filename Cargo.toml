@@ -3,12 +3,16 @@ name = "jobsearch"
 version = "0.1.0"
 edition = "2024"
 
+[profile.release]
+strip = true
+
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
 axum = "0.8"
 
 chrono = { version = "0.4", features = ["serde"] }
+ts-rs = { version = "12", features = ["chrono-impl"] }
 clap = { version = "4", features = ["derive"] }
 comfy-table = "7"
 directories = "6"

@@ -89,8 +89,6 @@ pub enum UpworkSortBy {
     UpworkViewed,
 }
 
-
-
 #[derive(Parser)]
 pub struct UpdateCmd {
     #[command(subcommand)]

@@ -32,8 +32,9 @@ pub struct NoFluffJobsScraper {
 
 const API_BASE: &str = "https://nofluffjobs.com/api";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DetailResponse {
+/// Raw API response from NoFluffJobs detail endpoint.
+#[derive(Debug, Clone, Deserialize)]
+struct RawNoFluffJobDetail {
     #[serde(default)]
     pub basics: Basics,
     #[serde(default)]
@@ -343,7 +344,7 @@ impl NoFluffJobsScraper {
 
     /// Fetch job detail from API (no DB dependency).
     pub async fn fetch_detail(&self, job_id: &str) -> Result<NoFluffJobDetail> {
-        let detail: DetailResponse = self
+        let detail: RawNoFluffJobDetail = self
             .client
             .get(format!("{}/posting/{}", API_BASE, job_id))
             .send()

@@ -7,15 +7,19 @@
 - [[brave-cdp-macos-launch]] - macOS `open -a "Brave Browser" --args --remote-debugging-port=9222` silently dro
 - [[browser-eval-over-screenshots]] - When model doesn't support image rendering, use `browser_eval` with JS extractio
 - [[copy-ui-components-checklist]] - When copying UI components from another project, always verify: 1) missing depen
+- [[dont-strip-platform-features]] - When refactoring to remove platform-specific leakage from generic types, don't a
 - [[frontend-api-mismatch]] - Frontend `api.ts` must unwrap server response shape. Server `list_jobs` returns 
 - [[frontend-ui-pure-copies]] - When copying UI components from `../reddit/frontend-solid/src/components/ui/`, u
 - [[nix-pnpm-oom-fix]] - When packaging pnpm frontend in Nix flake on macOS, `pnpm_11` + `fetcherVersion 
 - [[pagination-single-query-pattern]] - For paginated APIs, use `COUNT(*) OVER() as total` in the same query instead of 
+- [[platform-specific-sort-pattern]] - For platform-specific sorting in shared API, use a single strongly-typed `Sort` 
 - [[pnpm-workspaces-single-app]] - Single-app frontend does not need `pnpm-workspace.yaml`. Remove it. `pnpm.onlyBu
 - [[sqlx-query-as-default-limitation]] - `#[sqlx(flatten)]` does **not** work with the `query_as!` macro — it only works 
 
 ## context
 
+- [[devenv-e2e-process]] - Document end-to-end process in `.pi/APPEND_SYSTEM.md`: `devenv up` starts backen
 - [[frontend-validation-pipeline]] - Frontend validation pipeline lives in `frontend/` dir: `pnpm typecheck && pnpm c
+- [[ts-rs-generated-types]] - Frontend TypeScript API types are auto-generated from Rust via `ts-rs`. `#[ts(ex
 - [[utils-extraction-pattern]] - Pure helper functions (e.g. `fmtRelative`, `ratingEmoji`, `ratingClass`) belong 
 - [[web-server-design]] - Frontend stack: SolidJS + Tailwind + DaisyUI, built locally in `frontend/` dir a

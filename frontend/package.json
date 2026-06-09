@@ -1,0 +1,40 @@
+{
+  "name": "jobsearch-frontend",
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "vite",
+    "build": "vite build",
+    "serve": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "check": "biome check",
+    "fix": "biome check --write",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.16.1",
+    "clsx": "^2.1.1",
+    "solid-js": "^1.9.9",
+    "tailwind-merge": "^3.5.0",
+    "ts-pattern": "^5.7.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.14",
+    "@solidjs/testing-library": "^0.8.10",
+    "@tailwindcss/vite": "^4.1.13",
+    "@testing-library/jest-dom": "^6.9.1",
+    "daisyui": "^5.5.19",
+    "happy-dom": "^20.9.0",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.4",
+    "vite-plugin-solid": "^2.11.8",
+    "vitest": "^4.1.6"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

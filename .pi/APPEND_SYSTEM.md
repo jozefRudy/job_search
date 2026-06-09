@@ -145,6 +145,19 @@ cd frontend && pnpm typecheck && pnpm check && pnpm test run && pnpm build
 - **Pattern matching** — prefer `ts-pattern` exhaustive matching over `if/else` chains and `switch`.
 - **E2E check** — for all UI changes, run backend (`cargo run`) + frontend (`pnpm start`) together, verify key flows in browser. Frontend proxies `/api` to `localhost:8080`.
 
+## TypeScript Types
+
+- **API types are generated from Rust** — `ts-rs` exports `Job`, `Data`, `Platform`, `Rating`, `ListQuery`, etc. to `frontend/src/generated/` on `cargo test`.
+- **Never edit `frontend/src/generated/*.ts` manually.** Update the Rust source in `src/models.rs` or `src/server.rs`, then run `cargo test`.
+- **Biome ignores `src/generated`** — formatter/linter skip auto-generated files.
+- **Export query structs from Rust, not frontend-only wrappers.** `ListQuery` with `Option<Platform>` / `Option<Rating>` maps to `Platform | null` / `Rating | null` in TS. No custom `PlatformFilter` / `RatingFilter` types. Single source of truth.
+
+## End-to-End
+
+- Run `devenv up` to start backend + frontend together. Processes defined in `devenv.nix`.
+- Frontend proxies `/api` to backend `localhost:8080`.
+- Verify key flows in browser after UI changes.
+
 ## Architecture Reference
 
 - `PATTERNS.md` — LanceDB, Postgres, Auth, API, Frontend patterns with code examples. Read when building new feature.

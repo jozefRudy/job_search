@@ -105,15 +105,7 @@ async fn main() -> Result<()> {
                     applied: args.applied,
                     liked: args.rating,
                 };
-                cmd_list(
-                    &db,
-                    None,
-                    filter,
-                    args.detailed,
-                    Sort::Created,
-                    cli.json,
-                )
-                .await?;
+                cmd_list(&db, None, filter, args.detailed, Sort::Created, cli.json).await?;
             }
             ListTarget::Upwork(args) => {
                 let filter = JobFilter {

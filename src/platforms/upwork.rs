@@ -16,15 +16,28 @@ const IS_CHALLENGE_JS: &str = include_str!("upwork/is_challenge.js");
 const HAS_CARDS_JS: &str = include_str!("upwork/has_cards.js");
 const HAS_NEXT_PAGE_JS: &str = include_str!("upwork/has_next_page.js");
 
-/// Job card as scraped from the Upwork list page.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Raw job card from JS scraper (all strings).
+#[derive(Debug, Clone, Deserialize)]
+struct RawJobCard {
+    pub external_id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub url: String,
+    pub budget: Option<String>,
+    #[serde(default)]
+    pub posted_at_text: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+/// Job card with parsed timestamps.
+#[derive(Debug, Clone, Serialize)]
 pub struct UpworkJobCard {
     pub external_id: String,
     pub title: String,
     pub description: Option<String>,
     pub url: String,
     pub budget: Option<String>,
-    #[serde(default, deserialize_with = "crate::models::deserialize_relative_time")]
     pub posted_at_text: Option<DateTime<Utc>>,
     #[serde(default)]
     pub tags: Vec<String>,
@@ -177,16 +190,27 @@ impl UpworkScraper {
 
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
-        let detail: UpworkJobDetail = page.evaluate(FETCH_JOB_DETAIL_JS).await?.into_value()?;
+        let raw: RawJobDetail = page.evaluate(FETCH_JOB_DETAIL_JS).await?.into_value()?;
 
         page.close().await.ok();
-        Ok(detail)
+        Ok(raw.into())
     }
 
     /// Scrape job cards from current search page.
     pub async fn scrape_page(page: &chromiumoxide::Page) -> Result<Vec<UpworkJobCard>> {
-        let cards: Vec<UpworkJobCard> = page.evaluate(SCRAPE_CARDS_JS).await?.into_value()?;
-        Ok(cards)
+        let raw: Vec<RawJobCard> = page.evaluate(SCRAPE_CARDS_JS).await?.into_value()?;
+        Ok(raw
+            .into_iter()
+            .map(|r| UpworkJobCard {
+                external_id: r.external_id,
+                title: r.title,
+                description: r.description,
+                url: r.url,
+                budget: r.budget,
+                posted_at_text: crate::models::parse_relative_time(&r.posted_at_text),
+                tags: r.tags,
+            })
+            .collect())
     }
 
     /// Wait for job cards to appear (or CAPTCHA). Returns true if cards found.
@@ -206,6 +230,42 @@ impl UpworkScraper {
             sleep(Duration::from_millis(500)).await;
         }
         Ok(false)
+    }
+}
+
+/// Raw detail from JS scraper (all strings).
+#[derive(Debug, Clone, Deserialize)]
+struct RawJobDetail {
+    pub proposals: String,
+    pub last_viewed: String,
+    pub interviewing: String,
+    pub invites_sent: String,
+    pub unanswered_invites: String,
+    pub description: String,
+    pub exact_budget: String,
+    pub experience_level: String,
+    pub hires: String,
+    pub project_type: String,
+    pub duration: String,
+    pub hours_per_week: String,
+}
+
+impl From<RawJobDetail> for UpworkJobDetail {
+    fn from(raw: RawJobDetail) -> Self {
+        UpworkJobDetail {
+            proposals: raw.proposals,
+            last_viewed: crate::models::parse_relative_time(&raw.last_viewed),
+            interviewing: raw.interviewing,
+            invites_sent: raw.invites_sent,
+            unanswered_invites: raw.unanswered_invites,
+            description: raw.description,
+            exact_budget: raw.exact_budget,
+            experience_level: raw.experience_level,
+            hires: raw.hires,
+            project_type: raw.project_type,
+            duration: raw.duration,
+            hours_per_week: raw.hours_per_week,
+        }
     }
 }
 
