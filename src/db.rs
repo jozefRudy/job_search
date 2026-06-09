@@ -1,4 +1,4 @@
-use crate::models::{Data, Job, Platform};
+use crate::models::{Data, Job, Platform, Rating};
 use anyhow::Result;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use std::str::FromStr;
@@ -68,6 +68,44 @@ impl Db {
             ORDER BY j.created_at DESC LIMIT ?2
             "#,
             platform,
+            limit
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows.into_iter().map(|r| r.into()).collect())
+    }
+
+    pub async fn list_jobs_filtered(
+        &self,
+        platform: Option<Platform>,
+        liked: Option<Rating>,
+        limit: i64,
+    ) -> Result<Vec<Job>> {
+        let liked_str = liked.as_ref().map(|r| match r {
+            Rating::Liked => "liked",
+            Rating::Disliked => "disliked",
+            Rating::Neutral => "neutral",
+        });
+        let rows = sqlx::query_as!(
+            JobRow,
+            r#"
+            SELECT
+                j.id, j.platform, j.external_id, j.title, j.description,
+                j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
+                j.liked, r.note, r.applied_at
+            FROM jobs j
+            LEFT JOIN reactions r ON r.job_id = j.id
+            WHERE (?1 IS NULL OR j.platform = ?1)
+              AND (?2 IS NULL OR (
+                (?2 = 'liked' AND j.liked = 1) OR
+                (?2 = 'disliked' AND j.liked = 0) OR
+                (?2 = 'neutral' AND j.liked IS NULL)
+              ))
+            ORDER BY j.created_at DESC LIMIT ?3
+            "#,
+            platform,
+            liked_str,
             limit
         )
         .fetch_all(&self.pool)

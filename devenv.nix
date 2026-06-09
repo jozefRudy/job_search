@@ -20,6 +20,23 @@
       enable = true;
       channel = "nightly";
     };
+    javascript = {
+      enable = true;
+      package = pkgs.nodejs_24;
+      pnpm.enable = true;
+      pnpm.install.enable = true;
+      directory = "./frontend";
+    };
+    typescript = {
+      enable = true;
+      lsp.enable = true;
+    };
+  };
+
+  processes = {
+    frontend = {
+      exec = "(cd frontend && pnpm start)";
+    };
   };
   scripts = {
     test.exec = ''

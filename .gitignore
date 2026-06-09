@@ -2,6 +2,10 @@
 jobsearch.db*
 *.db
 
+# Frontend
+frontend/node_modules
+frontend/dist
+
 # Devenv
 .devenv*
 devenv.local.nix

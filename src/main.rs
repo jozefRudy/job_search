@@ -9,6 +9,7 @@ use jobsearch::models::{JobFilter, Platform};
 use jobsearch::platforms::{
     PlatformClient, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper,
 };
+use jobsearch::server;
 
 const DEFAULT_INIT_URLS: &[&str] = &[
     "https://www.upwork.com/freelancers/~01dba08086390dc196",
@@ -178,6 +179,9 @@ async fn main() -> Result<()> {
         }
         Commands::React(cmd) => {
             cmd_react(&db, cmd.action).await?;
+        }
+        Commands::Serve { port } => {
+            server::serve(db, port).await?;
         }
         Commands::Stats => {
             cmd_stats(&db, cli.json).await?;

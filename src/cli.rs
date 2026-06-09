@@ -29,6 +29,11 @@ pub enum Commands {
 
     React(ReactCmd),
 
+    Serve {
+        #[arg(short, long, default_value = "8080")]
+        port: u16,
+    },
+
     Stats,
 
     /// Show diagnostic info (DB path, job count, env)

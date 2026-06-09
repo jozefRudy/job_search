@@ -117,6 +117,7 @@ pub struct NoFluffJobDetail {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ValueEnum)]
 #[clap(rename_all = "lower")]
 #[sqlx(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum Platform {
     NoFluffJobs,
     Upwork,

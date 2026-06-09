@@ -14,17 +14,51 @@
           f {pkgs = import nixpkgs {inherit system;};}
       );
   in {
-    packages = forEachSupportedSystem (
-      {pkgs}: {
-        job-search = pkgs.rustPlatform.buildRustPackage {
-          pname = "job-search";
-          version = self.shortRev or "dirty";
-          src = self;
-          cargoLock.lockFile = ./Cargo.lock;
-          nativeBuildInputs = with pkgs; [pkg-config];
+    packages = forEachSupportedSystem ({pkgs}: let
+      pnpm = pkgs.pnpm_10;
+
+      frontend = pkgs.stdenv.mkDerivation (finalAttrs: {
+        pname = "jobsearch-frontend";
+        version = self.shortRev or "dirty";
+        src = ./frontend;
+
+        nativeBuildInputs = [
+          pkgs.nodejs-slim
+          pnpm
+          pkgs.pnpmConfigHook
+        ];
+
+        pnpmDeps = pkgs.fetchPnpmDeps {
+          inherit (finalAttrs) pname version src;
+          inherit pnpm;
+          fetcherVersion = 3;
+          # hash = pkgs.lib.fakeHash;
+          hash = "sha256-opOLZqCwlCUOYG2pwJ7oZEfD2lt8fbJz/5N/rfs8f+s=";
         };
-        default = self.packages.${pkgs.stdenv.hostPlatform.system}.job-search;
-      }
-    );
+
+        buildPhase = ''
+          pnpm build
+        '';
+
+        installPhase = ''
+          cp -r dist $out
+        '';
+      });
+
+      job-search = pkgs.rustPlatform.buildRustPackage {
+        pname = "job-search";
+        version = self.shortRev or "dirty";
+        src = self;
+        cargoLock.lockFile = ./Cargo.lock;
+        nativeBuildInputs = with pkgs; [pkg-config];
+        preBuild = ''
+          mkdir -p frontend/dist
+          cp -r ${frontend}/* frontend/dist/
+        '';
+      };
+    in {
+      inherit frontend job-search;
+      default = job-search;
+    });
   };
 }

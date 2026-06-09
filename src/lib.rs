@@ -4,3 +4,4 @@ pub mod db;
 pub mod display;
 pub mod models;
 pub mod platforms;
+pub mod server;
