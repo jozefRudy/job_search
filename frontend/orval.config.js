@@ -5,7 +5,7 @@ module.exports = {
     },
     output: {
       target: './src/generated/orval',
-      client: 'fetch',
+      client: 'solid-query',
       mode: 'split',
     },
   },

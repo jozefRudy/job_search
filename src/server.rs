@@ -42,7 +42,7 @@ pub fn app(db: Db) -> Router {
 
     let (api_router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(list_jobs))
-        .routes(routes!(get_job))
+        .routes(routes!(get_job, delete_job))
         .routes(routes!(rate_job))
         .with_state(state.clone())
         .split_for_parts();
@@ -147,6 +147,32 @@ async fn rate_job(
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/jobs/{id}",
+    params(("id" = i64, Path, description = "Job ID")),
+    responses(
+        (status = 204, description = "Job deleted"),
+        (status = 404, description = "Job not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn delete_job(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, StatusCode> {
+    let deleted = state
+        .db
+        .delete_job(id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
 }
 
 pub async fn serve(db: Db, port: u16) -> Result<()> {

@@ -240,6 +240,13 @@ impl Db {
         Ok(row.map(|dt| dt.and_utc()))
     }
 
+    pub async fn delete_job(&self, id: i64) -> Result<bool> {
+        let rows = sqlx::query!("DELETE FROM jobs WHERE id = ?1", id)
+            .execute(&self.pool)
+            .await?;
+        Ok(rows.rows_affected() > 0)
+    }
+
     pub async fn stats(&self) -> Result<Stats> {
         let total = sqlx::query_scalar!("SELECT COUNT(*) FROM jobs")
             .fetch_one(&self.pool)

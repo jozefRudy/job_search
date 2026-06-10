@@ -4,12 +4,35 @@
  * jobsearch
  * OpenAPI spec version: 0.1.0
  */
+import {
+  useMutation,
+  useQuery
+} from '@tanstack/solid-query';
+import type {
+  DataTag,
+  MutationFunction,
+  MutationOptions,
+  QueryClient,
+  QueryFunction,
+  QueryKey,
+  UseMutationResult,
+  UseQueryOptions,
+  UseQueryResult
+} from '@tanstack/solid-query';
+
+import {
+  mergeProps
+} from 'solid-js';
+
 import type {
   Job,
   JobListResponse,
   ListJobsParams,
   RateBody
 } from './jobsearch.schemas';
+
+
+
 
 
 export type listJobsResponse200 = {
@@ -66,6 +89,56 @@ export const listJobs = async (params?: ListJobsParams, options?: RequestInit): 
 
 
 
+
+
+export const getListJobsQueryKey = (params?: ListJobsParams,) => {
+    return [
+    `/api/jobs`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListJobsQueryOptions = <TData = Awaited<ReturnType<typeof listJobs>>, TError = void>(params?: ListJobsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listJobs>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  getListJobsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listJobs>>> = ({ signal }) => listJobs(params, { signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions}
+}
+
+export type ListJobsQueryResult = NonNullable<Awaited<ReturnType<typeof listJobs>>>
+export type ListJobsQueryError = void
+
+
+
+export function useListJobs<TData = Awaited<ReturnType<typeof listJobs>>, TError = void>(
+ params?: ListJobsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listJobs>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: () => QueryClient
+ ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListJobsQueryOptions(params,options)
+
+  const query = useQuery(() => getListJobsQueryOptions(params,options), queryClient);
+
+  return mergeProps(query, { queryKey: queryOptions.queryKey }) as any;
+}
+
+
+
+
+
+
+
 export type getJobResponse200 = {
   data: Job
   status: 200
@@ -118,6 +191,151 @@ export const getJob = async (id: number, options?: RequestInit): Promise<getJobR
 
 
 
+
+
+export const getGetJobQueryKey = (id: number,) => {
+    return [
+    `/api/jobs/${id}`
+    ] as const;
+    }
+
+
+export const getGetJobQueryOptions = <TData = Awaited<ReturnType<typeof getJob>>, TError = void>(id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJob>>, TError, TData>>, fetch?: RequestInit}
+) => {
+
+const {query: queryOptions, fetch: fetchOptions} = options ?? {};
+
+  const queryKey =  getGetJobQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getJob>>> = ({ signal }) => getJob(id, { signal, ...fetchOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions}
+}
+
+export type GetJobQueryResult = NonNullable<Awaited<ReturnType<typeof getJob>>>
+export type GetJobQueryError = void
+
+
+
+export function useGetJob<TData = Awaited<ReturnType<typeof getJob>>, TError = void>(
+ id: number, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getJob>>, TError, TData>>, fetch?: RequestInit}
+ , queryClient?: () => QueryClient
+ ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetJobQueryOptions(id,options)
+
+  const query = useQuery(() => getGetJobQueryOptions(id,options), queryClient);
+
+  return mergeProps(query, { queryKey: queryOptions.queryKey }) as any;
+}
+
+
+
+
+
+
+
+export type deleteJobResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteJobResponse404 = {
+  data: void
+  status: 404
+}
+
+export type deleteJobResponse500 = {
+  data: void
+  status: 500
+}
+
+export type deleteJobResponseSuccess = (deleteJobResponse204) & {
+  headers: Headers;
+};
+export type deleteJobResponseError = (deleteJobResponse404 | deleteJobResponse500) & {
+  headers: Headers;
+};
+
+export type deleteJobResponse = (deleteJobResponseSuccess | deleteJobResponseError)
+
+export const getDeleteJobUrl = (id: number,) => {
+
+
+
+
+  return `/api/jobs/${id}`
+}
+
+export const deleteJob = async (id: number, options?: RequestInit): Promise<deleteJobResponse> => {
+
+  const res = await fetch(getDeleteJobUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: deleteJobResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as deleteJobResponse
+}
+
+
+
+
+export const getDeleteJobMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:MutationOptions<Awaited<ReturnType<typeof deleteJob>>, TError,{id: number}, TContext>, fetch?: RequestInit}
+): MutationOptions<Awaited<ReturnType<typeof deleteJob>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteJob'];
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteJob>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteJob(id,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteJobMutationResult = NonNullable<Awaited<ReturnType<typeof deleteJob>>>
+
+    export type DeleteJobMutationError = void
+
+    export const useDeleteJob = <TError = void,
+    TContext = unknown>(options?: { mutation?:MutationOptions<Awaited<ReturnType<typeof deleteJob>>, TError,{id: number}, TContext>, fetch?: RequestInit}
+ , queryClient?: () => QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteJob>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(() => getDeleteJobMutationOptions(options), queryClient);
+    }
+
 export type rateJobResponse204 = {
   data: void
   status: 204
@@ -165,4 +383,47 @@ export const rateJob = async (id: number,
 }
 
 
+
+
+export const getRateJobMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:MutationOptions<Awaited<ReturnType<typeof rateJob>>, TError,{id: number;data: RateBody}, TContext>, fetch?: RequestInit}
+): MutationOptions<Awaited<ReturnType<typeof rateJob>>, TError,{id: number;data: RateBody}, TContext> => {
+
+const mutationKey = ['rateJob'];
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rateJob>>, {id: number;data: RateBody}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  rateJob(id,data,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RateJobMutationResult = NonNullable<Awaited<ReturnType<typeof rateJob>>>
+    export type RateJobMutationBody = RateBody
+    export type RateJobMutationError = void
+
+    export const useRateJob = <TError = void,
+    TContext = unknown>(options?: { mutation?:MutationOptions<Awaited<ReturnType<typeof rateJob>>, TError,{id: number;data: RateBody}, TContext>, fetch?: RequestInit}
+ , queryClient?: () => QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof rateJob>>,
+        TError,
+        {id: number;data: RateBody},
+        TContext
+      > => {
+      return useMutation(() => getRateJobMutationOptions(options), queryClient);
+    }
 

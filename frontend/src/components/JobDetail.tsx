@@ -1,10 +1,17 @@
 import { useNavigate, useParams } from "@solidjs/router";
-import { For, Show } from "solid-js";
-import { type Job, type Rating, useGetJob, useRateJob } from "~/api";
+import { createSignal, For, Show } from "solid-js";
+import {
+  type Job,
+  type Rating,
+  useDeleteJob,
+  useGetJob,
+  useRateJob,
+} from "~/api";
 import { Button } from "~/components/ui/Button";
 import { Container } from "~/components/ui/layout/Container";
 import { Row } from "~/components/ui/layout/Row";
 import { Stack } from "~/components/ui/layout/Stack";
+import { ConfirmModal } from "~/components/ui/Modal";
 import { Skeleton } from "~/components/ui/Skeleton";
 import { fmtRelative } from "~/lib/utils";
 
@@ -40,8 +47,13 @@ export function JobDetail() {
   );
 }
 
-function JobDetailContent(props: { job: Job; onRate: (r: Rating) => void }) {
+export function JobDetailContent(props: {
+  job: Job;
+  onRate: (r: Rating) => void;
+}) {
   const j = props.job;
+  const deleteMutation = useDeleteJob();
+  const [showDelete, setShowDelete] = createSignal(false);
 
   return (
     <Stack gap="md">
@@ -114,6 +126,14 @@ function JobDetailContent(props: { job: Job; onRate: (r: Rating) => void }) {
               ↔️ Neutral
             </Button>
           </Row>
+          <hr class="border-base-300" />
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => setShowDelete(true)}
+          >
+            🗑️ Delete
+          </Button>
           <Show when={j.applied_at}>
             <p class="text-success">Applied {fmtRelative(j.applied_at)}</p>
           </Show>
@@ -122,11 +142,24 @@ function JobDetailContent(props: { job: Job; onRate: (r: Rating) => void }) {
           </Show>
         </div>
       </div>
+
+      <ConfirmModal
+        open={showDelete()}
+        onClose={() => setShowDelete(false)}
+        onConfirm={() => {
+          setShowDelete(false);
+          deleteMutation.mutate(props.job.id ?? 0);
+        }}
+        title="Delete job?"
+        message={`Delete "${props.job.title}"? This cannot be undone.`}
+        confirmText="Delete"
+        confirmVariant="danger"
+      />
     </Stack>
   );
 }
 
-function UpworkDetail(props: { job: Job }) {
+export function UpworkDetail(props: { job: Job }) {
   const raw = props.job.raw;
   if (raw.platform !== "upwork") return null;
   const d = raw.detail;
@@ -161,7 +194,7 @@ function UpworkDetail(props: { job: Job }) {
   );
 }
 
-function NoFluffDetail(props: { job: Job }) {
+export function NoFluffDetail(props: { job: Job }) {
   const raw = props.job.raw;
   if (raw.platform !== "nofluffjobs") return null;
   const d = raw.detail;

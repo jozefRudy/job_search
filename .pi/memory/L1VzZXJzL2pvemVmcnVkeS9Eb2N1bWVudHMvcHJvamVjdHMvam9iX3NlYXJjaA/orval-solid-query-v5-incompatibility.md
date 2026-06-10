@@ -5,25 +5,8 @@ created: 2026-06-10
 updated: 2026-06-10
 ---
 
-Orval `client: 'solid-query'` generates broken code for TanStack Query v5:
-- Imports `SolidMutationOptions` — removed in v5, renamed to `CreateMutationOptions`
-- Imports `MutationFunction`, `QueryFunction`, `QueryKey` from `@tanstack/solid-query` — moved to `@tanstack/query-core` in v5
+Orval `client: 'solid-query'` was broken for TanStack Query v5 but is now FIXED in v8.16.0 (PR [#3369](https://github.com/orval-labs/orval/pull/3369)). The generated code uses `MutationOptions`/`UseQueryOptions` from `@tanstack/solid-query` (not removed `SolidMutationOptions`), and `useQuery`/`useMutation` are valid exports in v5 (aliased as `createQuery`/`createMutation`).
 
-No post-processing fix needed. Clean approach: use `client: 'fetch'` in Orval config, then write thin manual wrappers in `api.ts` using `@tanstack/solid-query` v5 (`createQuery`/`createMutation`). Orval handles the hard parts (types, URL building, request/response shapes). Wrapper cost is ~6 lines per endpoint.
+**Current setup:** `client: 'solid-query'` in `orval.config.js`. `api.ts` uses generated `get*QueryKey` + `listJobs`/`getJob`/`deleteJob`/`rateJob` functions with manual `createQuery`/`createMutation` wrappers for response unwrapping and app callbacks.
 
-Example wrapper:
-```ts
-import { createQuery } from "@tanstack/solid-query";
-import { listJobs } from "~/generated/orval/jobsearch";
-
-export function useListJobs(params: () => ListJobsParams) {
-  return createQuery<JobListResponse>(() => ({
-    queryKey: ["jobs", params()],
-    queryFn: async () => {
-      const res = await listJobs(params());
-      if (res.status !== 200) throw new Error("Failed to fetch jobs");
-      return res.data;
-    },
-  }));
-}
-```
+**Why manual wrappers remain:** Generated `get*QueryOptions` spreads into `createQuery` cause TypeScript conflicts because `queryFn` return type (raw response) differs from unwrapped data type. Manual `queryFn` with error unwrapping is cleaner.
