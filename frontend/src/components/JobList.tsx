@@ -1,6 +1,7 @@
-import { useNavigate } from "@solidjs/router";
+import { useNavigate, useSearchParams } from "@solidjs/router";
 import { isNotNil, pickBy } from "es-toolkit";
-import { createMemo, createSignal, Show } from "solid-js";
+import { createMemo, Show } from "solid-js";
+import { z } from "zod";
 import {
   type Job,
   type ListJobsParams,
@@ -35,15 +36,33 @@ const PLATFORM_SORTS: Record<
 
 export function JobList() {
   const navigate = useNavigate();
-  const [platform, setPlatform] = createSignal<Platform | null>("upwork");
-  const [ratingFilter, setRatingFilter] = createSignal<Rating | null>(
-    "neutral",
-  );
-  const [sortBy, setSortBy] = createSignal<Sort>("upwork_viewed");
-  const [page, setPage] = createSignal(1);
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const params = (): ListJobsParams =>
-    pickBy(
+  const platform = (): Platform | null =>
+    z
+      .union([z.literal("upwork"), z.literal("nofluffjobs")])
+      .nullable()
+      .catch(null)
+      .parse(searchParams.platform);
+
+  const ratingFilter = (): Rating | null =>
+    z
+      .union([z.literal("liked"), z.literal("neutral"), z.literal("disliked")])
+      .nullable()
+      .catch(null)
+      .parse(searchParams.rating);
+
+  const sortBy = (): Sort => {
+    const supported = PLATFORM_SORTS[platform() ?? "all"].map((s) => s.value);
+    const schema = z.enum(supported as [Sort, ...Sort[]]).catch(supported[0]);
+    return schema.parse(searchParams.sort_by);
+  };
+
+  const page = (): number =>
+    z.coerce.number().int().positive().catch(1).parse(searchParams.page);
+
+  const params = (): ListJobsParams => {
+    return pickBy(
       {
         sort_by: sortBy(),
         page: page(),
@@ -53,6 +72,7 @@ export function JobList() {
       },
       isNotNil,
     ) as ListJobsParams;
+  };
 
   const query = useListJobs(params);
   const rateMutation = useRateJob();
@@ -65,22 +85,24 @@ export function JobList() {
   );
 
   function setPlatformAndReset(p: Platform | null) {
-    setPage(1);
-    setPlatform(p);
     const supported = new Set(PLATFORM_SORTS[p ?? "all"].map((s) => s.value));
-    if (!supported.has(sortBy())) {
-      setSortBy("created");
-    }
+    const nextSort = supported.has(sortBy()) ? sortBy() : "created";
+    setSearchParams(
+      { platform: p, sort_by: nextSort, page: "" },
+      { replace: true },
+    );
   }
 
   function setRatingAndReset(r: Rating | null) {
-    setPage(1);
-    setRatingFilter(r);
+    setSearchParams({ rating: r, page: "" }, { replace: true });
   }
 
   function setSortByAndReset(s: Sort) {
-    setPage(1);
-    setSortBy(s);
+    setSearchParams({ sort_by: s, page: "" }, { replace: true });
+  }
+
+  function setPageAndUpdate(p: number) {
+    setSearchParams({ page: p === 1 ? "" : String(p) }, { replace: true });
   }
 
   function handleRate(job: Job, rating: Rating) {
@@ -185,32 +207,32 @@ export function JobList() {
         <Row gap="md" align="center" class="flex-wrap">
           <select
             class="select select-sm"
-            value={platform() ?? ""}
+            value={platform() ?? "all"}
             onChange={(e) =>
               setPlatformAndReset(
-                e.currentTarget.value === ""
+                e.currentTarget.value === "all"
                   ? null
                   : (e.currentTarget.value as Platform),
               )
             }
           >
-            <option value="">All platforms</option>
+            <option value="all">All platforms</option>
             <option value="upwork">Upwork</option>
             <option value="nofluffjobs">NoFluffJobs</option>
           </select>
 
           <select
             class="select select-sm"
-            value={ratingFilter() ?? ""}
+            value={ratingFilter() ?? "all"}
             onChange={(e) =>
               setRatingAndReset(
-                e.currentTarget.value === ""
+                e.currentTarget.value === "all"
                   ? null
                   : (e.currentTarget.value as Rating),
               )
             }
           >
-            <option value="">No filter</option>
+            <option value="all">No filter</option>
             <option value="liked">Liked</option>
             <option value="neutral">Neutral</option>
             <option value="disliked">Disliked</option>
@@ -247,7 +269,7 @@ export function JobList() {
               currentPage={page()}
               totalItems={total()}
               pageSize={PAGE_SIZE}
-              onPageChange={setPage}
+              onPageChange={setPageAndUpdate}
             />
           </Show>
         </Show>
