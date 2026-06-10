@@ -372,9 +372,9 @@ impl NoFluffJobsScraper {
             })
             .collect();
 
-        let description = detail.details.description;
+        let description = html_to_md(&detail.details.description);
 
-        let requirements = detail.requirements.description.clone();
+        let requirements = html_to_md(&detail.requirements.description);
 
         let nice_to_have = detail
             .requirements
@@ -485,6 +485,10 @@ impl Default for NoFluffJobsConfig {
             salary_currency: "EUR".to_string(),
         }
     }
+}
+
+fn html_to_md(html: &str) -> String {
+    html2text::from_read(html.as_bytes(), 120).unwrap_or_else(|_| html.to_string())
 }
 
 #[cfg(test)]

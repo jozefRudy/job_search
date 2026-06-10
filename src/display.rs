@@ -1,15 +1,6 @@
 use crate::models::{Data, Job, Platform};
 use comfy_table::{Cell, CellAlignment, ContentArrangement, Table, presets::UTF8_FULL};
 
-/// Render HTML to plain text suitable for terminal display.
-fn html_to_text(html: &str) -> String {
-    let text = html2text::from_read(html.as_bytes(), 80).unwrap_or_else(|_| html.to_string());
-    text.lines()
-        .filter(|l| !l.trim().chars().all(|c| c == '#'))
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 pub fn fmt_relative(dt: chrono::DateTime<chrono::Utc>) -> String {
     let dur = chrono::Utc::now().signed_duration_since(dt);
     let mins = dur.num_minutes();
@@ -28,6 +19,10 @@ pub fn fmt_relative(dt: chrono::DateTime<chrono::Utc>) -> String {
         return format!("{}d ago", days);
     }
     format!("{}w ago", days / 7)
+}
+
+fn indent_md(text: &str) -> String {
+    text.replace('\n', "\n    ")
 }
 
 fn align_columns(table: &mut Table, headers: &[&str], align: &[(&str, CellAlignment)]) {
@@ -198,7 +193,7 @@ pub fn render_job_detailed(job: &Job) -> String {
             if !detail.description.is_empty() {
                 lines.push(format!(
                     "  Description:\n    {}",
-                    detail.description.replace('\n', "\n    ")
+                    indent_md(&detail.description)
                 ));
             }
         }
@@ -225,28 +220,22 @@ pub fn render_job_detailed(job: &Job) -> String {
                 lines.push(format!("  Languages:      {}", detail.languages.join(", ")));
             }
             if !detail.requirements.is_empty() {
-                let text = html_to_text(&detail.requirements)
-                    .lines()
-                    .map(|l| l.trim_end())
-                    .collect::<Vec<_>>()
-                    .join("\n    ");
-                lines.push(format!("  Requirements:\n    {}", text));
+                lines.push(format!(
+                    "  Requirements:\n    {}",
+                    indent_md(&detail.requirements)
+                ));
             }
             if !detail.nice_to_have.is_empty() {
-                let text = html_to_text(&detail.nice_to_have)
-                    .lines()
-                    .map(|l| l.trim_end())
-                    .collect::<Vec<_>>()
-                    .join("\n    ");
-                lines.push(format!("  Nice to have:\n    {}", text));
+                lines.push(format!(
+                    "  Nice to have:\n    {}",
+                    indent_md(&detail.nice_to_have)
+                ));
             }
             if !detail.description.is_empty() {
-                let text = html_to_text(&detail.description)
-                    .lines()
-                    .map(|l| l.trim_end())
-                    .collect::<Vec<_>>()
-                    .join("\n    ");
-                lines.push(format!("  Description:\n    {}", text));
+                lines.push(format!(
+                    "  Description:\n    {}",
+                    indent_md(&detail.description)
+                ));
             }
         }
     }

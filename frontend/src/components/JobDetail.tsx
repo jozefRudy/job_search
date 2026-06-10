@@ -23,7 +23,12 @@ export function JobDetail() {
   return (
     <Container maxWidth="md" paddingX="sm" class="py-6">
       <Stack gap="md">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
+        <Button
+          variant="link"
+          size="sm"
+          class="self-start"
+          onClick={() => navigate("/")}
+        >
           ← Back
         </Button>
 
