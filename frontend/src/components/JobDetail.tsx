@@ -83,6 +83,14 @@ function JobDetailContent(props: { job: Job; onRate: (r: Rating) => void }) {
       <div class="card bg-base-200">
         <div class="card-body">
           <h3 class="card-title text-lg">Actions</h3>
+          <p class="text-base-content/70 text-sm">
+            Current:{" "}
+            {j.liked === true
+              ? "👍 Liked"
+              : j.liked === false
+                ? "👎 Disliked"
+                : "↔️ Neutral"}
+          </p>
           <Row gap="sm">
             <Button
               variant={j.liked === true ? "primary" : "ghost"}
