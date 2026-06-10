@@ -1,15 +1,35 @@
 use crate::db::Db;
-use crate::models::{Job, JobListResponse, ListQuery, RateBody, Rating};
+use crate::models::{
+    Data, Job, JobListResponse, ListQuery, NoFluffJobDetail, Platform, RateBody, Rating, Sort,
+    UpworkJobDetail,
+};
 use anyhow::Result;
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::get,
 };
 use include_dir::{Dir, include_dir};
 use std::sync::Arc;
+use utoipa::OpenApi;
+use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::routes;
+
+#[derive(OpenApi)]
+#[openapi(components(schemas(
+    Job,
+    JobListResponse,
+    RateBody,
+    Data,
+    UpworkJobDetail,
+    NoFluffJobDetail,
+    Platform,
+    Rating,
+    Sort
+)))]
+struct ApiDoc;
 
 static STATIC_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/frontend/dist");
 
@@ -20,12 +40,17 @@ pub struct AppState {
 pub fn app(db: Db) -> Router {
     let state = Arc::new(AppState { db });
 
-    Router::new()
-        .route("/api/jobs", get(list_jobs))
-        .route("/api/jobs/{id}", get(get_job))
-        .route("/api/jobs/{id}/rate", post(rate_job))
+    let (api_router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .routes(routes!(list_jobs))
+        .routes(routes!(get_job))
+        .routes(routes!(rate_job))
+        .with_state(state.clone())
+        .split_for_parts();
+
+    api_router
+        .route("/api/openapi.json", get(move || async move { Json(api) }))
+        .route("/health", get(|| async { StatusCode::OK }))
         .fallback(serve_static)
-        .with_state(state)
 }
 
 async fn serve_static(uri: axum::http::Uri) -> Response {
@@ -46,6 +71,15 @@ async fn serve_static(uri: axum::http::Uri) -> Response {
     }
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/jobs",
+    params(ListQuery),
+    responses(
+        (status = 200, description = "List of jobs", body = JobListResponse),
+        (status = 500, description = "Internal server error")
+    )
+)]
 async fn list_jobs(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ListQuery>,
@@ -67,6 +101,16 @@ async fn list_jobs(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/jobs/{id}",
+    params(("id" = i64, Path, description = "Job ID")),
+    responses(
+        (status = 200, description = "Job details", body = Job),
+        (status = 404, description = "Job not found"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 async fn get_job(
     State(state): State<Arc<AppState>>,
     Path(id): Path<i64>,
@@ -80,6 +124,16 @@ async fn get_job(
     Ok(Json(job))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/jobs/{id}/rate",
+    params(("id" = i64, Path, description = "Job ID")),
+    request_body = RateBody,
+    responses(
+        (status = 204, description = "Rating updated"),
+        (status = 500, description = "Internal server error")
+    )
+)]
 async fn rate_job(
     State(state): State<Arc<AppState>>,
     Path(id): Path<i64>,

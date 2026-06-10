@@ -1,9 +1,12 @@
 import { Route, Router } from "@solidjs/router";
+import { QueryClient, QueryClientProvider } from "@tanstack/solid-query";
 import type { JSX } from "solid-js";
 import { JobDetail } from "~/components/JobDetail";
 import { JobList } from "~/components/JobList";
 import { Row } from "~/components/ui/layout/Row";
 import { ThemeToggle } from "~/components/ui/ThemeToggle";
+
+const queryClient = new QueryClient();
 
 function Layout(props: { children?: JSX.Element }) {
   return (
@@ -25,9 +28,11 @@ function Layout(props: { children?: JSX.Element }) {
 
 export default function App() {
   return (
-    <Router root={Layout}>
-      <Route path="/" component={JobList} />
-      <Route path="/jobs/:id" component={JobDetail} />
-    </Router>
+    <QueryClientProvider client={queryClient}>
+      <Router root={Layout}>
+        <Route path="/" component={JobList} />
+        <Route path="/jobs/:id" component={JobDetail} />
+      </Router>
+    </QueryClientProvider>
   );
 }

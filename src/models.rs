@@ -4,11 +4,11 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::LazyLock;
-use ts_rs::TS;
+use utoipa::IntoParams;
+use utoipa::ToSchema;
 
 /// Platform-specific scraped data stored on each job.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "platform", rename_all = "lowercase")]
 #[allow(clippy::large_enum_variant)]
 pub enum Data {
@@ -17,8 +17,7 @@ pub enum Data {
 }
 
 /// Full detail scraped from an individual Upwork job page.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct UpworkJobDetail {
     #[serde(default)]
     pub proposals: String,
@@ -91,8 +90,7 @@ where
 }
 
 /// Full detail scraped from an individual NoFluffJobs job page.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct NoFluffJobDetail {
     #[serde(default)]
     pub company: String,
@@ -118,8 +116,9 @@ pub struct NoFluffJobDetail {
     pub posted_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ValueEnum, TS)]
-#[ts(export)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ValueEnum, ToSchema,
+)]
 #[clap(rename_all = "lower")]
 #[sqlx(rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
@@ -137,8 +136,7 @@ impl fmt::Display for Platform {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Rating {
     Liked,
@@ -157,8 +155,7 @@ pub struct Paginated<T> {
  *
  * All sorts are DB-sortable via generated columns.
  */
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Sort {
     #[default]
@@ -182,8 +179,8 @@ fn default_page_size() -> usize {
     20
 }
 
-#[derive(Debug, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Deserialize, ToSchema, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ListQuery {
     pub platform: Option<Platform>,
     pub rating: Option<Rating>,
@@ -195,8 +192,7 @@ pub struct ListQuery {
     pub page_size: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Job {
     pub id: Option<i64>,
     pub platform: Platform,
@@ -214,15 +210,13 @@ pub struct Job {
     pub applied_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Serialize, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct JobListResponse {
     pub jobs: Vec<Job>,
     pub total: usize,
 }
 
-#[derive(Debug, Deserialize, TS)]
-#[ts(export)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RateBody {
     pub rating: Rating,
 }

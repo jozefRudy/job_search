@@ -1,45 +1,63 @@
+import {
+  createMutation,
+  createQuery,
+  useQueryClient,
+} from "@tanstack/solid-query";
+import { getJob, listJobs, rateJob } from "~/generated/orval/jobsearch";
 import type {
   Job,
   JobListResponse,
-  ListQuery,
-  Platform,
+  ListJobsParams,
   Rating,
-  Sort,
-} from "./generated";
+} from "~/generated/orval/jobsearch.schemas";
 
 export type {
   Data,
   Job,
   JobListResponse,
-  ListQuery,
+  ListJobsParams,
   Platform,
+  RateBody,
   Rating,
   Sort,
-} from "./generated";
+} from "~/generated/orval/jobsearch.schemas";
 
-export async function listJobs(query: ListQuery): Promise<JobListResponse> {
-  const params = new URLSearchParams();
-  if (query.platform != null) params.set("platform", query.platform);
-  if (query.rating != null) params.set("rating", query.rating);
-  params.set("sort_by", query.sort_by);
-  params.set("page", String(query.page));
-  params.set("page_size", String(query.page_size));
-  const res = await fetch(`/api/jobs?${params}`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+export function useListJobs(params: () => ListJobsParams) {
+  return createQuery<JobListResponse>(() => ({
+    queryKey: ["jobs", params()],
+    queryFn: async () => {
+      const res = await listJobs(params());
+      if (res.status !== 200) throw new Error("Failed to fetch jobs");
+      return res.data;
+    },
+    structuralSharing: false,
+  }));
 }
 
-export async function getJob(id: number): Promise<Job> {
-  const res = await fetch(`/api/jobs/${id}`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+export function useGetJob(id: () => number) {
+  return createQuery<Job>(() => ({
+    queryKey: ["job", id()],
+    queryFn: async () => {
+      const res = await getJob(id());
+      if (res.status !== 200) throw new Error("Failed to fetch job");
+      return res.data;
+    },
+    enabled: id() != null && !Number.isNaN(id()),
+    structuralSharing: false,
+  }));
 }
 
-export async function rateJob(id: number, rating: Rating): Promise<void> {
-  const res = await fetch(`/api/jobs/${id}/rate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ rating }),
-  });
-  if (!res.ok) throw new Error(await res.text());
+export function useRateJob() {
+  const qc = useQueryClient();
+  return createMutation(() => ({
+    mutationFn: async (vars: { id: number; rating: Rating }) => {
+      const res = await rateJob(vars.id, { rating: vars.rating });
+      if (res.status !== 204) throw new Error("Failed to rate job");
+      return res.data;
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["jobs"] });
+      qc.invalidateQueries({ queryKey: ["job", vars.id] });
+    },
+  }));
 }

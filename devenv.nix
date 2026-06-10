@@ -36,9 +36,23 @@
   processes = {
     frontend = {
       exec = "(cd frontend && pnpm start)";
+      process-compose = {
+        depends_on.backend.condition = "process_healthy";
+      };
     };
     backend = {
       exec = "cargo run -- serve";
+      process-compose = {
+        readiness_probe = {
+          http_get = {
+            host = "127.0.0.1";
+            port = 8080;
+            path = "/health";
+          };
+          initial_delay_seconds = 5;
+          period_seconds = 2;
+        };
+      };
     };
   };
   scripts = {
@@ -47,6 +61,13 @@
     '';
     test-integration.exec = ''
       cargo test -- --include-ignored
+    '';
+    regen-api.exec = ''
+      cargo run -- serve &
+      PID=$!
+      until curl -s http://localhost:8080/api/openapi.json > /dev/null 2>&1; do sleep 0.5; done
+      cd frontend && pnpm orval
+      kill $PID
     '';
     export-docs.exec = ''
       RUSTDOCFLAGS="-Zunstable-options --output-format=json" cargo doc

@@ -23,7 +23,7 @@ export function inputStateClasses(props: {
   };
 }
 
-export function fmtRelative(dtStr: string | null): string {
+export function fmtRelative(dtStr: string | null | undefined): string {
   if (!dtStr) return "";
   const dt = new Date(dtStr);
   const now = new Date();
@@ -51,14 +51,14 @@ export function fmtRelative(dtStr: string | null): string {
     .otherwise(({ days }) => `${Math.floor(days / 7)}w ago`);
 }
 
-export function ratingEmoji(liked: boolean | null): string {
+export function ratingEmoji(liked: boolean | null | undefined): string {
   return match(liked)
     .with(true, () => "👍")
     .with(false, () => "👎")
     .otherwise(() => "—");
 }
 
-export function ratingClass(liked: boolean | null): string {
+export function ratingClass(liked: boolean | null | undefined): string {
   return match(liked)
     .with(true, () => "text-success")
     .with(false, () => "text-error")

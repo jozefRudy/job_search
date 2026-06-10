@@ -1,13 +1,14 @@
 import { useNavigate } from "@solidjs/router";
-import { createMemo, createResource, createSignal, Show } from "solid-js";
+import { isNotNil, pickBy } from "es-toolkit";
+import { createMemo, createSignal, Show } from "solid-js";
 import {
   type Job,
-  type ListQuery,
-  listJobs,
+  type ListJobsParams,
   type Platform,
   type Rating,
-  rateJob,
   type Sort,
+  useListJobs,
+  useRateJob,
 } from "~/api";
 import { Button } from "~/components/ui/Button";
 import { Pagination } from "~/components/ui/data/Pagination";
@@ -41,19 +42,23 @@ export function JobList() {
   const [sortBy, setSortBy] = createSignal<Sort>("upwork_viewed");
   const [page, setPage] = createSignal(1);
 
-  const [result, { refetch }] = createResource(
-    (): ListQuery => ({
-      platform: platform(),
-      rating: ratingFilter(),
-      sort_by: sortBy(),
-      page: page(),
-      page_size: PAGE_SIZE,
-    }),
-    (p) => listJobs(p),
-  );
+  const params = (): ListJobsParams =>
+    pickBy(
+      {
+        sort_by: sortBy(),
+        page: page(),
+        page_size: PAGE_SIZE,
+        platform: platform(),
+        rating: ratingFilter(),
+      },
+      isNotNil,
+    ) as ListJobsParams;
 
-  const jobs = () => result()?.jobs ?? [];
-  const total = () => result()?.total ?? 0;
+  const query = useListJobs(params);
+  const rateMutation = useRateJob();
+
+  const jobs = () => query.data?.jobs ?? [];
+  const total = () => query.data?.total ?? 0;
 
   const hasUpwork = createMemo(() =>
     jobs().some((j) => j.platform === "upwork"),
@@ -78,10 +83,9 @@ export function JobList() {
     setSortBy(s);
   }
 
-  async function handleRate(job: Job, rating: Rating) {
+  function handleRate(job: Job, rating: Rating) {
     if (job.id == null) return;
-    await rateJob(job.id, rating);
-    await refetch();
+    rateMutation.mutate({ id: job.id, rating });
   }
 
   const columns = () => {
@@ -123,22 +127,10 @@ export function JobList() {
           </span>
         ),
       },
-      ...(hasUpwork()
-        ? [
-            {
-              key: "last_viewed",
-              header: "Last viewed",
-              accessor: (j: Job) =>
-                j.raw.platform === "upwork"
-                  ? fmtRelative(j.raw.detail.last_viewed)
-                  : "",
-            },
-          ]
-        : []),
-      { key: "title", header: "Title", accessor: (j: Job) => j.title },
       {
         key: "actions",
         header: "",
+        class: "min-w-[100px]",
         cell: (j: Job) => (
           <Row gap="sm" align="center">
             <Button
@@ -168,6 +160,19 @@ export function JobList() {
           </Row>
         ),
       },
+      ...(hasUpwork()
+        ? [
+            {
+              key: "last_viewed",
+              header: "Last viewed",
+              accessor: (j: Job) =>
+                j.raw.platform === "upwork"
+                  ? fmtRelative(j.raw.detail.last_viewed)
+                  : "",
+            },
+          ]
+        : []),
+      { key: "title", header: "Title", accessor: (j: Job) => j.title },
     ];
     return base;
   };
@@ -224,11 +229,11 @@ export function JobList() {
           </Show>
         </Row>
 
-        <Show when={!result.loading} fallback={<Skeleton class="h-64" />}>
+        <Show when={!query.isPending} fallback={<Skeleton class="h-64" />}>
           <Show
-            when={!result.error}
+            when={!query.error}
             fallback={
-              <div class="text-error">Error: {result.error.message}</div>
+              <div class="text-error">Error: {query.error?.message}</div>
             }
           >
             <Table

@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from "@solidjs/router";
-import { createResource, For, Show } from "solid-js";
-import { getJob, type Job, type Rating, rateJob } from "~/api";
+import { For, Show } from "solid-js";
+import { type Job, type Rating, useGetJob, useRateJob } from "~/api";
 import { Button } from "~/components/ui/Button";
 import { Container } from "~/components/ui/layout/Container";
 import { Row } from "~/components/ui/layout/Row";
@@ -13,11 +13,11 @@ export function JobDetail() {
   const navigate = useNavigate();
   const id = () => Number(params.id);
 
-  const [job, { refetch }] = createResource(id, (i) => getJob(i));
+  const jobQuery = useGetJob(id);
+  const rateMutation = useRateJob();
 
-  async function handleRate(rating: Rating) {
-    await rateJob(id(), rating);
-    await refetch();
+  function handleRate(rating: Rating) {
+    rateMutation.mutate({ id: id(), rating });
   }
 
   return (
@@ -32,8 +32,8 @@ export function JobDetail() {
           ← Back
         </Button>
 
-        <Show when={job()} fallback={<Skeleton class="h-96" />}>
-          {(j) => <JobDetailContent job={j()} onRate={handleRate} />}
+        <Show when={jobQuery.data} keyed fallback={<Skeleton class="h-96" />}>
+          {(j) => <JobDetailContent job={j} onRate={handleRate} />}
         </Show>
       </Stack>
     </Container>
@@ -173,15 +173,24 @@ function NoFluffDetail(props: { job: Job }) {
           <DetailRow label="Company" value={d.company} />
           <DetailRow label="Seniority" value={d.seniority} />
           <DetailRow label="Remote" value={d.remote} />
-          <Show when={d.locations.length > 0}>
-            <DetailRow label="Locations" value={d.locations.join(", ")} />
+          <Show when={d.locations && d.locations.length > 0}>
+            <DetailRow
+              label="Locations"
+              value={d.locations?.join(", ") ?? ""}
+            />
           </Show>
           <DetailRow label="Valid until" value={d.offer_valid_until} />
-          <Show when={d.must_have.length > 0}>
-            <DetailRow label="Must have" value={d.must_have.join(", ")} />
+          <Show when={d.must_have && d.must_have.length > 0}>
+            <DetailRow
+              label="Must have"
+              value={d.must_have?.join(", ") ?? ""}
+            />
           </Show>
-          <Show when={d.languages.length > 0}>
-            <DetailRow label="Languages" value={d.languages.join(", ")} />
+          <Show when={d.languages && d.languages.length > 0}>
+            <DetailRow
+              label="Languages"
+              value={d.languages?.join(", ") ?? ""}
+            />
           </Show>
           <Show when={d.requirements}>
             <div>
@@ -207,7 +216,7 @@ function NoFluffDetail(props: { job: Job }) {
   );
 }
 
-function DetailRow(props: { label: string; value: string }) {
+function DetailRow(props: { label: string; value: string | undefined }) {
   if (!props.value) return null;
   return (
     <div class="grid grid-cols-3 gap-2">

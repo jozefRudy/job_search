@@ -145,16 +145,36 @@ cd frontend && pnpm typecheck && pnpm check && pnpm test run && pnpm build
 - **Pattern matching** — prefer `ts-pattern` exhaustive matching over `if/else` chains and `switch`.
 - **E2E check** — for all UI changes, run backend (`cargo run`) + frontend (`pnpm start`) together, verify key flows in browser. Frontend proxies `/api` to `localhost:8080`.
 
+## API Generation (OpenAPI + Orval)
+
+- **Backend** — `utoipa` + `utoipa-axum` on Rust handlers. `#[derive(ToSchema)]` on models, `#[utoipa::path(...)]` on handlers, `OpenApiRouter` for route collection.
+- **Frontend** — `orval` with `client: 'fetch'` generates typed fetch functions + schemas from `/api/openapi.json`.
+- **TanStack wrappers** — manual thin wrappers in `api.ts` using `@tanstack/solid-query`. Orval's `solid-query` client is broken for v5 (uses removed `SolidMutationOptions` type).
+- **Regenerate** — `regen-api` script starts backend, waits for `/api/openapi.json`, runs `pnpm orval`. Commit generated files to version control.
+
+## TanStack Query + SolidJS
+
+- **`structuralSharing: false`** on all `createQuery` calls. TanStack v5 mutates objects in place by default — same reference breaks SolidJS reactivity.
+- **`<Show keyed when={data}>`** — never plain `<Show>`. Solid tracks truthiness only; truthy A → truthy B with same ref does NOT recreate children. `keyed` compares by `===`.
+- **Mutations** — use `createMutation` with `onSuccess` invalidation via `useQueryClient()`. Manual `refetch()` no longer needed.
+
+## Presentation Helpers
+
+- **Accept `null | undefined`** in formatting/styling helpers (`fmtRelative`, `ratingEmoji`, `ratingClass`, `cn`, etc.). Three sources of nullability: (1) API optional fields are `T | null` (JSON `null`), (2) TanStack `data` starts `undefined` while loading, (3) Solid signals may start `undefined`.
+- **Return sensible defaults** — empty string, neutral emoji, default CSS class. Never force call sites to add `?? null` / `?? ""` noise.
+- **Business logic stays strict** — parse functions, calculations fail fast on `null | undefined`.
+
 ## TypeScript Types
 
-- **API types are generated from Rust** — `ts-rs` exports `Job`, `Data`, `Platform`, `Rating`, `ListQuery`, etc. to `frontend/src/generated/` on `cargo test`.
-- **Never edit `frontend/src/generated/*.ts` manually.** Update the Rust source in `src/models.rs` or `src/server.rs`, then run `cargo test`.
+- **API types generated from OpenAPI** — `orval` outputs types to `frontend/src/generated/orval/`. Run `pnpm orval` after backend changes.
+- **Never edit `frontend/src/generated/**/*.ts` manually.** Update Rust handlers/models, regenerate.
 - **Biome ignores `src/generated`** — formatter/linter skip auto-generated files.
-- **Export query structs from Rust, not frontend-only wrappers.** `ListQuery` with `Option<Platform>` / `Option<Rating>` maps to `Platform | null` / `Rating | null` in TS. No custom `PlatformFilter` / `RatingFilter` types. Single source of truth.
+- **Export query structs from Rust, not frontend-only wrappers.** `ListQuery` with `Option<Platform>` / `Option<Rating>` maps to `Platform | null` / `Rating | null` in TS. Single source of truth.
 
 ## End-to-End
 
 - Run `devenv up` to start backend + frontend together. Processes defined in `devenv.nix`.
+- **Backend readiness probe** — use `http_get` against `/health`, not `tcp.port`. Port bound ≠ axum serving.
 - Frontend proxies `/api` to backend `localhost:8080`.
 - Verify key flows in browser after UI changes.
 
