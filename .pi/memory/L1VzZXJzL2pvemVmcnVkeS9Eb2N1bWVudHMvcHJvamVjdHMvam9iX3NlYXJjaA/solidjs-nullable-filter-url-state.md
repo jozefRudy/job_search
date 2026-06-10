@@ -5,4 +5,6 @@ created: 2026-06-10
 updated: 2026-06-10
 ---
 
-Clean pattern for filter state persisted in URL with SolidJS: use `useSearchParams` + Zod `.nullable().catch(null)`. `null` means "no filter" in data model; HTML `<option value="all">` maps to `null` via `onChange`. Router strips `null` from URL, so on read back missing param → zod catch → `null`. Select shows "all" via `value={platform() ?? "all"}`. No sentinel string in the type system — `null` is single source of truth.
+For persistent filter state in SolidJS: use `useSearchParams` + Zod `.nullable().catch(null)`. `null` means "no filter" in data model; HTML `<option value="all">` maps to `null` via `onChange`. Router strips `null` from URL, so on read back missing param → zod catch → `null`. Select shows "all" via `value={platform() ?? "all"}`.
+
+**Critical:** "Back" from detail to list must use `navigate(-1)` (browser back), NOT `navigate("/")`. The latter pushes a new navigation to `/` with no query params, destroying filter state. `navigate(-1)` preserves URL params and history stack.

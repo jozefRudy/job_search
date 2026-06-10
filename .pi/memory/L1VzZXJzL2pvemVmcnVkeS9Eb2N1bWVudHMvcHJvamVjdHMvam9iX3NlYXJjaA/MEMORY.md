@@ -17,7 +17,7 @@
 - [[pagination-single-query-pattern]] - For paginated APIs, use `COUNT(*) OVER() as total` in the same query instead of 
 - [[platform-specific-sort-pattern]] - For platform-specific sorting in shared API, use a single strongly-typed `Sort` 
 - [[pnpm-workspaces-single-app]] - Single-app frontend does not need `pnpm-workspace.yaml`. Remove it. `pnpm.onlyBu
-- [[solidjs-nullable-filter-url-state]] - Clean pattern for filter state persisted in URL with SolidJS: use `useSearchPara
+- [[solidjs-nullable-filter-url-state]] - For persistent filter state in SolidJS: use `useSearchParams` + Zod `.nullable()
 - [[solidjs-presentation-helpers-undefined]] - In SolidJS projects, presentation-layer helpers (`fmtRelative`, `ratingEmoji`, `
 - [[solidjs-url-filter-state]] - For persistent filter state in SolidJS: use `@solidjs/router`'s `useSearchParams
 - [[sqlx-query-as-default-limitation]] - `#[sqlx(flatten)]` does **not** work with the `query_as!` macro — it only works 
