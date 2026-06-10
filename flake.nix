@@ -32,7 +32,8 @@
           inherit (finalAttrs) pname version src;
           inherit pnpm;
           fetcherVersion = 3;
-          # hash = pkgs.lib.fakeHash;
+          # When pnpm dependencies change, swap to pkgs.lib.fakeHash, run `nix build .#frontend`,
+          # copy the "got:" hash from the error, then put it back here.
           hash = "sha256-nlh75QwJx4Oxoq61jbuLz0xYfuQ2gSK2VArQgGGqBEk=";
         };
 

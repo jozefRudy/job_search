@@ -10,6 +10,7 @@
 - [[dont-strip-platform-features]] - When refactoring to remove platform-specific leakage from generic types, don't a
 - [[frontend-api-mismatch]] - Frontend `api.ts` must unwrap server response shape. Server `list_jobs` returns 
 - [[frontend-ui-pure-copies]] - When copying UI components from `../reddit/frontend-solid/src/components/ui/`, u
+- [[nix-pnpm-hash-update]] - When frontend `pnpm` dependencies change in `frontend/package.json` or `frontend
 - [[nix-pnpm-oom-fix]] - When packaging pnpm frontend in Nix flake on macOS, `pnpm_11` + `fetcherVersion 
 - [[openapi-orval-experiment]] - Consider experimenting with OpenAPI + Orval for auto-generating TanStack Query h
 - [[orval-solid-query-v5-incompatibility]] - Orval `client: 'solid-query'` generates broken code for TanStack Query v5:
