@@ -35,7 +35,7 @@
 
   processes = {
     frontend = {
-      exec = "pnpm --dir frontend start";
+      exec = "(cd frontend && pnpm start)";
       process-compose = {
         depends_on.backend.condition = "process_healthy";
       };
@@ -66,7 +66,7 @@
       cargo run -- serve &
       PID=$!
       until curl -s http://localhost:8080/api/openapi.json > /dev/null 2>&1; do sleep 0.5; done
-      pnpm --dir frontend orval
+      (cd frontend && pnpm orval)
       kill $PID
     '';
     export-docs.exec = ''
