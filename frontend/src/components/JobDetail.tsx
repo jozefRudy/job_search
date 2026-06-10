@@ -27,7 +27,7 @@ export function JobDetail() {
           variant="link"
           size="sm"
           class="self-start"
-          onClick={() => navigate("/")}
+          onClick={() => navigate(-1)}
         >
           ← Back
         </Button>
