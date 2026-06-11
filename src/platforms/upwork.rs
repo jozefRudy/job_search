@@ -210,8 +210,6 @@ impl UpworkScraper {
             bail!("Job detail page did not load");
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
         let raw: RawJobDetail = page.evaluate(FETCH_JOB_DETAIL_JS).await?.into_value()?;
 
         page.close().await.ok();
@@ -321,7 +319,7 @@ impl PlatformClient for UpworkScraper {
             bail!("Upwork job cards did not appear. Login at upwork.com in Brave first.");
         }
 
-        sleep(Duration::from_secs(2)).await;
+        sleep(Duration::from_millis(pause_ms)).await;
 
         let mut all_jobs: Vec<Job> = Vec::new();
         let mut page_num = 1u32;
@@ -334,8 +332,6 @@ impl PlatformClient for UpworkScraper {
         eprint!("\x1B[?25l"); // hide cursor
 
         loop {
-            sleep(Duration::from_millis(pause_ms)).await;
-
             let raw_jobs = Self::scrape_page(&page).await?;
 
             for v in &raw_jobs {
@@ -554,10 +550,15 @@ impl PlatformClient for UpworkScraper {
 
             db.set_applied(job_id, note, applied_at).await?;
             synced += 1;
-            eprint!("\r  Synced ({}/{}): {}", synced, max, item.title);
+            eprint!(
+                "\r  Synced ({}/{}): {}",
+                synced,
+                all_proposals.len(),
+                item.title
+            );
         }
-        eprintln!(); // newline after progress
 
+        eprintln!("  Total synced: {}", all_proposals.len());
         Ok(synced)
     }
 

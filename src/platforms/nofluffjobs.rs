@@ -183,8 +183,6 @@ impl NoFluffJobsScraper {
             bail!("NoFluffJobs search page did not load job cards");
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-
         let total_results: Option<usize> = page
             .evaluate(GET_TOTAL_RESULTS_JS)
             .await

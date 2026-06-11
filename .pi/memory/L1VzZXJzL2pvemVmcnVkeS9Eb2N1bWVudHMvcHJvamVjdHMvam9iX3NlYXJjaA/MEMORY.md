@@ -22,6 +22,7 @@
 - [[orval-solid-query-v5-incompatibility]] - Orval `client: 'solid-query'` was broken for TanStack Query v5 but is now FIXED 
 - [[pagination-single-query-pattern]] - For paginated APIs, use `COUNT(*) OVER() as total` in the same query instead of 
 - [[platform-specific-sort-pattern]] - For platform-specific sorting in shared API, use a single strongly-typed `Sort` 
+- [[platformclient-sync-applications-pattern]] - Platform-specific sync methods (like `sync_applications`) belong in `PlatformCli
 - [[pnpm-workspaces-single-app]] - Single-app frontend does not need `pnpm-workspace.yaml`. Remove it. `pnpm.onlyBu
 - [[solidjs-nullable-filter-url-state]] - For persistent filter state in SolidJS: use `useSearchParams` + Zod `.nullable()
 - [[solidjs-presentation-helpers-undefined]] - In SolidJS projects, presentation-layer helpers (`fmtRelative`, `ratingEmoji`, `
