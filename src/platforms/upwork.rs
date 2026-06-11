@@ -2,6 +2,7 @@ use crate::browser::BrowserExt;
 use crate::db::Db;
 use crate::models::{Data, Job, Platform, UpworkJobDetail};
 use crate::platforms::PlatformClient;
+use crate::term::CursorGuard;
 use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
@@ -330,7 +331,7 @@ impl PlatformClient for UpworkScraper {
         let fetch_started_at = chrono::Utc::now();
         let detail_ttl = chrono::Duration::hours(24);
 
-        eprint!("\x1B[?25l"); // hide cursor
+        let _guard = CursorGuard::new();
 
         loop {
             let raw_jobs = Self::scrape_page(&page).await?;
@@ -407,7 +408,6 @@ impl PlatformClient for UpworkScraper {
             sleep(Duration::from_millis(pause_ms)).await;
         }
 
-        eprintln!("\x1B[?25h"); // show cursor
         page.close().await.ok();
         eprintln!(
             "  Fetched: {} ({} new, {} updated)",
@@ -438,6 +438,7 @@ impl PlatformClient for UpworkScraper {
         let mut all_proposals: Vec<RawSubmittedItem> = Vec::new();
         let max = limit.unwrap_or(usize::MAX);
 
+        let _guard = CursorGuard::new();
         loop {
             let list: RawSubmittedList = page
                 .evaluate(EXTRACT_SUBMITTED_LIST_JS)

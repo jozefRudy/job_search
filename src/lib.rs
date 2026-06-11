@@ -5,3 +5,4 @@ pub mod display;
 pub mod models;
 pub mod platforms;
 pub mod server;
+pub mod term;

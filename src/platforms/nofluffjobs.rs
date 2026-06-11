@@ -2,6 +2,7 @@ use crate::browser::BrowserExt;
 use crate::db::Db;
 use crate::models::{Budget, Data, Job, NoFluffJobDetail, Platform};
 use crate::platforms::PlatformClient;
+use crate::term::CursorGuard;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
@@ -199,7 +200,7 @@ impl NoFluffJobsScraper {
         let mut processed_ids: HashSet<String> = HashSet::new();
         let mut checked_count = 0;
 
-        eprint!("\x1B[?25l"); // hide cursor
+        let _guard = CursorGuard::new();
 
         loop {
             let cards: Vec<NofluffJobCard> = page.evaluate(SCRAPE_CARDS_JS).await?.into_value()?;
@@ -275,7 +276,6 @@ impl NoFluffJobsScraper {
             }
         }
 
-        eprintln!("\x1B[?25h"); // show cursor
         page.close().await.ok();
         eprintln!("  Total new jobs: {}", all_jobs.len());
         Ok(all_jobs)
