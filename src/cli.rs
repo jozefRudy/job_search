@@ -38,6 +38,9 @@ pub enum Commands {
 
     /// Show diagnostic info (DB path, job count, env)
     Diagnose,
+
+    /// Sync your sent applications from platforms
+    SyncApplications(SyncApplicationsCmd),
 }
 
 #[derive(Parser)]
@@ -93,6 +96,25 @@ pub enum UpworkSortBy {
 pub struct UpdateCmd {
     #[command(subcommand)]
     pub platform: UpdatePlatform,
+}
+
+#[derive(Parser)]
+pub struct SyncApplicationsCmd {
+    #[command(subcommand)]
+    pub platform: SyncPlatform,
+}
+
+#[derive(Subcommand)]
+pub enum SyncPlatform {
+    /// Sync Upwork submitted proposals
+    Upwork(SyncUpworkArgs),
+}
+
+#[derive(Args)]
+pub struct SyncUpworkArgs {
+    /// Pause between interactions in ms (default: 2000)
+    #[arg(long, default_value = "2000")]
+    pub pause: u64,
 }
 
 #[derive(Parser)]

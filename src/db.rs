@@ -164,12 +164,38 @@ impl Db {
         Ok(row.map(|r| r.into()))
     }
 
-    pub async fn set_applied(&self, job_id: i64, note: Option<&str>) -> Result<()> {
+    /// Fetch job id by platform + external_id.
+    pub async fn job_id_by_external_id(
+        &self,
+        platform: &Platform,
+        external_id: &str,
+    ) -> Result<Option<i64>> {
+        let id: Option<i64> = sqlx::query_scalar!(
+            "SELECT id FROM jobs WHERE platform = ?1 AND external_id = ?2",
+            platform,
+            external_id
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        .flatten();
+        Ok(id)
+    }
+
+    pub async fn set_applied(
+        &self,
+        job_id: i64,
+        note: Option<&str>,
+        applied_at: chrono::DateTime<chrono::Utc>,
+    ) -> Result<()> {
+        let applied_at_naive = applied_at.naive_utc();
         sqlx::query!(
-            "INSERT INTO reactions (job_id, note) VALUES (?1, ?2)
-             ON CONFLICT(job_id) DO UPDATE SET note = excluded.note",
+            "INSERT INTO reactions (job_id, note, applied_at) VALUES (?1, ?2, ?3)
+             ON CONFLICT(job_id) DO UPDATE SET
+                note = excluded.note,
+                applied_at = excluded.applied_at",
             job_id,
-            note
+            note,
+            applied_at_naive
         )
         .execute(&self.pool)
         .await?;

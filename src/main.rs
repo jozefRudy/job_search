@@ -2,7 +2,9 @@ use anyhow::Result;
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager};
-use jobsearch::cli::{Cli, Commands, ListTarget, ReactAction, UpdatePlatform, UpworkSortBy};
+use jobsearch::cli::{
+    Cli, Commands, ListTarget, ReactAction, SyncPlatform, UpdatePlatform, UpworkSortBy,
+};
 use jobsearch::db::Db;
 use jobsearch::display;
 use jobsearch::models::{JobFilter, Platform, Sort};
@@ -159,6 +161,19 @@ async fn main() -> Result<()> {
         Commands::Diagnose => {
             cmd_diagnose(&db, &db_path).await?;
         }
+        Commands::SyncApplications(cmd) => match cmd.platform {
+            SyncPlatform::Upwork(args) => {
+                let scraper = UpworkScraper::new();
+                let browser = browser.ensure().await?;
+                match scraper
+                    .sync_applications(&browser, &db, args.pause, None)
+                    .await
+                {
+                    Ok(count) => eprintln!("Synced {} applications", count),
+                    Err(e) => eprintln!("Error syncing applications: {}", e),
+                }
+            }
+        },
     }
 
     // Browser stays alive for reuse
@@ -248,7 +263,8 @@ async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
             } else {
                 None
             };
-            db.set_applied(id, note.as_deref()).await?;
+            db.set_applied(id, note.as_deref(), chrono::Utc::now())
+                .await?;
             match note {
                 Some(n) if !n.is_empty() => {
                     println!("Job {} marked applied with note:", id);

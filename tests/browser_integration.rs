@@ -197,6 +197,63 @@ async fn test_upwork_pagination_has_next_page() {
     .expect("test should complete within 60s");
 }
 
+// --- Upwork: sync applications ---
+
+#[tokio::test]
+#[ignore = "requires Brave browser installed and upwork.com logged in"]
+async fn test_upwork_sync_applications() {
+    let _guard = get_guard();
+    let manager = BrowserManager::new();
+
+    tokio::time::timeout(Duration::from_secs(120), async {
+        let browser = manager.ensure().await.expect("Brave should connect");
+        let tmp = tempfile::NamedTempFile::new().expect("temp db");
+        let db = jobsearch::db::Db::open(tmp.path()).await.expect("open db");
+        let scraper = UpworkScraper::new();
+
+        let synced = scraper
+            .sync_applications(&browser, &db, 500, Some(1))
+            .await
+            .expect("sync_applications should succeed");
+
+        println!("Synced {} applications", synced);
+
+        if synced == 0 {
+            println!("No new submitted proposals found — skipping DB assertions");
+            return;
+        }
+
+        let jobs = db
+            .list_jobs(
+                Some(jobsearch::models::Platform::Upwork),
+                jobsearch::models::Sort::Created,
+                i64::MAX,
+            )
+            .await
+            .expect("list jobs");
+
+        let applied_jobs: Vec<_> = jobs
+            .into_iter()
+            .filter(|j| j.applied_at.is_some())
+            .collect();
+        assert!(
+            !applied_jobs.is_empty(),
+            "at least one job should have applied_at set"
+        );
+
+        for job in &applied_jobs {
+            println!(
+                "applied: {} | applied_at: {:?} | note_len: {:?}",
+                job.title,
+                job.applied_at,
+                job.note.as_ref().map(|n| n.len())
+            );
+        }
+    })
+    .await
+    .expect("test should complete within 120s");
+}
+
 // --- NoFluffJobs: search page ---
 
 #[tokio::test]

@@ -33,6 +33,7 @@
 
 ## context
 
+- [[db-set-applied-signature]] - `Db::set_applied` should take explicit non-optional `applied_at: NaiveDateTime` 
 - [[devenv-e2e-process]] - Document end-to-end process in `.pi/APPEND_SYSTEM.md`: `devenv up` starts backen
 - [[frontend-validation-pipeline]] - Frontend validation pipeline lives in `frontend/` dir: `pnpm typecheck && pnpm c
 - [[orval-solid-query-pattern]] - With orval `client: 'solid-query'`, use generated hooks for mutations but custom

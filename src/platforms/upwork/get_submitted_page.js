@@ -1,0 +1,1 @@
+window.__NUXT__?.state?.lists?.submittedList?.paging?.page ?? 0
