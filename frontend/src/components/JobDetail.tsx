@@ -24,7 +24,7 @@ export function JobDetail() {
   const rateMutation = useRateJob();
 
   function handleRate(rating: Rating) {
-    rateMutation.mutate({ id: id(), rating });
+    rateMutation.mutate({ id: id(), data: { rating } });
   }
 
   return (
@@ -148,7 +148,7 @@ export function JobDetailContent(props: {
         onClose={() => setShowDelete(false)}
         onConfirm={() => {
           setShowDelete(false);
-          deleteMutation.mutate(props.job.id ?? 0);
+          deleteMutation.mutate({ id: props.job.id ?? 0 });
         }}
         title="Delete job?"
         message={`Delete "${props.job.title}"? This cannot be undone.`}

@@ -107,7 +107,7 @@ export function JobList() {
 
   function handleRate(job: Job, rating: Rating) {
     if (job.id == null) return;
-    rateMutation.mutate({ id: job.id, rating });
+    rateMutation.mutate({ id: job.id, data: { rating } });
   }
 
   const columns = () => {

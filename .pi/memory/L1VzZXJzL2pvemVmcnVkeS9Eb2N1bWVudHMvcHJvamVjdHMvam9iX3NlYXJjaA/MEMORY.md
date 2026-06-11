@@ -26,6 +26,7 @@
 - [[solidjs-url-filter-state]] - For persistent filter state in SolidJS: use `@solidjs/router`'s `useSearchParams
 - [[solidjs-vs-angular-state-persistence]] - In SolidJS (and modern SPAs), persist list/filter state in URL query params via 
 - [[sqlx-query-as-default-limitation]] - `#[sqlx(flatten)]` does **not** work with the `query_as!` macro — it only works 
+- [[tanstack-query-over-engineering]] - Don't over-engineer TanStack Query cache invalidation. User prefers short, maint
 - [[tanstack-solidjs-structural-sharing]] - When using TanStack Query v5 with SolidJS, always set `structuralSharing: false`
 - [[url-as-state-source-of-truth]] - URL query params are the correct source of truth for filter/list state in SPAs —
 
@@ -33,6 +34,7 @@
 
 - [[devenv-e2e-process]] - Document end-to-end process in `.pi/APPEND_SYSTEM.md`: `devenv up` starts backen
 - [[frontend-validation-pipeline]] - Frontend validation pipeline lives in `frontend/` dir: `pnpm typecheck && pnpm c
+- [[orval-solid-query-pattern]] - With orval `client: 'solid-query'`, use generated hooks for mutations but custom
 - [[orval-solid-query-v5-watch]] - Orval issue [#3365](https://github.com/orval-labs/orval/issues/3365) tracks soli
 - [[tanstack-solidjs-pattern]] - Idiomatic SolidJS + TanStack Query v5 pattern for reactive data fetching:
 - [[ts-rs-generated-types]] - Frontend TypeScript API types are auto-generated from Rust via `ts-rs`. `#[ts(ex
