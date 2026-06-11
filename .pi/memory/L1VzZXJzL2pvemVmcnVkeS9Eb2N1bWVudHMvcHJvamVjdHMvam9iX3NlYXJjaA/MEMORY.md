@@ -11,6 +11,7 @@
 - [[copy-ui-components-checklist]] - When copying UI components from another project, always verify: 1) missing depen
 - [[devenv-regen-api-script]] - `devenv.nix` `regen-api` script uses `pnpm -C frontend orval`, not `pnpm --dir f
 - [[dont-strip-platform-features]] - When refactoring to remove platform-specific leakage from generic types, don't a
+- [[efinancialcareers-filter-url-pattern]] - eFinancialCareers filter URL pattern: multi-value filters use `|` separator (URL
 - [[file-move-pattern]] - When moving files, prefer `mv` (bash) + `edit` for import path updates over `wri
 - [[frontend-api-mismatch]] - Frontend `api.ts` must unwrap server response shape. Server `list_jobs` returns 
 - [[frontend-ui-pure-copies]] - When copying UI components from `../reddit/frontend-solid/src/components/ui/`, u
