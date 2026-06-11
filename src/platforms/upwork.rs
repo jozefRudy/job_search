@@ -271,9 +271,10 @@ impl UpworkScraper {
         let page = browser
             .new_tab("https://www.upwork.com/nx/proposals/")
             .await?;
-        sleep(Duration::from_secs(3)).await;
+        sleep(Duration::from_millis(pause_ms)).await;
 
         let mut all_proposals: Vec<RawSubmittedItem> = Vec::new();
+        let max = limit.unwrap_or(usize::MAX);
 
         loop {
             let list: RawSubmittedList = page
@@ -285,13 +286,13 @@ impl UpworkScraper {
             let total_pages = list.total.div_ceil(list.itemsPerPage);
             let next_page = list.page + 2; // page is 0-indexed, button is 1-indexed
 
-            if next_page > total_pages {
+            if next_page > total_pages || all_proposals.len() >= max {
                 break;
             }
 
             let click_js = CLICK_PAGE_JS.replace("{page}", &next_page.to_string());
             page.evaluate(click_js.as_str()).await?;
-            sleep(Duration::from_secs(2)).await;
+            sleep(Duration::from_millis(pause_ms)).await;
 
             // Verify page changed
             let new_page: u32 = page.evaluate(GET_SUBMITTED_PAGE_JS).await?.into_value()?;
@@ -302,7 +303,6 @@ impl UpworkScraper {
 
         page.close().await.ok();
 
-        let max = limit.unwrap_or(usize::MAX);
         let mut synced = 0usize;
         for item in &all_proposals {
             if synced >= max {
@@ -349,16 +349,14 @@ impl UpworkScraper {
 
             let Some(job_id) = job_id else { continue };
 
-            let already_applied = db
+            if db
                 .get_job(job_id)
                 .await?
                 .and_then(|j| j.applied_at)
-                .is_some();
-            if already_applied {
+                .is_some()
+            {
                 continue;
             }
-
-            sleep(Duration::from_millis(pause_ms)).await;
 
             let cover_letter: String = {
                 let detail_page = browser
@@ -367,7 +365,7 @@ impl UpworkScraper {
                         item.applicationUID
                     ))
                     .await?;
-                sleep(Duration::from_secs(2)).await;
+                sleep(Duration::from_millis(pause_ms)).await;
                 let letter = detail_page
                     .evaluate(EXTRACT_PROPOSAL_DETAIL_JS)
                     .await?
@@ -391,8 +389,9 @@ impl UpworkScraper {
 
             db.set_applied(job_id, note, applied_at).await?;
             synced += 1;
-            eprintln!("  Synced: {}", item.title);
+            eprint!("\r  Synced ({}/{}): {}", synced, max, item.title);
         }
+        eprintln!(); // newline after progress
 
         Ok(synced)
     }
