@@ -8,6 +8,7 @@ use chromiumoxide::browser::Browser;
 use chrono::{DateTime, Utc};
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
+use std::cmp::min;
 use tokio::time::{Duration, sleep};
 
 const FETCH_JOB_DETAIL_JS: &str = include_str!("upwork/fetch_job_detail.js");
@@ -550,15 +551,13 @@ impl PlatformClient for UpworkScraper {
 
             db.set_applied(job_id, note, applied_at).await?;
             synced += 1;
-            eprint!(
-                "\r  Synced ({}/{}): {}",
-                synced,
-                all_proposals.len(),
-                item.title
-            );
+            let total = limit
+                .map(|l| min(l, all_proposals.len()))
+                .unwrap_or(all_proposals.len());
+            eprint!("\r  Synced ({}/{}): {}", synced, total, item.title);
         }
 
-        eprintln!("  Total synced: {}", all_proposals.len());
+        eprintln!("  Total synced: {}", synced);
         Ok(synced)
     }
 
