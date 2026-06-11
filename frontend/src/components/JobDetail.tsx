@@ -63,7 +63,7 @@ export function JobDetailContent(props: {
             #{j.id} [{j.platform}] {j.title}
           </h2>
           <p class="text-base-content/70">
-            {fmtRelative(j.created_at)} | {j.budget ?? "?"}
+            {fmtRelative(j.created_at)} | {j.budget ?? "no budget available"}
           </p>
           <p>
             <a

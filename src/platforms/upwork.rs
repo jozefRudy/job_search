@@ -555,7 +555,7 @@ impl PlatformClient for UpworkScraper {
             let total = limit
                 .map(|l| min(l, all_proposals.len()))
                 .unwrap_or(all_proposals.len());
-            eprint!("\r  Synced ({}/{}): {}", synced, total, item.title);
+            eprint!("\r  Progress {}/{}: {:.40}", synced, total, item.title);
         }
 
         eprintln!("  Total synced: {}", synced);
