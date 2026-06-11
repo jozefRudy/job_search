@@ -5,6 +5,7 @@
 
 - [[agents-md-location]] - Project-wide agent instructions live in `.pi/APPEND_SYSTEM.md` (pi-native, auto-
 - [[angular-url-state-lesson]] - Angular projects often over-engineer list/filter state with services, resolvers,
+- [[api-test-catches-reactivity-regressions]] - API-level tests with mocked fetch are essential for catching silent reactivity r
 - [[brave-cdp-macos-launch]] - macOS `open -a "Brave Browser" --args --remote-debugging-port=9222` silently dro
 - [[browser-eval-over-screenshots]] - When model doesn't support image rendering, use `browser_eval` with JS extractio
 - [[copy-ui-components-checklist]] - When copying UI components from another project, always verify: 1) missing depen
