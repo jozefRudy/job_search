@@ -30,6 +30,19 @@ pub trait PlatformClient: Send + Sync {
     async fn react(&self, _job: &Job, _note: Option<String>) -> Result<()> {
         Err(anyhow::anyhow!("react not implemented for {}", self.name()))
     }
+
+    async fn sync_applications(
+        &self,
+        _browser: &Browser,
+        _db: &Db,
+        _pause_ms: u64,
+        _limit: Option<usize>,
+    ) -> Result<usize> {
+        Err(anyhow::anyhow!(
+            "sync_applications not implemented for {}",
+            self.name()
+        ))
+    }
 }
 
 pub mod nofluffjobs;

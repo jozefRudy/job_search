@@ -1,4 +1,5 @@
 use jobsearch::browser::{BrowserExt, BrowserManager};
+use jobsearch::platforms::PlatformClient;
 use jobsearch::platforms::upwork::UpworkScraper;
 use std::sync::Mutex;
 use std::time::Duration;
