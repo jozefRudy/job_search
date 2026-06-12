@@ -306,58 +306,79 @@ impl fmt::Display for Budget {
 impl Budget {
     /// Parse budget strings like "7 069 – 9 426 EUR" or "$50-$100/hr".
     pub fn parse(s: &str) -> Option<Self> {
-        let s = s.replace(['\u{00a0}', '\u{2007}', '\u{202f}'], " ");
-        let trimmed = s.trim();
-
-        let (base, period) = if let Some((b, p)) = trimmed.rsplit_once('/') {
-            (b.trim(), Some(p.trim().to_string()))
-        } else {
-            (trimmed, None)
-        };
-
-        for (prefix, cur) in [('$', "USD"), ('€', "EUR")] {
-            if let Some(rest) = base.strip_prefix(prefix) {
-                return Self::parse_range(rest.trim(), cur, period);
-            }
-        }
-        for cur in ["EUR", "PLN", "USD", "GBP", "CHF"] {
-            if let Some(prefix) = base.strip_suffix(cur) {
-                return Self::parse_range(prefix.trim(), cur, period);
-            }
-        }
-
-        None
+        let s = normalize_budget(s);
+        parse_symbol_prefix(&s).or_else(|| parse_suffix_currency(&s))
     }
+}
 
-    fn parse_range(s: &str, currency: &str, period: Option<String>) -> Option<Self> {
-        for sep in ['–', '-'] {
-            if let Some((a, b)) = s.split_once(sep) {
-                let min = Self::extract_number(a)?;
-                let max = Self::extract_number(b)?;
-                return Some(Budget {
-                    min,
-                    max,
-                    currency: currency.to_string(),
-                    period,
-                });
-            }
+fn normalize_budget(s: &str) -> String {
+    s.replace(['\u{00a0}', '\u{2007}', '\u{202f}'], " ")
+}
+
+fn split_period(s: &str) -> (&str, Option<String>) {
+    let (base, period) = s.rsplit_once('/').unwrap_or((s, ""));
+    let period = period.trim();
+    if period.is_empty() {
+        (base.trim(), None)
+    } else {
+        (base.trim(), Some(period.to_string()))
+    }
+}
+
+fn parse_number(s: &str) -> Option<u32> {
+    s.chars()
+        .filter(|c| c.is_ascii_digit())
+        .collect::<String>()
+        .parse()
+        .ok()
+}
+
+fn parse_range(s: &str) -> Option<(u32, u32)> {
+    for sep in ['–', '-'] {
+        if let Some((a, b)) = s.split_once(sep) {
+            let min = parse_number(a)?;
+            let max = parse_number(b)?;
+            return Some((min, max));
         }
-        let val = Self::extract_number(s)?;
-        Some(Budget {
-            min: val,
-            max: val,
-            currency: currency.to_string(),
-            period,
-        })
     }
+    let val = parse_number(s)?;
+    Some((val, val))
+}
 
-    fn extract_number(s: &str) -> Option<u32> {
-        s.chars()
-            .filter(|c| c.is_ascii_digit())
-            .collect::<String>()
-            .parse()
-            .ok()
+fn parse_symbol_prefix(s: &str) -> Option<Budget> {
+    let (base, period) = split_period(s);
+
+    let (currency, _) = if let Some(rest) = base.strip_prefix('$') {
+        ("USD", rest)
+    } else {
+        let rest = base.strip_prefix('€')?;
+        ("EUR", rest)
+    };
+
+    let (min, max) = parse_range(base)?;
+    Some(Budget {
+        min,
+        max,
+        currency: currency.to_string(),
+        period,
+    })
+}
+
+fn parse_suffix_currency(s: &str) -> Option<Budget> {
+    let (base, period) = split_period(s);
+
+    for currency in ["EUR", "PLN", "USD", "GBP", "CHF"] {
+        if let Some(prefix) = base.strip_suffix(currency) {
+            let (min, max) = parse_range(prefix.trim())?;
+            return Some(Budget {
+                min,
+                max,
+                currency: currency.to_string(),
+                period,
+            });
+        }
     }
+    None
 }
 
 #[cfg(test)]

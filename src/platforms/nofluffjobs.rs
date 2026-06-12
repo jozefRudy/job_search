@@ -176,15 +176,23 @@ impl TryFrom<RawOfferSummary> for OfferSummary {
     type Error = anyhow::Error;
 
     fn try_from(raw: RawOfferSummary) -> Result<Self, Self::Error> {
+        let mut tags: Vec<String> = raw.tiles.values.into_iter().map(|t| t.value).collect();
+
         let budget = raw.salary.map(|s| {
-            if s.type_field.is_empty() {
-                format!("{} - {} {}", s.from, s.to, s.currency)
-            } else {
-                format!("{} - {} {} /{}", s.from, s.to, s.currency, s.type_field)
+            if !s.type_field.is_empty()
+                && !tags.iter().any(|t| t.eq_ignore_ascii_case(&s.type_field))
+            {
+                tags.push(s.type_field.clone());
             }
+            Budget {
+                min: s.from,
+                max: s.to,
+                currency: s.currency,
+                period: None,
+            }
+            .to_string()
         });
 
-        let tags: Vec<String> = raw.tiles.values.into_iter().map(|t| t.value).collect();
         let posted = raw.posted.to_utc();
 
         Ok(OfferSummary {
@@ -679,7 +687,11 @@ impl NoFluffJobsScraper {
 
             sleep(Duration::from_millis(pause_ms)).await;
 
-            let detail = match self.fetch_detail(&item.posting_id).await {
+            let slug = item.offer.url.trim_start_matches('/');
+            let slug = slug.strip_prefix("job/").unwrap_or(slug);
+            let url = format!("https://nofluffjobs.com/job/{}", slug);
+
+            let detail = match self.fetch_detail(slug).await {
                 Ok(d) => d,
                 Err(e) => {
                     eprintln!(
@@ -694,12 +706,6 @@ impl NoFluffJobsScraper {
                 .posted_at
                 .or(item.offer.posted)
                 .unwrap_or(item.applied_date);
-
-            let url = if item.offer.url.starts_with('/') {
-                format!("https://nofluffjobs.com{}", item.offer.url)
-            } else {
-                item.offer.url.clone()
-            };
 
             let budget = item.offer.budget.clone();
             let tags = item.offer.tags.clone();
@@ -887,6 +893,77 @@ mod tests {
         assert_eq!(
             url,
             "https://nofluffjobs.com/pl/jobs?criteria=keyword%3Dsenior&sort=newest"
+        );
+    }
+
+    #[test]
+    fn test_offer_summary_try_from_extracts_employment_type_as_tag() {
+        let raw = RawOfferSummary {
+            title: "Rust Dev".into(),
+            salary: Some(RawSalary {
+                currency: "EUR".into(),
+                from: 6119,
+                to: 8238,
+                type_field: "b2b".into(),
+            }),
+            tiles: RawTiles {
+                values: vec![
+                    RawTileValue {
+                        value: "rust".into(),
+                    },
+                    RawTileValue {
+                        value: "backend".into(),
+                    },
+                ],
+            },
+            url: "rust-dev-acme".into(),
+            posted: NfjDate::Integer(0),
+        };
+        let offer: OfferSummary = raw.try_into().unwrap();
+        assert_eq!(offer.budget, Some("6119 - 8238 EUR".into()));
+        assert!(offer.tags.contains(&"b2b".into()));
+        assert!(offer.tags.contains(&"rust".into()));
+        assert!(offer.tags.contains(&"backend".into()));
+    }
+
+    #[test]
+    fn test_offer_summary_try_from_ignores_empty_salary_type() {
+        let raw = RawOfferSummary {
+            title: "Dev".into(),
+            salary: Some(RawSalary {
+                currency: "EUR".into(),
+                from: 100,
+                to: 200,
+                type_field: "".into(),
+            }),
+            tiles: RawTiles { values: vec![] },
+            url: "dev".into(),
+            posted: NfjDate::Integer(0),
+        };
+        let offer: OfferSummary = raw.try_into().unwrap();
+        assert_eq!(offer.budget, Some("100 - 200 EUR".into()));
+        assert!(!offer.tags.contains(&"".into()));
+    }
+
+    #[test]
+    fn test_application_item_try_from_parses_integer_date() {
+        let raw = RawApplicationItem {
+            posting_id: "ABC123".into(),
+            applied_date: NfjDate::Integer(1_777_628_094_466),
+            status_history: vec![],
+            offer: RawOfferSummary {
+                title: "Rust".into(),
+                salary: None,
+                tiles: RawTiles { values: vec![] },
+                url: "rust".into(),
+                posted: NfjDate::Integer(0),
+            },
+        };
+        let item: ApplicationItem = raw.try_into().unwrap();
+        assert_eq!(item.posting_id, "ABC123");
+        assert_eq!(
+            item.applied_date,
+            DateTime::from_timestamp_millis(1_777_628_094_466).unwrap()
         );
     }
 }

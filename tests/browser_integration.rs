@@ -449,10 +449,15 @@ async fn test_nofluffjobs_sync_applications() {
 
         for job in &applied_jobs {
             println!(
-                "applied: {} | applied_at: {:?} | budget: {:?}",
-                job.title, job.applied_at, job.budget
+                "applied: {} | applied_at: {:?} | budget: {:?} | tags: {:?}",
+                job.title, job.applied_at, job.budget, job.tags
             );
             assert!(job.budget.is_some(), "synced job should have budget");
+            assert!(
+                jobsearch::models::Budget::parse(job.budget.as_ref().unwrap()).is_some(),
+                "synced job budget should parse: {:?}",
+                job.budget
+            );
             assert!(!job.tags.is_empty(), "synced job should have tags");
             assert!(
                 job.created_at < chrono::Utc::now() - chrono::Duration::minutes(1),
