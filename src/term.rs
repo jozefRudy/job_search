@@ -9,6 +9,12 @@ impl CursorGuard {
     }
 }
 
+impl Default for CursorGuard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for CursorGuard {
     fn drop(&mut self) {
         show_cursor();
