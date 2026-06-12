@@ -423,7 +423,7 @@ mod tests {
             duration: "1 to 3 months".to_string(),
             hours_per_week: "Less than 30 hrs/week".to_string(),
             tags: vec!["rust".to_string(), "api".to_string()],
-            created_at: None,
+            posted_at: None,
         };
         let job = Job {
             id: None,
@@ -453,7 +453,7 @@ mod tests {
             assert_eq!(d.exact_budget, detail.exact_budget);
             assert_eq!(d.experience_level, detail.experience_level);
             assert_eq!(d.tags, detail.tags);
-            assert_eq!(d.created_at, detail.created_at);
+            assert_eq!(d.posted_at, detail.posted_at);
         }
         Ok(())
     }
