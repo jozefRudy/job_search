@@ -9,18 +9,21 @@
 - [[brave-cdp-macos-launch]] - macOS `open -a "Brave Browser" --args --remote-debugging-port=9222` silently dro
 - [[browser-eval-over-screenshots]] - When model doesn't support image rendering, use `browser_eval` with JS extractio
 - [[copy-ui-components-checklist]] - When copying UI components from another project, always verify: 1) missing depen
+- [[deserializer-shape-normalization]] - When scraping external APIs, do shape-normalization in explicit `Raw*` structs p
 - [[devenv-regen-api-script]] - `devenv.nix` `regen-api` script uses `pnpm -C frontend orval`, not `pnpm --dir f
 - [[dont-strip-platform-features]] - When refactoring to remove platform-specific leakage from generic types, don't a
 - [[efinancialcareers-filter-url-pattern]] - eFinancialCareers filter URL pattern: multi-value filters use `|` separator (URL
 - [[file-move-pattern]] - When moving files, prefer `mv` (bash) + `edit` for import path updates over `wri
 - [[frontend-api-mismatch]] - Frontend `api.ts` must unwrap server response shape. Server `list_jobs` returns 
 - [[frontend-ui-pure-copies]] - When copying UI components from `../reddit/frontend-solid/src/components/ui/`, u
+- [[integration-test-timeout-means-bug]] - When an ignored browser integration test times out or hangs, treat it as a bug, 
 - [[nix-pnpm-hash-update]] - When frontend `pnpm` dependencies change in `frontend/package.json` or `frontend
 - [[nix-pnpm-oom-fix]] - When packaging pnpm frontend in Nix flake on macOS, `pnpm_11` + `fetcherVersion 
 - [[openapi-orval-experiment]] - Consider experimenting with OpenAPI + Orval for auto-generating TanStack Query h
 - [[orval-generation-workflow]] - When adding new backend endpoints, always regenerate the Orval API client via `r
 - [[orval-solid-query-v5-incompatibility]] - Orval `client: 'solid-query'` was broken for TanStack Query v5 but is now FIXED 
 - [[pagination-single-query-pattern]] - For paginated APIs, use `COUNT(*) OVER() as total` in the same query instead of 
+- [[plan-before-implement]] - When the user says 'first verify/research before starting', provide a concise pl
 - [[platform-specific-sort-pattern]] - For platform-specific sorting in shared API, use a single strongly-typed `Sort` 
 - [[platformclient-sync-applications-pattern]] - Platform-specific sync methods (like `sync_applications`) belong in `PlatformCli
 - [[pnpm-workspaces-single-app]] - Single-app frontend does not need `pnpm-workspace.yaml`. Remove it. `pnpm.onlyBu
@@ -39,6 +42,7 @@
 - [[db-set-applied-signature]] - `Db::set_applied` should take explicit non-optional `applied_at: NaiveDateTime` 
 - [[devenv-e2e-process]] - Document end-to-end process in `.pi/APPEND_SYSTEM.md`: `devenv up` starts backen
 - [[frontend-validation-pipeline]] - Frontend validation pipeline lives in `frontend/` dir: `pnpm typecheck && pnpm c
+- [[nofluffjobs-sync-plan]] - NoFluffJobs applications sync uses `/api/candidates/my-applications` with HMAC a
 - [[orval-solid-query-pattern]] - With orval `client: 'solid-query'`, use generated hooks for mutations but custom
 - [[orval-solid-query-v5-watch]] - Orval issue [#3365](https://github.com/orval-labs/orval/issues/3365) tracks soli
 - [[tanstack-solidjs-pattern]] - Idiomatic SolidJS + TanStack Query v5 pattern for reactive data fetching:

@@ -173,6 +173,17 @@ async fn main() -> Result<()> {
                     Err(e) => eprintln!("Error syncing applications: {}", e),
                 }
             }
+            SyncPlatform::Nofluff(args) => {
+                let scraper = NoFluffJobsScraper::new();
+                let browser = browser.ensure().await?;
+                match scraper
+                    .sync_applications(&browser, &db, args.pause, None)
+                    .await
+                {
+                    Ok(count) => eprintln!("Synced {} applications", count),
+                    Err(e) => eprintln!("Error syncing applications: {}", e),
+                }
+            }
         },
     }
 

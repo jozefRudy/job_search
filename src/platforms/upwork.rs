@@ -223,7 +223,8 @@ impl UpworkScraper {
         let raw: RawJobDetail = page.evaluate(FETCH_JOB_DETAIL_JS).await?.into_value()?;
 
         page.close().await.ok();
-        Ok(raw.into())
+        raw.try_into()
+            .map_err(|e| anyhow!("invalid job detail: {}", e))
     }
 
     /// Scrape job cards from current search page.
@@ -283,9 +284,11 @@ struct RawJobDetail {
     pub posted_at_text: String,
 }
 
-impl From<RawJobDetail> for UpworkJobDetail {
-    fn from(raw: RawJobDetail) -> Self {
-        UpworkJobDetail {
+impl TryFrom<RawJobDetail> for UpworkJobDetail {
+    type Error = anyhow::Error;
+
+    fn try_from(raw: RawJobDetail) -> Result<Self, Self::Error> {
+        Ok(UpworkJobDetail {
             proposals: raw.proposals,
             last_viewed: crate::models::parse_relative_time(&raw.last_viewed),
             interviewing: raw.interviewing,
@@ -300,7 +303,7 @@ impl From<RawJobDetail> for UpworkJobDetail {
             hours_per_week: raw.hours_per_week,
             tags: raw.tags,
             posted_at: crate::models::parse_relative_time(&raw.posted_at_text),
-        }
+        })
     }
 }
 
