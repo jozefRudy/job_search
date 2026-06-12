@@ -211,7 +211,30 @@ impl TryFrom<RawOfferSummary> for OfferSummary {
 }
 
 /// Raw API response from NoFluffJobs detail endpoint.
-#[derive(Debug, Clone, Deserialize)]
+///
+/// Active postings return detail fields at the top level; expired postings wrap
+/// them under `jobOffer`. We normalize both shapes at the boundary.
+#[derive(Debug, Clone, Deserialize, Default)]
+struct RawPostingEnvelope {
+    #[serde(default, rename = "jobOffer")]
+    job_offer: Option<RawNoFluffJobDetail>,
+    #[serde(default)]
+    basics: Basics,
+    #[serde(default)]
+    requirements: Reqs,
+    #[serde(default)]
+    details: JobDetails,
+    #[serde(default)]
+    company: Company,
+    #[serde(default)]
+    posted: Option<i64>,
+    #[serde(default, rename = "expiresAt")]
+    expires_at: Option<String>,
+    #[serde(default)]
+    location: Location,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
 struct RawNoFluffJobDetail {
     #[serde(default)]
     pub basics: Basics,
@@ -227,6 +250,102 @@ struct RawNoFluffJobDetail {
     pub expires_at: Option<String>,
     #[serde(default)]
     pub location: Location,
+}
+
+impl TryFrom<RawPostingEnvelope> for NoFluffJobDetail {
+    type Error = anyhow::Error;
+
+    fn try_from(envelope: RawPostingEnvelope) -> Result<Self, Self::Error> {
+        let raw = envelope.job_offer.unwrap_or(RawNoFluffJobDetail {
+            basics: envelope.basics,
+            requirements: envelope.requirements,
+            details: envelope.details,
+            company: envelope.company,
+            posted: envelope.posted,
+            expires_at: envelope.expires_at,
+            location: envelope.location,
+        });
+
+        let seniority = match raw.basics.seniority {
+            Some(Value::String(ref s)) => s.clone(),
+            Some(Value::Array(ref arr)) => arr
+                .iter()
+                .filter_map(|v| v.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            _ => String::new(),
+        };
+
+        let must_have = raw
+            .requirements
+            .musts
+            .iter()
+            .filter_map(|m| {
+                if m.type_field == "main" {
+                    Some(m.value.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let description = html_to_md(&raw.details.description);
+
+        let requirements = html_to_md(&raw.requirements.description);
+
+        let nice_to_have = raw
+            .requirements
+            .nices
+            .iter()
+            .filter_map(|m| {
+                if m.type_field == "main" {
+                    Some(m.value.clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let languages: Vec<String> = raw
+            .requirements
+            .languages
+            .iter()
+            .filter(|l| l.type_field == "MUST")
+            .map(|l| l.code.clone())
+            .collect();
+
+        let posted_at = raw.posted.and_then(chrono::DateTime::from_timestamp_millis);
+
+        let locations: Vec<String> = raw
+            .location
+            .places
+            .iter()
+            .map(|p| p.city.clone())
+            .filter(|c| !c.is_empty())
+            .collect();
+
+        let remote = if locations.iter().any(|l| l.eq_ignore_ascii_case("remote")) {
+            "Remote".to_string()
+        } else {
+            String::new()
+        };
+
+        Ok(NoFluffJobDetail {
+            company: raw.company.name,
+            seniority,
+            remote,
+            locations,
+            description,
+            must_have,
+            requirements,
+            nice_to_have,
+            offer_valid_until: raw.expires_at.unwrap_or_default(),
+            languages,
+            posted_at,
+            employment_type: None,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -519,7 +638,7 @@ impl NoFluffJobsScraper {
 
     /// Fetch job detail from API (no DB dependency).
     pub async fn fetch_detail(&self, job_id: &str) -> Result<NoFluffJobDetail> {
-        let detail: RawNoFluffJobDetail = self
+        let envelope: RawPostingEnvelope = self
             .client
             .get(format!("{}/posting/{}", API_BASE, job_id))
             .send()
@@ -527,87 +646,7 @@ impl NoFluffJobsScraper {
             .json()
             .await?;
 
-        let seniority = match detail.basics.seniority {
-            Some(Value::String(ref s)) => s.clone(),
-            Some(Value::Array(ref arr)) => arr
-                .iter()
-                .filter_map(|v| v.as_str())
-                .collect::<Vec<_>>()
-                .join(", "),
-            _ => String::new(),
-        };
-
-        let must_have = detail
-            .requirements
-            .musts
-            .iter()
-            .filter_map(|m| {
-                if m.type_field == "main" {
-                    Some(m.value.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        let description = html_to_md(&detail.details.description);
-
-        let requirements = html_to_md(&detail.requirements.description);
-
-        let nice_to_have = detail
-            .requirements
-            .nices
-            .iter()
-            .filter_map(|m| {
-                if m.type_field == "main" {
-                    Some(m.value.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        let languages: Vec<String> = detail
-            .requirements
-            .languages
-            .iter()
-            .filter(|l| l.type_field == "MUST")
-            .map(|l| l.code.clone())
-            .collect();
-
-        let posted_at = detail
-            .posted
-            .and_then(chrono::DateTime::from_timestamp_millis);
-
-        let locations: Vec<String> = detail
-            .location
-            .places
-            .iter()
-            .map(|p| p.city.clone())
-            .filter(|c| !c.is_empty())
-            .collect();
-
-        let remote = if locations.iter().any(|l| l.eq_ignore_ascii_case("remote")) {
-            "Remote".to_string()
-        } else {
-            String::new()
-        };
-
-        Ok(NoFluffJobDetail {
-            company: detail.company.name,
-            seniority,
-            remote,
-            locations,
-            description,
-            must_have,
-            requirements,
-            nice_to_have,
-            offer_valid_until: detail.expires_at.unwrap_or_default(),
-            languages,
-            posted_at,
-            employment_type: None,
-        })
+        envelope.try_into()
     }
 
     /// Sync submitted applications from the NoFluffJobs profile page.
@@ -974,5 +1013,22 @@ mod tests {
             item.applied_date,
             DateTime::from_timestamp_millis(1_777_628_094_466).unwrap()
         );
+    }
+
+    #[test]
+    fn test_expired_detail_joboffer_shape_parses() {
+        let json = include_str!("../../tests/fixtures/nofluffjobs_expired_detail.json");
+        let envelope: RawPostingEnvelope = serde_json::from_str(json).expect("deserialize fixture");
+        let detail: NoFluffJobDetail = envelope.try_into().expect("convert to detail");
+
+        assert_eq!(detail.company, "ServiceTitan");
+        assert_eq!(detail.seniority, "Expert");
+        assert_eq!(detail.remote, "Remote");
+        assert!(detail.description.contains("Flexibility"));
+        assert!(detail.requirements.contains("Ready to be a Titan"));
+        assert!(detail.must_have.contains(&".NET".to_string()));
+        assert!(detail.nice_to_have.contains("React"));
+        assert_eq!(detail.languages, vec!["en"]);
+        assert!(detail.posted_at.is_some());
     }
 }

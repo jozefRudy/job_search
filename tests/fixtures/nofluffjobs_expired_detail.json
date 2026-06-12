@@ -1,0 +1,78 @@
+{
+  "status": "EXPIRED",
+  "jobOffer": {
+    "title": "Staff Software Engineer",
+    "basics": {
+      "category": "backend",
+      "seniority": [
+        "Expert"
+      ],
+      "technology": ".NET"
+    },
+    "company": {
+      "name": "ServiceTitan"
+    },
+    "requirements": {
+      "musts": [
+        {
+          "value": ".NET",
+          "type": "main"
+        },
+        {
+          "value": "C#",
+          "type": "main"
+        },
+        {
+          "value": "ASP.NET MVC",
+          "type": "main"
+        },
+        {
+          "value": "CI/CD",
+          "type": "main"
+        }
+      ],
+      "nices": [
+        {
+          "value": "JavaScript",
+          "type": "main"
+        },
+        {
+          "value": "React",
+          "type": "main"
+        },
+        {
+          "value": "Angular",
+          "type": "main"
+        }
+      ],
+      "description": "<p><strong>Ready to be a Titan?</strong></p>\n<p>Join ServiceTitan as we build our foundational engineering team in Poland. This is a unique opportunity to shape our culture and products from the ground up in a new region, making an immediate impact in a rapidly growing, category-leading company. We are a quality-minded team that loves solving complex problems on a global scale, using the most modern tools. We believe in engineering excellence, fostering a culture of autonomy and true work-life balance, and providing the flexibility you need to do your best work. We\u2019re looking for thoughtful, proactive engineers who are passionate about their craft, support their teams, and are ready to build world-class software that powers the trades.</p>\n<p>We require from candidates having Polish citizenship or permanent residency in Poland</p>\n<p><strong>What you'll bring:</strong></p>\n<ul>\n<li>We expect that as an individual contributor, you are a role model</li>\n<li>You will be expected to guide the technology decisions of your team, while contributing alongside them</li>\n<li>Equivalent of 8+ years of experience on senior engineering roles (designing APIs, abstractions, and tools used by other engineers)</li>\n<li>Equivalent of 15+ years of industry experience</li>\n<li>Expert-level knowledge of:\n<ul>\n<li>Microsoft .NET technology stack (C# / .NET, ASP.NET MVC, Web APIs) and SQL databases (Microsoft SQL Server or any other)</li>\n<li>JavaScript; experience with Typescript and React is a plus</li>\n<li>Git, unit testing, debugging, profiling, performance monitoring</li>\n</ul>\n</li>\n<li>Strong communication and technical writing skills</li>\n<li>B.S., M.S. or PhD in Computer Science, Physics, Engineering or a related technical field</li>\n</ul>",
+      "languages": [
+        {
+          "type": "MUST",
+          "code": "en",
+          "level": "B2"
+        }
+      ]
+    },
+    "details": {
+      "description": "<p>When you join our team, you\u2019re not just accepting a job. You\u2019re making a career move. Here\u2019s how we\u2019ll support you in doing some of the most impactful work of your career:</p>\n<ul>\n<li><strong>Flexibility &amp; Autonomous Work:\u00a0</strong>Enjoy the freedom of a fully remote setup, flexible working hours, and flexible time off. We trust you to manage your time and deliver outstanding results while maintaining a healthy work-life balance, which is a core part of our culture.</li>\n<li><strong>Growth &amp; Development:\u00a0</strong>\u00a0We invest in your growth. Benefit from a comprehensive onboarding program, leadership training for Titans at all levels, and ample learning and development opportunities to help you grow.</li>\n<li><strong>Ownership &amp; Recognition:\u00a0</strong>As a Titan, you\u2019re an owner. We offer a compelling package that includes an annual bonus and Restricted Stock Units (RSUs). Great work is also rewarded through Bonusly, peer-nominated awards, and more.</li>\n<li><strong>Holistic Health &amp; Wellness:\u00a0</strong>Your well-being is our priority. We offer premium, company-paid private health insurance.</li>\n<li><strong>Support for Titans at All Stages of Life:\u00a0</strong>We offer comprehensive support including parental leave, financial planning tools, Employee Assistance Program services, and more.</li>\n</ul>\n<p>At ServiceTitan, we celebrate individuality and uniqueness. We believe that the convergence of fresh perspectives and experiences from all walks of life is what makes our product and culture so great. We welcome applications from all qualified candidates. \u00a0We do not discriminate against employees based on race, color, religion, sex, national origin, gender identity or expression, age, disability, pregnancy (including childbirth, breastfeeding, or related medical condition), genetic information, protected military or veteran status, sexual orientation, or any other characteristic protected by applicable federal, state or local laws.</p>\n<p><br></p>\n<p><br></p>\n<p><br></p>"
+    },
+    "posted": 1774860955856,
+    "expiresAt": null,
+    "location": {
+      "places": [
+        {
+          "city": "Remote",
+          "url": "staff-software-engineer-servicetitan-remote"
+        }
+      ],
+      "remote": 5,
+      "multicityCount": 100,
+      "covidTimeRemotely": false,
+      "remoteFlexible": false,
+      "fieldwork": false,
+      "defaultIndex": 0,
+      "hybridDesc": ""
+    }
+  }
+}
