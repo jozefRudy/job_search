@@ -475,6 +475,7 @@ mod tests {
             offer_valid_until: "2026-12-31".to_string(),
             languages: vec!["en".to_string()],
             posted_at: None,
+            employment_type: Some("b2b".to_string()),
         };
         let job = Job {
             id: None,

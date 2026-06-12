@@ -118,6 +118,8 @@ pub struct NoFluffJobDetail {
     pub languages: Vec<String>,
     #[serde(default)]
     pub posted_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub employment_type: Option<String>,
 }
 
 #[derive(

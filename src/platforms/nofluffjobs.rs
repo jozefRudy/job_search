@@ -84,7 +84,7 @@ struct RawSalary {
     to: u32,
     #[serde(rename = "type")]
     #[serde(default)]
-    type_field: String,
+    employment_type: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -142,6 +142,7 @@ struct OfferSummary {
     tags: Vec<String>,
     url: String,
     posted: Option<DateTime<Utc>>,
+    employment_type: Option<String>,
 }
 
 impl TryFrom<RawApplicationItem> for ApplicationItem {
@@ -176,14 +177,17 @@ impl TryFrom<RawOfferSummary> for OfferSummary {
     type Error = anyhow::Error;
 
     fn try_from(raw: RawOfferSummary) -> Result<Self, Self::Error> {
-        let mut tags: Vec<String> = raw.tiles.values.into_iter().map(|t| t.value).collect();
+        let tags: Vec<String> = raw.tiles.values.into_iter().map(|t| t.value).collect();
+
+        let employment_type = raw.salary.as_ref().and_then(|s| {
+            if s.employment_type.is_empty() {
+                None
+            } else {
+                Some(s.employment_type.clone())
+            }
+        });
 
         let budget = raw.salary.map(|s| {
-            if !s.type_field.is_empty()
-                && !tags.iter().any(|t| t.eq_ignore_ascii_case(&s.type_field))
-            {
-                tags.push(s.type_field.clone());
-            }
             Budget {
                 min: s.from,
                 max: s.to,
@@ -201,6 +205,7 @@ impl TryFrom<RawOfferSummary> for OfferSummary {
             tags,
             url: raw.url,
             posted,
+            employment_type,
         })
     }
 }
@@ -601,6 +606,7 @@ impl NoFluffJobsScraper {
             offer_valid_until: detail.expires_at.unwrap_or_default(),
             languages,
             posted_at,
+            employment_type: None,
         })
     }
 
@@ -706,6 +712,9 @@ impl NoFluffJobsScraper {
                 .posted_at
                 .or(item.offer.posted)
                 .unwrap_or(item.applied_date);
+
+            let mut detail = detail;
+            detail.employment_type = item.offer.employment_type.clone();
 
             let budget = item.offer.budget.clone();
             let tags = item.offer.tags.clone();
@@ -904,7 +913,7 @@ mod tests {
                 currency: "EUR".into(),
                 from: 6119,
                 to: 8238,
-                type_field: "b2b".into(),
+                employment_type: "b2b".into(),
             }),
             tiles: RawTiles {
                 values: vec![
@@ -921,7 +930,7 @@ mod tests {
         };
         let offer: OfferSummary = raw.try_into().unwrap();
         assert_eq!(offer.budget, Some("6119 - 8238 EUR".into()));
-        assert!(offer.tags.contains(&"b2b".into()));
+        assert_eq!(offer.employment_type, Some("b2b".into()));
         assert!(offer.tags.contains(&"rust".into()));
         assert!(offer.tags.contains(&"backend".into()));
     }
@@ -934,7 +943,7 @@ mod tests {
                 currency: "EUR".into(),
                 from: 100,
                 to: 200,
-                type_field: "".into(),
+                employment_type: "".into(),
             }),
             tiles: RawTiles { values: vec![] },
             url: "dev".into(),
