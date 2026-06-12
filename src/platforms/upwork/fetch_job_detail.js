@@ -13,20 +13,27 @@
     const unanswered_invites = rx(/Unanswered invites[:\s]*(\d+)/i);
     const hires = rx(/Hires[:\s]*(\d+)/i);
     const project_type = rx(/Project type[:\s]*([^\n]+)/i);
+    const posted_at_text = rx(/Posted[:\s]*([^\n]+)/i);
 
-    const liText = (selector) => {
-        const el = document.querySelector(selector)?.closest('li');
-        return el ? el.innerText.replace(/\s+/g, ' ').trim() : '';
+    const itemText = (selector, label, require) => {
+        const el = document.querySelector(selector);
+        if (!el) return '';
+        const parent = el.parentElement;
+        if (!parent) return '';
+        if (require && !parent.innerText.includes(require)) return '';
+        let text = parent.innerText.replace(/\s+/g, ' ').trim();
+        if (label) {
+            text = text.replace(new RegExp(`\\s*${label}\\s*$`), '').trim();
+        }
+        return text;
     };
 
-    const expText = liText('[data-cy="expertise"]');
-    const experience_level = expText.match(/(Entry Level|Intermediate|Expert)/)?.[1] || '';
+    const experience_level = itemText('[data-cy="expertise"]', '')
+        .match(/(Entry Level|Intermediate|Expert)/)?.[1] || '';
 
-    const duration = liText('[data-cy^="duration"]')
-        .replace(/\s*Duration\s*$/, '').trim();
+    const duration = itemText('[data-cy^="duration"]', 'Duration');
 
-    const hours_per_week = liText('[data-cy="clock-hourly"]')
-        .replace(/\s*Hourly\s*$/, '').trim();
+    const hours_per_week = itemText('[data-cy="clock-hourly"]', 'Hourly');
 
     let description = '';
     const descEl = document.querySelector('[data-test="Description"]')
@@ -49,16 +56,11 @@
         }
     }
 
-    let exact_budget = '';
-    const budgetLi = document.querySelector('[data-cy="clock-timelog"]')?.closest('li');
-    if (budgetLi) {
-        exact_budget = budgetLi.innerText.replace(/\s+/g, ' ').trim().replace(/\s*Hourly\s*$/, '').trim();
-    }
-    if (!exact_budget) {
-        const budgetMatch = text.match(/\$\d+[\d,]*\.?\d*\s*[-]\s*\$\d+[\d,]*\.?\d*/)
-            || text.match(/Budget[:\s]*([^\n]{0,50})/i);
-        exact_budget = budgetMatch ? budgetMatch[0].replace(/\s+/g, ' ').trim() : '';
-    }
+    const exact_budget = itemText('[data-cy="clock-timelog"]', 'Hourly', 'Hourly');
 
-    return { proposals, last_viewed, interviewing, invites_sent, unanswered_invites, description, exact_budget, experience_level, hires, project_type, duration, hours_per_week };
+    const tags = Array.from(document.querySelectorAll('a[href*="ontology_skill_uid"]'))
+        .map(a => a.innerText?.trim())
+        .filter(Boolean);
+
+    return { proposals, last_viewed, interviewing, invites_sent, unanswered_invites, description, exact_budget, experience_level, hires, project_type, duration, hours_per_week, tags, posted_at_text };
 })()

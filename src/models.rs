@@ -43,6 +43,10 @@ pub struct UpworkJobDetail {
     pub duration: String,
     #[serde(default)]
     pub hours_per_week: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub created_at: Option<DateTime<Utc>>,
 }
 
 static RELATIVE_RE: LazyLock<Regex> = LazyLock::new(|| {

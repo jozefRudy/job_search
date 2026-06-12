@@ -212,6 +212,14 @@ impl UpworkScraper {
             bail!("Job detail page did not load");
         }
 
+        // Best-effort wait for budget panel to render (fixed jobs may never show it).
+        for _ in 0..10 {
+            if page.find_element("[data-cy='clock-timelog']").await.is_ok() {
+                break;
+            }
+            sleep(Duration::from_millis(500)).await;
+        }
+
         let raw: RawJobDetail = page.evaluate(FETCH_JOB_DETAIL_JS).await?.into_value()?;
 
         page.close().await.ok();
@@ -270,6 +278,9 @@ struct RawJobDetail {
     pub project_type: String,
     pub duration: String,
     pub hours_per_week: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    pub posted_at_text: String,
 }
 
 impl From<RawJobDetail> for UpworkJobDetail {
@@ -287,6 +298,8 @@ impl From<RawJobDetail> for UpworkJobDetail {
             project_type: raw.project_type,
             duration: raw.duration,
             hours_per_week: raw.hours_per_week,
+            tags: raw.tags,
+            created_at: crate::models::parse_relative_time(&raw.posted_at_text),
         }
     }
 }
@@ -482,17 +495,18 @@ impl PlatformClient for UpworkScraper {
             } else {
                 match self.fetch_job_detail(browser, &job_url).await {
                     Ok(detail) => {
+                        let created_at = detail.created_at.unwrap_or_else(chrono::Utc::now);
                         let job = Job {
                             id: None,
                             platform: Platform::Upwork,
                             external_id: external_id.clone(),
                             title: item.title.clone(),
-                            description: None,
+                            description: Some(detail.description.clone()).filter(|b| !b.is_empty()),
                             url: job_url.clone(),
-                            budget: None,
-                            tags: vec![],
+                            budget: Some(detail.exact_budget.clone()).filter(|b| !b.is_empty()),
+                            tags: detail.tags.clone(),
                             raw: Data::Upwork { detail },
-                            created_at: chrono::Utc::now(),
+                            created_at,
                             updated_at: chrono::Utc::now(),
                             liked: None,
                             note: None,
@@ -557,8 +571,6 @@ impl PlatformClient for UpworkScraper {
                 .unwrap_or(all_proposals.len());
             eprint!("\r  Progress {}/{}: {:.40}", synced, total, item.title);
         }
-
-        eprintln!("  Total synced: {}", synced);
         Ok(synced)
     }
 

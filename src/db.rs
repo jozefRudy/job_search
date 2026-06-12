@@ -10,7 +10,8 @@ pub struct Db {
 impl Db {
     pub async fn open(path: &std::path::Path) -> Result<Self> {
         let options = SqliteConnectOptions::from_str(&format!("sqlite:{}", path.display()))?
-            .create_if_missing(true);
+            .create_if_missing(true)
+            .foreign_keys(true);
 
         let pool = SqlitePool::connect_with(options).await?;
         sqlx::migrate!("./migrations").run(&pool).await?;
@@ -421,6 +422,8 @@ mod tests {
             project_type: "Ongoing project".to_string(),
             duration: "1 to 3 months".to_string(),
             hours_per_week: "Less than 30 hrs/week".to_string(),
+            tags: vec!["rust".to_string(), "api".to_string()],
+            created_at: None,
         };
         let job = Job {
             id: None,
@@ -449,6 +452,8 @@ mod tests {
             assert_eq!(d.proposals, detail.proposals);
             assert_eq!(d.exact_budget, detail.exact_budget);
             assert_eq!(d.experience_level, detail.experience_level);
+            assert_eq!(d.tags, detail.tags);
+            assert_eq!(d.created_at, detail.created_at);
         }
         Ok(())
     }
@@ -517,6 +522,33 @@ mod tests {
 
         let stats = db.stats().await?;
         assert_eq!(stats.total, 3);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_delete_job_cascades_to_reactions() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let job = test_job(Platform::Upwork, "del-cascade", "Delete me");
+        let id = db.upsert_job(&job).await?;
+        db.set_applied(id, Some("note"), chrono::Utc::now()).await?;
+
+        let before = db.get_job(id).await?;
+        assert!(before.is_some());
+
+        let deleted = db.delete_job(id).await?;
+        assert!(deleted);
+
+        let after = db.get_job(id).await?;
+        assert!(after.is_none());
+
+        let reaction_count: i64 =
+            sqlx::query_scalar!("SELECT COUNT(*) FROM reactions WHERE job_id = ?1", id)
+                .fetch_one(&db.pool)
+                .await?;
+        assert_eq!(reaction_count, 0);
+
         Ok(())
     }
 }

@@ -28,6 +28,7 @@
 - [[solidjs-presentation-helpers-undefined]] - In SolidJS projects, presentation-layer helpers (`fmtRelative`, `ratingEmoji`, `
 - [[solidjs-url-filter-state]] - For persistent filter state in SolidJS: use `@solidjs/router`'s `useSearchParams
 - [[solidjs-vs-angular-state-persistence]] - In SolidJS (and modern SPAs), persist list/filter state in URL query params via 
+- [[sqlite-foreign-keys-default-off]] - SQLite foreign keys are disabled by default and must be enabled per connection v
 - [[sqlx-query-as-default-limitation]] - `#[sqlx(flatten)]` does **not** work with the `query_as!` macro — it only works 
 - [[tanstack-query-over-engineering]] - Don't over-engineer TanStack Query cache invalidation. User prefers short, maint
 - [[tanstack-solidjs-structural-sharing]] - When using TanStack Query v5 with SolidJS, always set `structuralSharing: false`
