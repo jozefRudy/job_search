@@ -6,15 +6,20 @@ use crate::term::CursorGuard;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
+use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use serde_json::Value;
+use std::cmp::min;
+use std::collections::{HashMap, HashSet};
+use tokio::time::{Duration, sleep};
 
 const SCRAPE_CARDS_JS: &str = include_str!("nofluffjobs/scrape_cards.js");
 const CLICK_LOAD_MORE_JS: &str = include_str!("nofluffjobs/click_load_more.js");
 const COUNT_CARDS_JS: &str = include_str!("nofluffjobs/count_cards.js");
 const GET_TOTAL_RESULTS_JS: &str = include_str!("nofluffjobs/get_total_results.js");
+const FETCH_APPLICATIONS_JS: &str = include_str!("nofluffjobs/fetch_applications.js");
 
 /// Card scraped from NoFluffJobs search page DOM.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,6 +37,165 @@ pub struct NoFluffJobsScraper {
 }
 
 const API_BASE: &str = "https://nofluffjobs.com/api";
+
+/// Raw API response from NoFluffJobs /candidates/my-applications endpoint.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawApplicationsResponse {
+    has_next: bool,
+    items: Vec<RawApplicationItem>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawApplicationItem {
+    posting_id: String,
+    applied_date: NfjDate,
+    #[serde(default)]
+    status_history: Vec<RawStatusHistoryEntry>,
+    offer: RawOfferSummary,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawStatusHistoryEntry {
+    status: String,
+    date: NfjDate,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawOfferSummary {
+    title: String,
+    #[serde(default)]
+    salary: Option<RawSalary>,
+    #[serde(default)]
+    tiles: RawTiles,
+    url: String,
+    #[serde(default)]
+    posted: NfjDate,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawSalary {
+    currency: String,
+    from: u32,
+    to: u32,
+    #[serde(rename = "type")]
+    #[serde(default)]
+    type_field: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+struct RawTiles {
+    values: Vec<RawTileValue>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RawTileValue {
+    value: String,
+}
+
+/// Polymorphic date from NoFluffJobs: ISO string or integer milliseconds.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum NfjDate {
+    String(String),
+    Integer(i64),
+}
+
+impl Default for NfjDate {
+    fn default() -> Self {
+        NfjDate::Integer(0)
+    }
+}
+
+impl NfjDate {
+    fn to_utc(&self) -> Option<DateTime<Utc>> {
+        match self {
+            NfjDate::String(s) => parse_nfj_date_flexible(s),
+            NfjDate::Integer(ms) => DateTime::from_timestamp_millis(*ms),
+        }
+    }
+}
+
+/// Clean application item after boundary normalization.
+#[derive(Debug, Clone)]
+struct ApplicationItem {
+    posting_id: String,
+    applied_date: DateTime<Utc>,
+    status_history: Vec<StatusHistoryEntry>,
+    offer: OfferSummary,
+}
+
+#[derive(Debug, Clone)]
+struct StatusHistoryEntry {
+    status: String,
+    date: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+struct OfferSummary {
+    title: String,
+    budget: Option<String>,
+    tags: Vec<String>,
+    url: String,
+    posted: Option<DateTime<Utc>>,
+}
+
+impl TryFrom<RawApplicationItem> for ApplicationItem {
+    type Error = anyhow::Error;
+
+    fn try_from(raw: RawApplicationItem) -> Result<Self, Self::Error> {
+        Ok(ApplicationItem {
+            posting_id: raw.posting_id,
+            applied_date: raw
+                .applied_date
+                .to_utc()
+                .ok_or_else(|| anyhow::anyhow!("invalid applied_date"))?,
+            status_history: raw
+                .status_history
+                .into_iter()
+                .map(|s| {
+                    Ok(StatusHistoryEntry {
+                        status: s.status,
+                        date: s
+                            .date
+                            .to_utc()
+                            .ok_or_else(|| anyhow::anyhow!("invalid status history date"))?,
+                    })
+                })
+                .collect::<Result<_, anyhow::Error>>()?,
+            offer: raw.offer.try_into()?,
+        })
+    }
+}
+
+impl TryFrom<RawOfferSummary> for OfferSummary {
+    type Error = anyhow::Error;
+
+    fn try_from(raw: RawOfferSummary) -> Result<Self, Self::Error> {
+        let budget = raw.salary.map(|s| {
+            if s.type_field.is_empty() {
+                format!("{} - {} {}", s.from, s.to, s.currency)
+            } else {
+                format!("{} - {} {} /{}", s.from, s.to, s.currency, s.type_field)
+            }
+        });
+
+        let tags: Vec<String> = raw.tiles.values.into_iter().map(|t| t.value).collect();
+        let posted = raw.posted.to_utc();
+
+        Ok(OfferSummary {
+            title: raw.title,
+            budget,
+            tags,
+            url: raw.url,
+            posted,
+        })
+    }
+}
 
 /// Raw API response from NoFluffJobs detail endpoint.
 #[derive(Debug, Clone, Deserialize)]
@@ -350,12 +514,15 @@ impl NoFluffJobsScraper {
             .json()
             .await?;
 
-        let seniority = detail
-            .basics
-            .seniority
-            .as_ref()
-            .and_then(|s| s.as_str().map(String::from))
-            .unwrap_or_default();
+        let seniority = match detail.basics.seniority {
+            Some(Value::String(ref s)) => s.clone(),
+            Some(Value::Array(ref arr)) => arr
+                .iter()
+                .filter_map(|v| v.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            _ => String::new(),
+        };
 
         let must_have = detail
             .requirements
@@ -429,6 +596,143 @@ impl NoFluffJobsScraper {
         })
     }
 
+    /// Sync submitted applications from the NoFluffJobs profile page.
+    pub async fn sync_applications(
+        &self,
+        browser: &Browser,
+        db: &Db,
+        pause_ms: u64,
+        limit: Option<usize>,
+    ) -> Result<usize> {
+        let hosts = browser.get_page_hosts().await?;
+        if !hosts.iter().any(|h| h.contains("nofluffjobs.com")) {
+            bail!("NoFluffJobs requires open nofluffjobs.com tab in Brave");
+        }
+
+        let page = browser
+            .new_tab("https://nofluffjobs.com/profile/my-applications")
+            .await?;
+        sleep(Duration::from_millis(pause_ms)).await;
+
+        let per_page = 20i32;
+        let mut page_num = 1i32;
+        let mut all_items: Vec<ApplicationItem> = Vec::new();
+
+        loop {
+            let js = FETCH_APPLICATIONS_JS
+                .replace("__PAGE__", &page_num.to_string())
+                .replace("__LIMIT__", &per_page.to_string());
+
+            let raw: Value = page.evaluate(js.as_str()).await?.into_value()?;
+            if let Some(err) = raw.get("error") {
+                page.close().await.ok();
+                bail!("applications fetch error: {}", err);
+            }
+
+            let res: RawApplicationsResponse = serde_json::from_value(raw)?;
+            for raw_item in res.items {
+                match raw_item.try_into() {
+                    Ok(item) => all_items.push(item),
+                    Err(e) => eprintln!("  Warning: skipping malformed application item: {}", e),
+                }
+            }
+
+            if !res.has_next {
+                break;
+            }
+            page_num += 1;
+            sleep(Duration::from_millis(pause_ms)).await;
+        }
+        page.close().await.ok();
+
+        // Deduplicate by postingId, keep the latest application.
+        let mut latest_by_posting: HashMap<String, ApplicationItem> = HashMap::new();
+        for item in all_items {
+            match latest_by_posting.get_mut(&item.posting_id) {
+                Some(existing) => {
+                    if item.applied_date > existing.applied_date {
+                        *existing = item;
+                    }
+                }
+                None => {
+                    latest_by_posting.insert(item.posting_id.clone(), item);
+                }
+            }
+        }
+
+        let max = limit.unwrap_or(usize::MAX);
+        let mut synced = 0usize;
+        let total = min(max, latest_by_posting.len());
+
+        let _guard = CursorGuard::new();
+        for item in latest_by_posting.into_values() {
+            if synced >= max {
+                break;
+            }
+
+            if db
+                .job_exists(&Platform::NoFluffJobs, &item.posting_id)
+                .await?
+            {
+                continue;
+            }
+
+            sleep(Duration::from_millis(pause_ms)).await;
+
+            let detail = match self.fetch_detail(&item.posting_id).await {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!(
+                        "  Warning: failed to fetch detail for {}: {}",
+                        item.offer.title, e
+                    );
+                    continue;
+                }
+            };
+
+            let created_at = detail
+                .posted_at
+                .or(item.offer.posted)
+                .unwrap_or(item.applied_date);
+
+            let url = if item.offer.url.starts_with('/') {
+                format!("https://nofluffjobs.com{}", item.offer.url)
+            } else {
+                item.offer.url.clone()
+            };
+
+            let budget = item.offer.budget.clone();
+            let tags = item.offer.tags.clone();
+
+            let job = Job {
+                id: None,
+                platform: Platform::NoFluffJobs,
+                external_id: item.posting_id.clone(),
+                title: item.offer.title.clone(),
+                description: Some(detail.description.clone()).filter(|d| !d.is_empty()),
+                url,
+                budget,
+                tags,
+                raw: Data::Nofluffjobs { detail },
+                created_at,
+                updated_at: Utc::now(),
+                liked: None,
+                note: None,
+                applied_at: None,
+            };
+
+            let job_id = db.upsert_job(&job).await?;
+            let applied_at = applied_at_for(&item);
+            db.set_applied(job_id, None, applied_at).await?;
+
+            synced += 1;
+            eprint!("\r  Progress {}/{}: {:.40}", synced, total, job.title);
+        }
+        eprintln!();
+
+        Ok(synced)
+    }
+
     fn build_criteria(&self, query: &str) -> String {
         let mut parts: Vec<String> = Vec::new();
 
@@ -487,6 +791,31 @@ impl Default for NoFluffJobsConfig {
 
 fn html_to_md(html: &str) -> String {
     html2text::from_read(html.as_bytes(), 120).unwrap_or_else(|_| html.to_string())
+}
+
+fn parse_nfj_date_flexible(s: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(s)
+        .ok()
+        .map(|dt| dt.with_timezone(&Utc))
+        .or_else(|| {
+            NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f")
+                .ok()
+                .map(|dt| dt.and_utc())
+        })
+        .or_else(|| {
+            NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                .ok()
+                .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
+        })
+}
+
+fn applied_at_for(item: &ApplicationItem) -> DateTime<Utc> {
+    item.status_history
+        .iter()
+        .filter(|s| s.status.eq_ignore_ascii_case("applied"))
+        .map(|s| s.date)
+        .min()
+        .unwrap_or(item.applied_date)
 }
 
 #[cfg(test)]
