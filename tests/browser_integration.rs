@@ -121,6 +121,24 @@ async fn test_upwork_job_detail_fetch() {
             !detail.description.is_empty(),
             "detail should have description"
         );
+        assert!(
+            detail.posted_at.is_some(),
+            "detail should have posted_at parsed from page"
+        );
+        assert!(
+            !detail.exact_budget.is_empty(),
+            "detail should have exact_budget for hourly jobs"
+        );
+        assert!(
+            !detail.experience_level.is_empty(),
+            "detail should have experience_level"
+        );
+        assert!(!detail.duration.is_empty(), "detail should have duration");
+        assert!(
+            !detail.hours_per_week.is_empty(),
+            "detail should have hours_per_week"
+        );
+        assert!(!detail.tags.is_empty(), "detail should have tags");
         println!("detail struct:");
         println!("{}", serde_json::to_string_pretty(&detail).unwrap());
     })
@@ -248,6 +266,18 @@ async fn test_upwork_sync_applications() {
                 job.title,
                 job.applied_at,
                 job.note.as_ref().map(|n| n.len())
+            );
+            assert!(
+                job.budget.is_some(),
+                "synced job should have budget from detail"
+            );
+            assert!(
+                !job.tags.is_empty(),
+                "synced job should have tags from detail"
+            );
+            assert!(
+                job.created_at < chrono::Utc::now() - chrono::Duration::minutes(1),
+                "synced job should have posted date, not now"
             );
         }
     })
