@@ -128,6 +128,19 @@ Use `use` for repeated paths. No fully-qualified repetition.
 - **Changing public function signatures:** `grep` all call sites including tests and ignored integration tests before editing. Saves compile-error whack-a-mole.
 - When adding CLI commands, update both `cli.rs` enum AND `main.rs` match arm.
 
+## Adding a New Job Provider
+
+1. Use browser/Playwright skill to inspect the site first: identify search criteria, job IDs, detail page structure, and applications page if applicable.
+2. Add enum variant to `Platform` and matching `UpdatePlatform`/`SyncPlatform` subcommands.
+3. Create `src/platforms/<provider>.rs` with `Raw*` structs + `TryFrom` normalization at the boundary.
+4. Implement `PlatformClient`. Keep provider-specific config/args in the scraper struct, not in the trait.
+5. For applications sync: follow existing flow — fetch applications list, then fetch job detail, then upsert job and mark applied. Skip if detail unavailable.
+6. Add JS snippets under `src/platforms/<provider>/` and load with `include_str!`.
+7. Update `src/main.rs` match arms for new subcommands.
+8. Add integration tests in `tests/browser_integration.rs` mirroring existing providers: search page loads cards, pagination/load-more works, job detail fetch succeeds, and sync flow writes to DB with `applied_at` set. See `test_nofluffjobs_*` and `test_upwork_*` tests for patterns.
+9. Run `cargo sqlx prepare -- --tests` only if new DB queries introduced.
+10. Prefer HTTP API; use browser only for bot-protected or login-required sites.
+
 ## CLI Design
 
 - **Platform-specific options = subcommands, not flags.** When different platforms need different args (`--tier` for Upwork, `--employment` for NoFluffJobs), use clap subcommands (`update upwork`, `update nofluff`) instead of flat flags with `--platform`. Clean, self-documenting, no ambiguity.

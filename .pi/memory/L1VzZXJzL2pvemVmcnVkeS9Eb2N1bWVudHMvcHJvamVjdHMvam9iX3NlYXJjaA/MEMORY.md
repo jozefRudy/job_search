@@ -17,6 +17,7 @@
 - [[frontend-api-mismatch]] - Frontend `api.ts` must unwrap server response shape. Server `list_jobs` returns 
 - [[frontend-ui-pure-copies]] - When copying UI components from `../reddit/frontend-solid/src/components/ui/`, u
 - [[integration-test-timeout-means-bug]] - When an ignored browser integration test times out or hangs, treat it as a bug, 
+- [[new-platform-integration-spike]] - When integrating a new job board, scrape enough detail to make the listing usefu
 - [[nix-pnpm-hash-update]] - When frontend `pnpm` dependencies change in `frontend/package.json` or `frontend
 - [[nix-pnpm-oom-fix]] - When packaging pnpm frontend in Nix flake on macOS, `pnpm_11` + `fetcherVersion 
 - [[openapi-orval-experiment]] - Consider experimenting with OpenAPI + Orval for auto-generating TanStack Query h
@@ -41,6 +42,7 @@
 
 - [[db-set-applied-signature]] - `Db::set_applied` should take explicit non-optional `applied_at: NaiveDateTime` 
 - [[devenv-e2e-process]] - Document end-to-end process in `.pi/APPEND_SYSTEM.md`: `devenv up` starts backen
+- [[efinancialcareers-applications-sync-todo]] - eFinancialCareers applications sync TODO: scrape `https://www.efinancialcareers.
 - [[frontend-validation-pipeline]] - Frontend validation pipeline lives in `frontend/` dir: `pnpm typecheck && pnpm c
 - [[nofluffjobs-sync-plan]] - NoFluffJobs applications sync uses `/api/candidates/my-applications` with HMAC a
 - [[orval-solid-query-pattern]] - With orval `client: 'solid-query'`, use generated hooks for mutations but custom
