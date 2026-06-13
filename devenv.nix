@@ -12,7 +12,7 @@
   };
   enterShell = ''
     cargo sqlx database create 2>/dev/null || true
-    cargo sqlx migrate run && cargo sqlx prepare
+    cargo sqlx migrate run && cargo sqlx prepare -- --tests
   '';
 
   languages = {
