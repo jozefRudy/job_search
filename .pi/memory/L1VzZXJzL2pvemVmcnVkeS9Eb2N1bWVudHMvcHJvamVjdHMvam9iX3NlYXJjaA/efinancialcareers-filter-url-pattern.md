@@ -5,11 +5,11 @@ created: 2026-06-11
 updated: 2026-06-13
 ---
 
-eFinancialCareers filter URL pattern: multi-value filters use `|` separator (URL-encoded as `%7C`) for OR logic.
+eFinancialCareers filter URL pattern: multi-value filters use `|` separator (URL-encoded as `%7C`) for OR logic, and spaces in title values are encoded as literal `+`.
 
 Example: `filters.fullNormalizedJobTitle=Developer%7CEngineer%7CQuant+Developer%7CPython%7CRust`
 - Join CLI values with `,`: `"Developer,Engineer,Quant Developer,Python,Rust"`
-- Transform: replace space with `+` in multi-word titles, join with `|`, then `%7C`-encode pipes.
+- Replace spaces with `+`, join with `%7C` manually. Do **not** use generic `urlencoding::encode` because it encodes `+` as `%2B`.
 
 Key filters:
 - Work Arrangement: `filters.workArrangementType=REMOTE` (Remote/Hybrid/In-Office)
