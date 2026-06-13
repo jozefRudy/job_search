@@ -2,7 +2,7 @@
 type: lesson
 tags: [jobsearch, scraping, spike]
 created: 2026-06-12
-updated: 2026-06-12
+updated: 2026-06-13
 ---
 
-When integrating a new job board, scrape enough detail to make the listing useful in CLI/server without over-engineering. For eFinancialCareers, start with a small CLI-only spike: fetch search results via curl, identify detail endpoint and required headers/cookies, then build a minimal scraper that produces the same `Job` shape as existing platforms. Do not add persistence changes until basic fetch works end-to-end.
+When integrating a new job board, scrape enough detail to make the listing useful in CLI/server without over-engineering. For eFinancialCareers, we confirmed: use Brave browser (bot protection blocks curl), search cards are `<efc-job-card>`, pagination is "Show more", detail description lives in `<efc-job-description>`, and URL encoding is non-standard (`+` for spaces, `%7C` for pipes). Start with a CLI-only spike, then wire into `Platform`, `Data`, `cli.rs`, `main.rs`, `display.rs`, and integration tests.

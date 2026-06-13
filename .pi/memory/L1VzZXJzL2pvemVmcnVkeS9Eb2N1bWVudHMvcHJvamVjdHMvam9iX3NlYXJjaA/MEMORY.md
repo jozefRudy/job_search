@@ -8,6 +8,8 @@
 - [[api-test-catches-reactivity-regressions]] - API-level tests with mocked fetch are essential for catching silent reactivity r
 - [[brave-cdp-macos-launch]] - macOS `open -a "Brave Browser" --args --remote-debugging-port=9222` silently dro
 - [[browser-eval-over-screenshots]] - When model doesn't support image rendering, use `browser_eval` with JS extractio
+- [[browser-scraping-bot-protection]] - For browser-driven scrapers behind bot protection (eFinancialCareers), reuse the
+- [[budget-parse-regex-pattern]] - Budget parsing prefers a single regex that handles separators with optional whit
 - [[copy-ui-components-checklist]] - When copying UI components from another project, always verify: 1) missing depen
 - [[deserializer-shape-normalization]] - When scraping external APIs, do shape-normalization in explicit `Raw*` structs p
 - [[devenv-regen-api-script]] - `devenv.nix` `regen-api` script uses `pnpm -C frontend orval`, not `pnpm --dir f
@@ -18,6 +20,7 @@
 - [[frontend-ui-pure-copies]] - When copying UI components from `../reddit/frontend-solid/src/components/ui/`, u
 - [[integration-test-timeout-means-bug]] - When an ignored browser integration test times out or hangs, treat it as a bug, 
 - [[new-platform-integration-spike]] - When integrating a new job board, scrape enough detail to make the listing usefu
+- [[new-platform-variant-update-checklist]] - When a new `Platform` variant is added, also update `db.rs` test helper `test_jo
 - [[nix-pnpm-hash-update]] - When frontend `pnpm` dependencies change in `frontend/package.json` or `frontend
 - [[nix-pnpm-oom-fix]] - When packaging pnpm frontend in Nix flake on macOS, `pnpm_11` + `fetcherVersion 
 - [[openapi-orval-experiment]] - Consider experimenting with OpenAPI + Orval for auto-generating TanStack Query h

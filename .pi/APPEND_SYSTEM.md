@@ -136,10 +136,21 @@ Use `use` for repeated paths. No fully-qualified repetition.
 4. Implement `PlatformClient`. Keep provider-specific config/args in the scraper struct, not in the trait.
 5. For applications sync: follow existing flow — fetch applications list, then fetch job detail, then upsert job and mark applied. Skip if detail unavailable.
 6. Add JS snippets under `src/platforms/<provider>/` and load with `include_str!`.
+    - Keep selectors stable and handle both logged-in and logged-out DOM variants.
+    - Use visible text and stable attributes (e.g. `img[alt]` for company) over framework internals.
+    - `scrape_cards.js` — return array of job cards with IDs, titles, URLs, and visible metadata.
+    - `click_show_more.js` or `click_next_page.js` — pagination/load-more driver.
+    - `count_cards.js` — for verifying new items loaded.
+    - Detail extraction can be done via a small evaluate block or a dedicated `fetch_detail.js` snippet.
+    - Use existing `parse_relative_time` for posted-date strings like "2h ago".
+7. Build search URLs manually when the site uses non-standard encoding (e.g. eFinancialCareers uses literal `+` for spaces and `%7C` for pipes); generic `urlencoding::encode` can produce wrong values.
 7. Update `src/main.rs` match arms for new subcommands.
 8. Add integration tests in `tests/browser_integration.rs` mirroring existing providers: search page loads cards, pagination/load-more works, job detail fetch succeeds, and sync flow writes to DB with `applied_at` set. See `test_nofluffjobs_*` and `test_upwork_*` tests for patterns.
 9. Run `cargo sqlx prepare -- --tests` only if new DB queries introduced.
 10. Prefer HTTP API; use browser only for bot-protected or login-required sites.
+11. Update `display.rs` table and detailed renderers for the new `Data` variant.
+12. Run a live `update` (or ignored integration test) before claiming the provider works end-to-end.
+11. Update `display.rs` table and detailed renderers for the new `Data` variant.
 
 ## CLI Design
 
