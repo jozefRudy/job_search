@@ -9,12 +9,13 @@ eFinancialCareers filter URL pattern: multi-value filters use `|` separator (URL
 
 Example: `filters.fullNormalizedJobTitle=Developer%7CEngineer%7CQuant+Developer%7CPython%7CRust`
 - Join CLI values with `,`: `"Developer,Engineer,Quant Developer,Python,Rust"`
-- Replace spaces with `+`, join with `%7C` manually. Do **not** use generic `urlencoding::encode` because it encodes `+` as `%2B`.
+- Use `urlencoding::encode`, then convert `%20` back to `+` to match the site's non-standard encoding.
 
 Key filters:
 - Work Arrangement: `filters.workArrangementType=REMOTE` (Remote/Hybrid/In-Office)
 - Job Title (OR): `filters.fullNormalizedJobTitle=<pipe-separated titles>`
-- Country: `countryCode=US` (separate param, not inside filters)
-- Salary range: `filters.minSalary=100000&filters.maxSalary=900000` (max required by site when min provided)
+- Salary: `filters.minSalary=100000` (`maxSalary` is not required for remote searches)
+
+`countryCode` is optional and not needed for remote searches; omitting it returns global remote results.
 
 No job type (Permanent/Contract) filter available. Contract roles caught via keyword in search query if needed.

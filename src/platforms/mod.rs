@@ -45,5 +45,6 @@ pub trait PlatformClient: Send + Sync {
     }
 }
 
+pub mod efinancialcareers;
 pub mod nofluffjobs;
 pub mod upwork;

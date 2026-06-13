@@ -188,13 +188,10 @@ impl TryFrom<RawOfferSummary> for OfferSummary {
         });
 
         let budget = raw.salary.map(|s| {
-            Budget {
-                min: s.from,
-                max: s.to,
-                currency: s.currency,
-                period: None,
-            }
-            .to_string()
+            let text = format!("{} - {} {}", s.from, s.to, s.currency);
+            Budget::parse(&text, Some("mo"))
+                .map(|b| b.to_string())
+                .unwrap_or(text)
         });
 
         let posted = raw.posted.to_utc();
@@ -522,16 +519,13 @@ impl NoFluffJobsScraper {
                             let normalized = b.replace(['\u{00a0}', '\u{2007}', '\u{202f}'], " ");
                             if normalized.trim() == "Salary Match" {
                                 self.config.min_salary_eur.map(|min| {
-                                    Budget {
-                                        min,
-                                        max: min,
-                                        currency: self.config.salary_currency.clone(),
-                                        period: None,
-                                    }
-                                    .to_string()
+                                    let text = format!("{} {}", min, self.config.salary_currency);
+                                    Budget::parse(&text, Some("mo"))
+                                        .map(|b| b.to_string())
+                                        .unwrap_or(text)
                                 })
                             } else {
-                                Budget::parse(b).map(|b| b.to_string())
+                                Budget::parse(b, Some("mo")).map(|b| b.to_string())
                             }
                         });
                         let job = Job {
@@ -573,7 +567,6 @@ impl NoFluffJobsScraper {
         }
 
         page.close().await.ok();
-        eprintln!("  Total new jobs: {}", all_jobs.len());
         Ok(all_jobs)
     }
 
@@ -968,7 +961,7 @@ mod tests {
             posted: NfjDate::Integer(0),
         };
         let offer: OfferSummary = raw.try_into().unwrap();
-        assert_eq!(offer.budget, Some("6119 - 8238 EUR".into()));
+        assert_eq!(offer.budget, Some("6119 - 8238 EUR/mo".into()));
         assert_eq!(offer.employment_type, Some("b2b".into()));
         assert!(offer.tags.contains(&"rust".into()));
         assert!(offer.tags.contains(&"backend".into()));
@@ -989,7 +982,7 @@ mod tests {
             posted: NfjDate::Integer(0),
         };
         let offer: OfferSummary = raw.try_into().unwrap();
-        assert_eq!(offer.budget, Some("100 - 200 EUR".into()));
+        assert_eq!(offer.budget, Some("100 - 200 EUR/mo".into()));
         assert!(!offer.tags.contains(&"".into()));
     }
 

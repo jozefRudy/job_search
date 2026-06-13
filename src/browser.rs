@@ -41,7 +41,6 @@ impl BrowserExt for Browser {
     async fn new_tab(&self, url: &str) -> Result<chromiumoxide::Page> {
         let page = self.new_blank_tab().await?;
         page.goto(url).await?;
-        page.wait_for_navigation().await?;
         Ok(page)
     }
 

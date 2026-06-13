@@ -133,6 +133,30 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                 &[("Id", CellAlignment::Right), ("#", CellAlignment::Right)],
             );
         }
+        Some(Platform::Efinancialcareers) => {
+            let headers = ["Id", "Posted", "Budget", "Applied", "Rating", "Title", "#"];
+            table.set_header(headers);
+            for (i, job) in jobs.iter().enumerate() {
+                table.add_row(vec![
+                    Cell::new(job.id.unwrap_or(0)),
+                    Cell::new(fmt_relative(job.created_at)),
+                    Cell::new(job.budget.as_deref().unwrap_or("?")),
+                    Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
+                    Cell::new(match job.liked {
+                        Some(true) => "👍",
+                        Some(false) => "👎",
+                        None => "",
+                    }),
+                    Cell::new(&job.title),
+                    Cell::new(i + 1),
+                ]);
+            }
+            align_columns(
+                &mut table,
+                &headers,
+                &[("Id", CellAlignment::Right), ("#", CellAlignment::Right)],
+            );
+        }
     }
 
     table.to_string()
@@ -230,6 +254,26 @@ pub fn render_job_detailed(job: &Job) -> String {
                     "  Nice to have:\n    {}",
                     indent_md(&detail.nice_to_have)
                 ));
+            }
+            if !detail.description.is_empty() {
+                lines.push(format!(
+                    "  Description:\n    {}",
+                    indent_md(&detail.description)
+                ));
+            }
+        }
+        Data::Efinancialcareers { detail } => {
+            if !detail.company.is_empty() {
+                lines.push(format!("  Company:        {}", detail.company));
+            }
+            if !detail.location.is_empty() {
+                lines.push(format!("  Location:       {}", detail.location));
+            }
+            if !detail.employment_type.is_empty() {
+                lines.push(format!("  Employment:     {}", detail.employment_type));
+            }
+            if !detail.salary.is_empty() {
+                lines.push(format!("  Salary:         {}", detail.salary));
             }
             if !detail.description.is_empty() {
                 lines.push(format!(

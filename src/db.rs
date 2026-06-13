@@ -321,6 +321,9 @@ impl From<JobRow> for Job {
                 "nofluffjobs" => Data::Nofluffjobs {
                     detail: crate::models::NoFluffJobDetail::default(),
                 },
+                "efinancialcareers" => Data::Efinancialcareers {
+                    detail: crate::models::EfinancialcareersJobDetail::default(),
+                },
                 _ => panic!("unknown platform in db: '{}'", r.platform),
             });
 
@@ -329,6 +332,7 @@ impl From<JobRow> for Job {
             platform: match r.platform.as_str() {
                 "upwork" => Platform::Upwork,
                 "nofluffjobs" => Platform::NoFluffJobs,
+                "efinancialcareers" => Platform::Efinancialcareers,
                 _ => panic!("unknown platform in db: '{}'", r.platform),
             },
             external_id: r.external_id,
@@ -356,7 +360,9 @@ pub struct Stats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Job, NoFluffJobDetail, Platform, UpworkJobDetail};
+    use crate::models::{
+        EfinancialcareersJobDetail, Job, NoFluffJobDetail, Platform, UpworkJobDetail,
+    };
 
     fn temp_db() -> tempfile::NamedTempFile {
         tempfile::NamedTempFile::new().expect("temp db")
@@ -369,6 +375,9 @@ mod tests {
             },
             Platform::NoFluffJobs => Data::Nofluffjobs {
                 detail: NoFluffJobDetail::default(),
+            },
+            Platform::Efinancialcareers => Data::Efinancialcareers {
+                detail: EfinancialcareersJobDetail::default(),
             },
         };
         Job {

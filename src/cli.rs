@@ -54,6 +54,7 @@ pub enum ListTarget {
     All(CommonListArgs),
     Upwork(UpworkListArgs),
     Nofluff(CommonListArgs),
+    Efinancialcareers(CommonListArgs),
 }
 
 #[derive(Args)]
@@ -163,6 +164,9 @@ pub enum UpdatePlatform {
 
     /// Fetch NoFluffJobs jobs
     Nofluff(NofluffArgs),
+
+    /// Fetch eFinancialCareers jobs
+    Efinancialcareers(EfinancialcareersArgs),
 }
 
 #[derive(Args)]
@@ -207,4 +211,19 @@ pub struct NofluffArgs {
     /// Pause between interactions in ms (default: 2000)
     #[arg(long, default_value = "2000")]
     pub pause: u64,
+}
+
+#[derive(Args)]
+pub struct EfinancialcareersArgs {
+    /// Job title/keyword to search.
+    #[arg(short, long, default_value = "")]
+    pub query: String,
+
+    /// Minimum annual salary in USD (default: 100000)
+    #[arg(long, default_value = "100000")]
+    pub min_salary: u32,
+
+    /// Pause between interactions in ms (default: 2000)
+    #[arg(long, default_value = "2000")]
+    pub pause_ms: u64,
 }

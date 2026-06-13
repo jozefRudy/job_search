@@ -403,6 +403,175 @@ async fn test_nofluffjobs_load_more_adds_jobs() {
     .expect("test should complete within 60s");
 }
 
+// --- eFinancialCareers: search page ---
+
+#[tokio::test]
+#[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
+async fn test_efinancialcareers_search_page_has_cards_and_details() {
+    let _guard = get_guard();
+    let manager = BrowserManager::new();
+
+    tokio::time::timeout(Duration::from_secs(45), async {
+        let browser = manager.ensure().await.expect("Brave should connect");
+        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new();
+        let search_url = scraper.build_search_url("Rust,Developer");
+        let page = browser
+            .new_tab(&search_url)
+            .await
+            .expect("open search page");
+
+        let ok =
+            jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::wait_for_jobs(&page)
+                .await
+                .expect("wait_for_jobs should not error");
+        assert!(ok, "jobs should appear on search page");
+
+        let jobs =
+            jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::scrape_page(&page)
+                .await
+                .expect("scrape_page should not error");
+        assert!(!jobs.is_empty(), "should find at least one job card");
+
+        let total_jobs =
+            jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::scrape_total(&page)
+                .await
+                .expect("scrape_total should find a count in heading");
+        assert!(total_jobs > 0, "total job count should be positive");
+        println!("total jobs from heading: {}", total_jobs);
+
+        let first = &jobs[0];
+        assert!(!first.external_id.is_empty(), "external_id required");
+        assert!(!first.title.is_empty(), "title required");
+        assert!(
+            first.url.starts_with("https://www.efinancialcareers.com/"),
+            "url must be on efinancialcareers.com: {}",
+            first.url
+        );
+        println!("found {} cards, first card:", jobs.len());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(first).expect("serialization should succeed")
+        );
+
+        let detail = scraper
+            .fetch_detail(&browser, &first.url)
+            .await
+            .expect("fetch_detail should succeed");
+        assert!(
+            !detail.description.is_empty(),
+            "detail should have description"
+        );
+
+        println!("detail struct:");
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&detail).expect("serialization should succeed")
+        );
+
+        page.close().await.ok();
+    })
+    .await
+    .expect("test should complete within 45s");
+}
+
+// --- eFinancialCareers: load more ---
+
+#[tokio::test]
+#[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
+async fn test_efinancialcareers_show_more_adds_jobs() {
+    let _guard = get_guard();
+    let manager = BrowserManager::new();
+
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let browser = manager.ensure().await.expect("Brave should connect");
+        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new();
+        let search_url = scraper.build_search_url("");
+        let page = browser
+            .new_tab(&search_url)
+            .await
+            .expect("open search page");
+
+        assert!(
+            jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::wait_for_jobs(&page)
+                .await
+                .expect("wait_for_jobs"),
+            "jobs should appear"
+        );
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        let first_page =
+            jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::scrape_page(&page)
+                .await
+                .expect("scrape first page");
+        assert!(!first_page.is_empty(), "first page should have jobs");
+        let first_count = first_page.len();
+        println!("first page: {} jobs", first_count);
+
+        let more_loaded =
+            jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::click_show_more(
+                &page, 2000,
+            )
+            .await;
+        if !more_loaded {
+            println!("No 'Show more' button or no more jobs — skipping assertion");
+            page.close().await.ok();
+            return;
+        }
+
+        let second_page =
+            jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::scrape_page(&page)
+                .await
+                .expect("scrape second page");
+        let total = second_page.len();
+        println!("after show-more: {} jobs", total);
+
+        assert!(
+            total > first_count,
+            "after show-more, total should increase: {} vs {}",
+            total,
+            first_count
+        );
+
+        page.close().await.ok();
+    })
+    .await
+    .expect("test should complete within 60s");
+}
+
+#[tokio::test]
+#[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
+async fn test_efinancialcareers_zero_results_returns_count_zero() {
+    let _guard = get_guard();
+    let manager = BrowserManager::new();
+
+    tokio::time::timeout(Duration::from_secs(45), async {
+        let browser = manager.ensure().await.expect("Brave should connect");
+        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new();
+        let search_url = scraper.build_search_url("xyznonexistent12345thisshouldreturnnojobs");
+        let page = browser
+            .new_tab(&search_url)
+            .await
+            .expect("open search page");
+
+        assert!(
+            jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::wait_for_jobs(&page)
+                .await
+                .expect("wait_for_jobs should not error"),
+            "page should render job cards section even for no matches"
+        );
+
+        let total_jobs =
+            jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::scrape_total(&page)
+                .await
+                .expect("scrape_total should not error on zero-results page");
+        assert_eq!(total_jobs, 0, "total job count should be 0 for no matches");
+
+        page.close().await.ok();
+    })
+    .await
+    .expect("test should complete within 45s");
+}
+
 // --- NoFluffJobs: sync applications ---
 
 #[tokio::test]
@@ -454,7 +623,8 @@ async fn test_nofluffjobs_sync_applications() {
             );
             assert!(job.budget.is_some(), "synced job should have budget");
             assert!(
-                jobsearch::models::Budget::parse(job.budget.as_ref().unwrap()).is_some(),
+                jobsearch::models::Budget::parse(job.budget.as_ref().unwrap(), Some("mo"))
+                    .is_some(),
                 "synced job budget should parse: {:?}",
                 job.budget
             );

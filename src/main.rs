@@ -9,13 +9,17 @@ use jobsearch::db::Db;
 use jobsearch::display;
 use jobsearch::models::{JobFilter, Platform, Sort};
 use jobsearch::platforms::{
-    PlatformClient, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper,
+    PlatformClient,
+    efinancialcareers::{EfinancialcareersConfig, EfinancialcareersScraper},
+    nofluffjobs::NoFluffJobsScraper,
+    upwork::UpworkScraper,
 };
 use jobsearch::server;
 
 const DEFAULT_INIT_URLS: &[&str] = &[
     "https://www.upwork.com/freelancers/~01dba08086390dc196",
     "https://nofluffjobs.com",
+    "https://www.efinancialcareers.com",
 ];
 
 async fn cmd_init(browser: &BrowserManager, urls: &[&str]) -> Result<()> {
@@ -72,14 +76,7 @@ async fn main() -> Result<()> {
             UpdatePlatform::Upwork(args) => {
                 let scraper =
                     UpworkScraper::with_config(args.tier, args.min_rate, args.client_hires);
-                fetch_and_store(
-                    &db,
-                    &browser,
-                    vec![Box::new(scraper)],
-                    &args.query,
-                    args.pause,
-                )
-                .await?;
+                fetch_and_store(&db, &browser, &scraper, &args.query, args.pause).await?;
             }
             UpdatePlatform::Nofluff(args) => {
                 let config = jobsearch::platforms::nofluffjobs::NoFluffJobsConfig {
@@ -90,14 +87,17 @@ async fn main() -> Result<()> {
                     salary_currency: "EUR".to_string(),
                 };
                 let scraper = NoFluffJobsScraper::with_config(config);
-                fetch_and_store(
-                    &db,
-                    &browser,
-                    vec![Box::new(scraper)],
-                    &args.query,
-                    args.pause,
-                )
-                .await?;
+                fetch_and_store(&db, &browser, &scraper, &args.query, args.pause).await?;
+            }
+            UpdatePlatform::Efinancialcareers(args) => {
+                let config = EfinancialcareersConfig {
+                    work_arrangement: "REMOTE".to_string(),
+                    min_salary: args.min_salary,
+                    currency_code: "USD".to_string(),
+                    language: "en".to_string(),
+                };
+                let scraper = EfinancialcareersScraper::with_config(config);
+                fetch_and_store(&db, &browser, &scraper, &args.query, args.pause_ms).await?;
             }
         },
         Commands::List(cmd) => match cmd.target {
@@ -138,6 +138,22 @@ async fn main() -> Result<()> {
                 cmd_list(
                     &db,
                     Some(Platform::NoFluffJobs),
+                    filter,
+                    args.detailed,
+                    Sort::Created,
+                    cli.json,
+                )
+                .await?;
+            }
+            ListTarget::Efinancialcareers(args) => {
+                let filter = JobFilter {
+                    recency: args.recency,
+                    applied: args.applied,
+                    liked: args.rating,
+                };
+                cmd_list(
+                    &db,
+                    Some(Platform::Efinancialcareers),
                     filter,
                     args.detailed,
                     Sort::Created,
@@ -194,20 +210,20 @@ async fn main() -> Result<()> {
 async fn fetch_and_store(
     db: &Db,
     browser: &BrowserManager,
-    clients: Vec<Box<dyn PlatformClient>>,
+    client: &impl PlatformClient,
     query: &str,
     pause_ms: u64,
 ) -> Result<()> {
-    for client in clients {
-        eprintln!("Fetching from {}...", client.name());
-        match client
-            .fetch_with_manager(browser, db, query, pause_ms)
-            .await
-        {
-            Ok(_jobs) => {}
-            Err(e) => {
-                eprintln!("  Error from {}: {}", client.name(), e);
-            }
+    eprintln!("Fetching from {}...", client.name());
+    match client
+        .fetch_with_manager(browser, db, query, pause_ms)
+        .await
+    {
+        Ok(jobs) => {
+            eprintln!("  Total new jobs: {}", jobs.len());
+        }
+        Err(e) => {
+            eprintln!("  Error from {}: {}", client.name(), e);
         }
     }
     Ok(())

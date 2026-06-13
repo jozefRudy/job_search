@@ -1,6 +1,6 @@
 use crate::browser::BrowserExt;
 use crate::db::Db;
-use crate::models::{Data, Job, Platform, UpworkJobDetail};
+use crate::models::{Budget, Data, Job, Platform, UpworkJobDetail};
 use crate::platforms::PlatformClient;
 use crate::term::CursorGuard;
 use anyhow::{Result, anyhow, bail};
@@ -21,6 +21,25 @@ const EXTRACT_SUBMITTED_LIST_JS: &str = include_str!("upwork/extract_submitted_l
 const EXTRACT_PROPOSAL_DETAIL_JS: &str = include_str!("upwork/extract_proposal_detail.js");
 const CLICK_PAGE_JS: &str = include_str!("upwork/click_page.js");
 const GET_SUBMITTED_PAGE_JS: &str = include_str!("upwork/get_submitted_page.js");
+
+fn parse_upwork_budget(s: &str) -> String {
+    let lower = s.to_lowercase();
+    let period = if lower.contains("hour") {
+        Some("hr")
+    } else {
+        None
+    };
+    let cleaned = s
+        .replace("Hourly:", "")
+        .replace("hourly:", "")
+        .replace("Fixed-price:", "")
+        .replace("fixed-price:", "")
+        .replace("Fixed price:", "")
+        .replace("fixed price:", "");
+    Budget::parse(cleaned.trim(), period)
+        .map(|b| b.to_string())
+        .unwrap_or_else(|| s.trim().to_string())
+}
 
 /// Raw job card from JS scraper (all strings).
 #[derive(Debug, Clone, Deserialize)]
@@ -237,7 +256,7 @@ impl UpworkScraper {
                 title: r.title,
                 description: r.description,
                 url: r.url,
-                budget: r.budget,
+                budget: r.budget.map(|b| parse_upwork_budget(&b)),
                 posted_at_text: crate::models::parse_relative_time(&r.posted_at_text),
                 tags: r.tags,
             })
@@ -295,7 +314,7 @@ impl TryFrom<RawJobDetail> for UpworkJobDetail {
             invites_sent: raw.invites_sent,
             unanswered_invites: raw.unanswered_invites,
             description: raw.description,
-            exact_budget: raw.exact_budget,
+            exact_budget: parse_upwork_budget(&raw.exact_budget),
             experience_level: raw.experience_level,
             hires: raw.hires,
             project_type: raw.project_type,
@@ -506,7 +525,8 @@ impl PlatformClient for UpworkScraper {
                             title: item.title.clone(),
                             description: Some(detail.description.clone()).filter(|b| !b.is_empty()),
                             url: job_url.clone(),
-                            budget: Some(detail.exact_budget.clone()).filter(|b| !b.is_empty()),
+                            budget: Some(parse_upwork_budget(&detail.exact_budget))
+                                .filter(|b| !b.is_empty()),
                             tags: detail.tags.clone(),
                             raw: Data::Upwork { detail },
                             created_at,

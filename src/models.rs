@@ -14,6 +14,24 @@ use utoipa::ToSchema;
 pub enum Data {
     Upwork { detail: UpworkJobDetail },
     Nofluffjobs { detail: NoFluffJobDetail },
+    Efinancialcareers { detail: EfinancialcareersJobDetail },
+}
+
+/// Full detail scraped from an individual eFinancialCareers job page.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct EfinancialcareersJobDetail {
+    #[serde(default)]
+    pub company: String,
+    #[serde(default)]
+    pub location: String,
+    #[serde(default)]
+    pub employment_type: String,
+    #[serde(default)]
+    pub salary: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub posted_at: Option<DateTime<Utc>>,
 }
 
 /// Full detail scraped from an individual Upwork job page.
@@ -129,6 +147,7 @@ pub struct NoFluffJobDetail {
 #[sqlx(rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum Platform {
+    Efinancialcareers,
     NoFluffJobs,
     Upwork,
 }
@@ -136,6 +155,7 @@ pub enum Platform {
 impl fmt::Display for Platform {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Platform::Efinancialcareers => write!(f, "efinancialcareers"),
             Platform::NoFluffJobs => write!(f, "nofluffjobs"),
             Platform::Upwork => write!(f, "upwork"),
         }
@@ -286,20 +306,46 @@ impl JobFilter {
     }
 }
 
-/// Parsed budget range with consistent formatting.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Budget {
-    pub min: u32,
-    pub max: u32,
-    pub currency: String,
-    pub period: Option<String>,
+/// Parsed budget value with consistent formatting.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Budget {
+    Range {
+        min: u32,
+        max: u32,
+        currency: String,
+        period: Option<String>,
+    },
+    Single {
+        amount: u32,
+        currency: String,
+        period: Option<String>,
+    },
 }
 
 impl fmt::Display for Budget {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} - {} {}", self.min, self.max, self.currency)?;
-        if let Some(p) = &self.period {
-            write!(f, "/{}", p)?;
+        match self {
+            Budget::Range {
+                min,
+                max,
+                currency,
+                period,
+            } => {
+                write!(f, "{} - {} {}", min, max, currency)?;
+                if let Some(p) = period {
+                    write!(f, "/{}", p)?;
+                }
+            }
+            Budget::Single {
+                amount,
+                currency,
+                period,
+            } => {
+                write!(f, "{} {}", amount, currency)?;
+                if let Some(p) = period {
+                    write!(f, "/{}", p)?;
+                }
+            }
         }
         Ok(())
     }
@@ -307,80 +353,196 @@ impl fmt::Display for Budget {
 
 impl Budget {
     /// Parse budget strings like "7 069 – 9 426 EUR" or "$50-$100/hr".
-    pub fn parse(s: &str) -> Option<Self> {
-        let s = normalize_budget(s);
-        parse_symbol_prefix(&s).or_else(|| parse_suffix_currency(&s))
+    /// `default_period` is applied when the string does not already specify one.
+    pub fn parse(s: &str, default_period: Option<&str>) -> Option<Self> {
+        let s = Self::normalize(s);
+        Self::parse_code_prefix_range(&s, default_period)
+            .or_else(|| Self::parse_symbol_prefix(&s, default_period))
+            .or_else(|| Self::parse_suffix_currency(&s, default_period))
     }
-}
 
-fn normalize_budget(s: &str) -> String {
-    s.replace(['\u{00a0}', '\u{2007}', '\u{202f}'], " ")
-}
-
-fn split_period(s: &str) -> (&str, Option<String>) {
-    let (base, period) = s.rsplit_once('/').unwrap_or((s, ""));
-    let period = period.trim();
-    if period.is_empty() {
-        (base.trim(), None)
-    } else {
-        (base.trim(), Some(period.to_string()))
+    fn resolve_period(explicit: Option<String>, default: Option<&str>) -> Option<String> {
+        explicit.or_else(|| default.map(|p| p.to_string()))
     }
-}
 
-fn parse_number(s: &str) -> Option<u32> {
-    s.chars()
-        .filter(|c| c.is_ascii_digit())
-        .collect::<String>()
-        .parse()
-        .ok()
-}
+    /// Parse currency-code-prefixed ranges like "USD120000 - USD140000 per annum".
+    fn parse_code_prefix_range(s: &str, default_period: Option<&str>) -> Option<Budget> {
+        static RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+            regex::Regex::new(
+                r"(?i)\b(USD|EUR|GBP|PLN|CHF)\s*(\d[\d,]*[kKmM]?)\s*-\s*(?:USD|EUR|GBP|PLN|CHF)\s*(\d[\d,]*[kKmM]?)\b",
+            )
+            .unwrap()
+        });
 
-fn parse_range(s: &str) -> Option<(u32, u32)> {
-    for sep in ['–', '-'] {
-        if let Some((a, b)) = s.split_once(sep) {
-            let min = parse_number(a)?;
-            let max = parse_number(b)?;
-            return Some((min, max));
+        let (base, period) = Self::split_period(s);
+        let caps = RE.captures(base.trim())?;
+        let min = Self::parse_number(&caps[2])?;
+        let max = Self::parse_number(&caps[3])?;
+        Some(if min == max {
+            Budget::Single {
+                amount: min,
+                currency: caps[1].to_ascii_uppercase(),
+                period: Self::resolve_period(period, default_period),
+            }
+        } else {
+            Budget::Range {
+                min,
+                max,
+                currency: caps[1].to_ascii_uppercase(),
+                period: Self::resolve_period(period, default_period),
+            }
+        })
+    }
+
+    fn normalize(s: &str) -> String {
+        s.replace(['\u{00a0}', '\u{2007}', '\u{202f}'], " ")
+    }
+
+    fn split_period(s: &str) -> (&str, Option<String>) {
+        let (base, period) = s.rsplit_once('/').unwrap_or((s, ""));
+        let period = period.trim();
+        if period.is_empty() {
+            (base.trim(), None)
+        } else {
+            (base.trim(), Some(period.to_string()))
         }
     }
-    let val = parse_number(s)?;
-    Some((val, val))
-}
 
-fn parse_symbol_prefix(s: &str) -> Option<Budget> {
-    let (base, period) = split_period(s);
+    fn parse_number(s: &str) -> Option<u32> {
+        static RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+            regex::Regex::new(r"(\d[\d\s,]*)(?:\.(\d+))?\s*([kKmM])?\b").unwrap()
+        });
 
-    let (currency, _) = if let Some(rest) = base.strip_prefix('$') {
-        ("USD", rest)
-    } else {
-        let rest = base.strip_prefix('€')?;
-        ("EUR", rest)
-    };
+        let s = Self::normalize(s);
+        let caps = RE.captures(s.trim())?;
 
-    let (min, max) = parse_range(base)?;
-    Some(Budget {
-        min,
-        max,
-        currency: currency.to_string(),
-        period,
-    })
-}
+        let integer: u32 = caps[1]
+            .chars()
+            .filter(|c| c.is_ascii_digit())
+            .collect::<String>()
+            .parse()
+            .ok()?;
 
-fn parse_suffix_currency(s: &str) -> Option<Budget> {
-    let (base, period) = split_period(s);
+        let fraction_part = caps.get(2).map(|m| m.as_str());
+        let fraction_digits = fraction_part.map(|s| s.len()).unwrap_or(0);
+        let fraction: u32 = fraction_part
+            .map(|s| {
+                s.chars()
+                    .filter(|c| c.is_ascii_digit())
+                    .collect::<String>()
+                    .parse()
+                    .unwrap_or(0)
+            })
+            .unwrap_or(0);
 
-    for currency in ["EUR", "PLN", "USD", "GBP", "CHF"] {
-        if let Some(prefix) = base.strip_suffix(currency) {
-            let (min, max) = parse_range(prefix.trim())?;
-            return Some(Budget {
+        let multiplier: u64 = match caps
+            .get(3)
+            .map(|m| m.as_str().to_ascii_lowercase())
+            .as_deref()
+        {
+            Some("k") => 1_000,
+            Some("m") => 1_000_000,
+            _ => 1,
+        };
+
+        if fraction_digits == 0 {
+            (integer as u64 * multiplier).try_into().ok()
+        } else {
+            let scale = 10_u64.pow(fraction_digits as u32);
+            let value = (integer as u64 * scale + fraction as u64) * multiplier / scale;
+            value.try_into().ok()
+        }
+    }
+
+    fn parse_range(s: &str) -> Option<(u32, u32)> {
+        static RANGE_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+            regex::Regex::new(
+                r"(?:\$|€|£|\b(?:USD|EUR|GBP|PLN|CHF)\b\s*)?(\d[\d\s,.$£€]*[kKmM]?)\s*(?:–|-|\s+to\s+)\s*(?:\$|€|£|\b(?:USD|EUR|GBP|PLN|CHF)\b\s*)?(\d[\d\s,.$£€]*[kKmM]?)\b",
+            )
+            .unwrap()
+        });
+
+        static CURRENCY_CODE_RANGE_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(
+            || {
+                regex::Regex::new(
+                    r"(?i)(USD|EUR|GBP|PLN|CHF)\s*(\d[\d,]*[kKmM]?)\s*-\s*(USD|EUR|GBP|PLN|CHF)\s*(\d[\d,]*[kKmM]?)",
+                )
+                .unwrap()
+            },
+        );
+
+        if let Some(caps) = CURRENCY_CODE_RANGE_RE.captures(s) {
+            let min = Self::parse_number(&caps[2])?;
+            let max = Self::parse_number(&caps[4])?;
+            return Some((min, max));
+        }
+
+        if let Some(caps) = RANGE_RE.captures(s) {
+            let min = Self::parse_number(&caps[1])?;
+            let max = Self::parse_number(&caps[2])?;
+            return Some((min, max));
+        }
+
+        let val = Self::parse_number(s)?;
+        Some((val, val))
+    }
+
+    fn parse_symbol_prefix(s: &str, default_period: Option<&str>) -> Option<Budget> {
+        let (base, period) = Self::split_period(s);
+
+        let (currency, _) = if let Some(rest) = base.strip_prefix('$') {
+            ("USD", rest)
+        } else {
+            let rest = base.strip_prefix('€')?;
+            ("EUR", rest)
+        };
+
+        let (min, max) = Self::parse_range(base)?;
+        Some(if min == max {
+            Budget::Single {
+                amount: min,
+                currency: currency.to_string(),
+                period: Self::resolve_period(period, default_period),
+            }
+        } else {
+            Budget::Range {
                 min,
                 max,
                 currency: currency.to_string(),
-                period,
-            });
-        }
+                period: Self::resolve_period(period, default_period),
+            }
+        })
     }
-    None
+
+    fn parse_suffix_currency(s: &str, default_period: Option<&str>) -> Option<Budget> {
+        let (base, period) = Self::split_period(s);
+
+        for currency in ["EUR", "PLN", "USD", "GBP", "CHF"] {
+            if base.contains(currency) {
+                let prefix = base
+                    .trim()
+                    .strip_suffix(currency)
+                    .or_else(|| base.trim().strip_prefix(currency))
+                    .unwrap_or(base.trim());
+                let (min, max) = Self::parse_range(prefix.trim())?;
+                return Some(if min == max {
+                    Budget::Single {
+                        amount: min,
+                        currency: currency.to_string(),
+                        period: Self::resolve_period(period, default_period),
+                    }
+                } else {
+                    Budget::Range {
+                        min,
+                        max,
+                        currency: currency.to_string(),
+                        period: Self::resolve_period(period, default_period),
+                    }
+                });
+            }
+        }
+        None
+    }
 }
 
 #[cfg(test)]
@@ -389,61 +551,92 @@ mod tests {
 
     #[test]
     fn test_budget_parse_nofluff() {
-        let b = Budget::parse("7 069 – 9 426 EUR").unwrap();
-        assert_eq!(b.min, 7069);
-        assert_eq!(b.max, 9426);
-        assert_eq!(b.currency, "EUR");
-        assert_eq!(b.period, None);
-        assert_eq!(b.to_string(), "7069 - 9426 EUR");
+        let b = Budget::parse("7 069 – 9 426 EUR", Some("mo")).unwrap();
+        assert_eq!(b.to_string(), "7069 - 9426 EUR/mo");
     }
 
     #[test]
     fn test_budget_parse_nofluff_nbsp() {
-        let b = Budget::parse("7\u{00a0}069 – 9\u{00a0}426 EUR").unwrap();
-        assert_eq!(b.min, 7069);
-        assert_eq!(b.max, 9426);
-        assert_eq!(b.currency, "EUR");
+        let b = Budget::parse("7\u{00a0}069 – 9\u{00a0}426 EUR", Some("mo")).unwrap();
+        assert_eq!(b.to_string(), "7069 - 9426 EUR/mo");
     }
 
     #[test]
     fn test_budget_parse_upwork_hourly() {
-        let b = Budget::parse("$50-$100/hr").unwrap();
-        assert_eq!(b.min, 50);
-        assert_eq!(b.max, 100);
-        assert_eq!(b.currency, "USD");
-        assert_eq!(b.period, Some("hr".to_string()));
+        let b = Budget::parse("$50-$100/hr", Some("hr")).unwrap();
         assert_eq!(b.to_string(), "50 - 100 USD/hr");
     }
 
     #[test]
     fn test_budget_parse_upwork_fixed() {
-        let b = Budget::parse("$5,000").unwrap();
-        assert_eq!(b.min, 5000);
-        assert_eq!(b.max, 5000);
-        assert_eq!(b.currency, "USD");
+        let b = Budget::parse("$5,000", None).unwrap();
+        assert_eq!(b.to_string(), "5000 USD");
     }
 
     #[test]
     fn test_budget_parse_pln() {
-        let b = Budget::parse("15 000 – 20 000 PLN").unwrap();
-        assert_eq!(b.min, 15000);
-        assert_eq!(b.max, 20000);
-        assert_eq!(b.currency, "PLN");
+        let b = Budget::parse("15 000 – 20 000 PLN", Some("mo")).unwrap();
+        assert_eq!(b.to_string(), "15000 - 20000 PLN/mo");
     }
 
     #[test]
     fn test_budget_parse_euro_prefix() {
-        let b = Budget::parse("€50-€100").unwrap();
-        assert_eq!(b.min, 50);
-        assert_eq!(b.max, 100);
-        assert_eq!(b.currency, "EUR");
-        assert_eq!(b.to_string(), "50 - 100 EUR");
+        let b = Budget::parse("€50-€100", Some("mo")).unwrap();
+        assert_eq!(b.to_string(), "50 - 100 EUR/mo");
+    }
+
+    #[test]
+    fn test_budget_parse_to_range() {
+        let b = Budget::parse("$130,530 to 221,920 USD", Some("hr")).unwrap();
+        assert_eq!(b.to_string(), "130530 - 221920 USD/hr");
+    }
+
+    #[test]
+    fn test_budget_parse_nofluff_space_separated_numbers() {
+        let b = Budget::parse("15 000 – 18 000 PLN", Some("mo")).unwrap();
+        assert_eq!(b.to_string(), "15000 - 18000 PLN/mo");
+    }
+
+    #[test]
+    fn test_budget_parse_upwork_hourly_with_period() {
+        let b = Budget::parse("$125 - $200/hr", Some("hr")).unwrap();
+        assert_eq!(b.to_string(), "125 - 200 USD/hr");
     }
 
     #[test]
     fn test_budget_parse_unknown_returns_none() {
-        assert!(Budget::parse("Negotiable").is_none());
-        assert!(Budget::parse("").is_none());
+        assert!(Budget::parse("Negotiable", None).is_none());
+        assert!(Budget::parse("", None).is_none());
+    }
+
+    #[test]
+    fn test_budget_parse_k_suffix() {
+        let b = Budget::parse("$100k", Some("year")).unwrap();
+        assert_eq!(b.to_string(), "100000 USD/year");
+    }
+
+    #[test]
+    fn test_budget_parse_k_range() {
+        let b = Budget::parse("$120k - $150k", Some("year")).unwrap();
+        assert_eq!(b.to_string(), "120000 - 150000 USD/year");
+    }
+
+    #[test]
+    fn test_budget_parse_k_uppercase() {
+        let b = Budget::parse("€80K", Some("year")).unwrap();
+        assert_eq!(b.to_string(), "80000 EUR/year");
+    }
+
+    #[test]
+    fn test_budget_parse_efinancialcareers_usd_per_annum() {
+        let b = Budget::parse("USD120000 - USD140000 per annum", Some("year")).unwrap();
+        assert_eq!(b.to_string(), "120000 - 140000 USD/year");
+    }
+
+    #[test]
+    fn test_budget_parse_efinancialcareers_gbp_per_annum() {
+        let b = Budget::parse("GBP90000 - GBP110000 per annum", Some("year")).unwrap();
+        assert_eq!(b.to_string(), "90000 - 110000 GBP/year");
     }
 
     #[test]
