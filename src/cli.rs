@@ -39,8 +39,6 @@ pub enum Commands {
         port: u16,
     },
 
-    Stats,
-
     /// Show diagnostic info (DB path, job count, env)
     Diagnose,
 

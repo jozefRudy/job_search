@@ -172,9 +172,6 @@ async fn main() -> Result<()> {
         Commands::Serve { port } => {
             server::serve(db, port).await?;
         }
-        Commands::Stats => {
-            cmd_stats(&db, cli.json).await?;
-        }
         Commands::Diagnose => {
             cmd_diagnose(&db, &db_path).await?;
         }
@@ -345,22 +342,6 @@ async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
             );
         }
     }
-    Ok(())
-}
-
-async fn cmd_stats(db: &Db, json: bool) -> Result<()> {
-    let stats = db.stats().await?;
-
-    if json {
-        println!("{}", serde_json::to_string_pretty(&stats)?);
-    } else {
-        println!("Total jobs: {}", stats.total);
-        println!("\nBy platform:");
-        for (p, c) in &stats.by_platform {
-            println!("  {}: {}", p, c);
-        }
-    }
-
     Ok(())
 }
 
