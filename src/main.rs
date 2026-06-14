@@ -163,6 +163,9 @@ async fn main() -> Result<()> {
         Commands::Show { id } => {
             cmd_show(&db, id, cli.json).await?;
         }
+        Commands::Delete { ids } => {
+            cmd_delete(&db, ids).await?;
+        }
         Commands::React(cmd) => {
             cmd_react(&db, cmd.action).await?;
         }
@@ -275,6 +278,16 @@ async fn cmd_show(db: &Db, id: i64, json: bool) -> Result<()> {
         println!("{}", display::render_job_detailed(&job));
     }
 
+    Ok(())
+}
+
+async fn cmd_delete(db: &Db, ids: Vec<i64>) -> Result<()> {
+    let deleted = db.delete_jobs(&ids).await?;
+    println!(
+        "Deleted {} job{}",
+        deleted,
+        if deleted == 1 { "" } else { "s" }
+    );
     Ok(())
 }
 

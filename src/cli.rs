@@ -27,6 +27,11 @@ pub enum Commands {
         id: i64,
     },
 
+    /// Delete one or more jobs by ID
+    Delete {
+        ids: Vec<i64>,
+    },
+
     React(ReactCmd),
 
     Serve {

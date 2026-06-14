@@ -267,11 +267,15 @@ impl Db {
         Ok(row.map(|dt| dt.and_utc()))
     }
 
-    pub async fn delete_job(&self, id: i64) -> Result<bool> {
-        let rows = sqlx::query!("DELETE FROM jobs WHERE id = ?1", id)
-            .execute(&self.pool)
-            .await?;
-        Ok(rows.rows_affected() > 0)
+    pub async fn delete_jobs(&self, ids: &[i64]) -> Result<usize> {
+        let ids_json = serde_json::to_string(ids)?;
+        let rows = sqlx::query!(
+            "DELETE FROM jobs WHERE id IN (SELECT value FROM json_each(?1))",
+            ids_json
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(rows.rows_affected() as usize)
     }
 
     pub async fn stats(&self) -> Result<Stats> {
@@ -545,8 +549,8 @@ mod tests {
         let before = db.get_job(id).await?;
         assert!(before.is_some());
 
-        let deleted = db.delete_job(id).await?;
-        assert!(deleted);
+        let deleted = db.delete_jobs(&[id]).await?;
+        assert_eq!(deleted, 1);
 
         let after = db.get_job(id).await?;
         assert!(after.is_none());

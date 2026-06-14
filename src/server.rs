@@ -165,10 +165,10 @@ async fn delete_job(
 ) -> Result<StatusCode, StatusCode> {
     let deleted = state
         .db
-        .delete_job(id)
+        .delete_jobs(&[id])
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    if deleted {
+    if deleted == 1 {
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(StatusCode::NOT_FOUND)

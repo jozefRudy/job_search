@@ -53,6 +53,10 @@
 - [[tanstack-solidjs-structural-sharing]] - When using TanStack Query v5 with SolidJS, always set `structuralSharing: false`
 - [[url-as-state-source-of-truth]] - URL query params are the correct source of truth for filter/list state in SPAs —
 
+## preference
+
+- [[refactor-prefer-explicit-match]] - When refactoring repeated platform-specific code, the user prefers keeping expli
+
 ## context
 
 - [[db-set-applied-signature]] - `Db::set_applied` should take explicit non-optional `applied_at: NaiveDateTime` 
