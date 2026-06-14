@@ -322,16 +322,9 @@ impl TryFrom<RawPostingEnvelope> for NoFluffJobDetail {
             .filter(|c| !c.is_empty())
             .collect();
 
-        let remote = if locations.iter().any(|l| l.eq_ignore_ascii_case("remote")) {
-            "Remote".to_string()
-        } else {
-            String::new()
-        };
-
         Ok(NoFluffJobDetail {
             company: raw.company.name,
             seniority,
-            remote,
             locations,
             description,
             must_have,
@@ -461,6 +454,13 @@ impl NoFluffJobsScraper {
         pause_ms: u64,
     ) -> Result<Vec<Job>> {
         let search_url = self.build_search_url(query);
+        browser
+            .set_cookie(
+                "nfj_ui_settings_currency",
+                &self.config.salary_currency.to_lowercase(),
+                ".nofluffjobs.com",
+            )
+            .await?;
         let page = browser.new_tab(&search_url).await?;
 
         // Wait for job cards to appear
@@ -631,9 +631,14 @@ impl NoFluffJobsScraper {
 
     /// Fetch job detail from API (no DB dependency).
     pub async fn fetch_detail(&self, job_id: &str) -> Result<NoFluffJobDetail> {
+        let url = format!("{}/posting/{}", API_BASE, job_id);
         let envelope: RawPostingEnvelope = self
             .client
-            .get(format!("{}/posting/{}", API_BASE, job_id))
+            .get(&url)
+            .query(&[
+                ("salaryCurrency", self.config.salary_currency.as_str()),
+                ("salaryPeriod", "month"),
+            ])
             .send()
             .await?
             .json()
@@ -655,6 +660,13 @@ impl NoFluffJobsScraper {
             bail!("NoFluffJobs requires open nofluffjobs.com tab in Brave");
         }
 
+        browser
+            .set_cookie(
+                "nfj_ui_settings_currency",
+                &self.config.salary_currency.to_lowercase(),
+                ".nofluffjobs.com",
+            )
+            .await?;
         let page = browser
             .new_tab("https://nofluffjobs.com/profile/my-applications")
             .await?;
@@ -1016,7 +1028,7 @@ mod tests {
 
         assert_eq!(detail.company, "ServiceTitan");
         assert_eq!(detail.seniority, "Expert");
-        assert_eq!(detail.remote, "Remote");
+
         assert!(detail.description.contains("Flexibility"));
         assert!(detail.requirements.contains("Ready to be a Titan"));
         assert!(detail.must_have.contains(&".NET".to_string()));

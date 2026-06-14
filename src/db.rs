@@ -475,7 +475,6 @@ mod tests {
         let detail = NoFluffJobDetail {
             company: "Acme Corp".to_string(),
             seniority: "Senior".to_string(),
-            remote: "Fully remote".to_string(),
             locations: vec!["Warsaw".to_string(), "Berlin".to_string()],
             must_have: vec!["rust".to_string(), "docker".to_string()],
             description: "Build backend".to_string(),
@@ -511,7 +510,6 @@ mod tests {
         assert!(matches!(found.raw, Data::Nofluffjobs { .. }));
         if let Data::Nofluffjobs { detail: d } = found.raw {
             assert_eq!(d.company, detail.company);
-            assert_eq!(d.remote, detail.remote);
             assert_eq!(d.locations, detail.locations);
             assert_eq!(d.must_have, detail.must_have);
         }

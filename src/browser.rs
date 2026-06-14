@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chromiumoxide::browser::Browser;
+use chromiumoxide::cdp::browser_protocol::network::{CookieParam, CookieSameSite, TimeSinceEpoch};
 use chromiumoxide::cdp::browser_protocol::target::{
     CloseTargetParams, CreateTargetParams, GetTargetsParams,
 };
@@ -23,6 +24,8 @@ pub trait BrowserExt {
     async fn new_tab(&self, url: &str) -> Result<chromiumoxide::Page>;
     async fn get_page_hosts(&self) -> Result<Vec<String>>;
     async fn close_tabs_by_host(&self, host_substr: &str) -> Result<()>;
+    /// Set a persistent, lax, root-path cookie for the given domain.
+    async fn set_cookie(&self, name: &str, value: &str, domain: &str) -> Result<()>;
 }
 
 impl BrowserExt for Browser {
@@ -67,6 +70,22 @@ impl BrowserExt for Browser {
                 .await?;
             }
         }
+        Ok(())
+    }
+
+    async fn set_cookie(&self, name: &str, value: &str, domain: &str) -> Result<()> {
+        let expires =
+            TimeSinceEpoch::new(chrono::Utc::now().timestamp() as f64 + 365.0 * 24.0 * 60.0 * 60.0);
+        let cookie = CookieParam::builder()
+            .name(name)
+            .value(value)
+            .domain(domain)
+            .path("/")
+            .same_site(CookieSameSite::Lax)
+            .expires(expires)
+            .build()
+            .map_err(|s| anyhow::anyhow!("{}", s))?;
+        self.set_cookies(vec![cookie]).await?;
         Ok(())
     }
 }

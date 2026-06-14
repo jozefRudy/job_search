@@ -228,9 +228,6 @@ pub fn render_job_detailed(job: &Job) -> String {
             if !detail.seniority.is_empty() {
                 lines.push(format!("  Seniority:      {}", detail.seniority));
             }
-            if !detail.remote.is_empty() {
-                lines.push(format!("  Remote:         {}", detail.remote));
-            }
             if !detail.locations.is_empty() {
                 lines.push(format!("  Locations:      {}", detail.locations.join(", ")));
             }

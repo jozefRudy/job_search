@@ -119,8 +119,6 @@ pub struct NoFluffJobDetail {
     #[serde(default)]
     pub seniority: String,
     #[serde(default)]
-    pub remote: String,
-    #[serde(default)]
     pub locations: Vec<String>,
     #[serde(default)]
     pub must_have: Vec<String>,
