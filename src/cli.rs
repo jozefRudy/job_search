@@ -112,6 +112,9 @@ pub enum SyncPlatform {
 
     /// Sync NoFluffJobs submitted applications
     Nofluff(SyncNofluffArgs),
+
+    /// Sync eFinancialCareers applied jobs
+    Efinancialcareers(SyncEfinancialcareersArgs),
 }
 
 #[derive(Args)]
@@ -126,6 +129,13 @@ pub struct SyncNofluffArgs {
     /// Pause between interactions in ms (default: 2000)
     #[arg(long, default_value = "2000")]
     pub pause: u64,
+}
+
+#[derive(Args)]
+pub struct SyncEfinancialcareersArgs {
+    /// Pause between interactions in ms (default: 2000)
+    #[arg(long, default_value = "2000")]
+    pub pause_ms: u64,
 }
 
 #[derive(Parser)]

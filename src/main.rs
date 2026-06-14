@@ -200,6 +200,17 @@ async fn main() -> Result<()> {
                     Err(e) => eprintln!("Error syncing applications: {}", e),
                 }
             }
+            SyncPlatform::Efinancialcareers(args) => {
+                let scraper = EfinancialcareersScraper::new();
+                let browser = browser.ensure().await?;
+                match scraper
+                    .sync_applications(&browser, &db, args.pause_ms, None)
+                    .await
+                {
+                    Ok(count) => eprintln!("Synced {} applications", count),
+                    Err(e) => eprintln!("Error syncing applications: {}", e),
+                }
+            }
         },
     }
 

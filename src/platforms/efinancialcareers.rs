@@ -6,9 +6,10 @@ use crate::term::CursorGuard;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
+use chrono::DateTime;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -16,6 +17,10 @@ const SCRAPE_CARDS_JS: &str = include_str!("efinancialcareers/scrape_cards.js");
 const CLICK_SHOW_MORE_JS: &str = include_str!("efinancialcareers/click_show_more.js");
 const SCRAPE_TOTAL_JS: &str = include_str!("efinancialcareers/scrape_total.js");
 const EXTRACT_DETAIL_JS: &str = include_str!("efinancialcareers/extract_detail.js");
+const FETCH_APPLICATIONS_JS: &str = include_str!("efinancialcareers/fetch_applications.js");
+const EXTRACT_AUTH_JS: &str = include_str!("efinancialcareers/extract_auth.js");
+
+const BATCH_CHUNK_SIZE: usize = 100;
 
 /// Card scraped from eFinancialCareers search page DOM.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,6 +31,97 @@ pub struct EfinancialcareersJobCard {
     pub salary: String,
     #[serde(default)]
     pub posted_at_text: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+struct RawApplicationItem {
+    #[serde(default)]
+    internal_job_id: String,
+    external_id: String,
+    title: String,
+    url: String,
+    #[serde(default)]
+    salary: String,
+    #[serde(default)]
+    company: String,
+    #[serde(default)]
+    location: String,
+    #[serde(default)]
+    employment_type: String,
+    #[serde(default)]
+    applied_at_text: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum ApplicationsResult {
+    Ok { applied: Vec<RawApplicationItem> },
+    Error { error: String },
+}
+
+#[derive(Debug, Clone)]
+struct ApplicationItem {
+    internal_job_id: String,
+    external_id: String,
+    title: String,
+    url: String,
+    salary: String,
+    company: String,
+    location: String,
+    employment_type: String,
+    applied_at: DateTime<Utc>,
+}
+
+impl TryFrom<RawApplicationItem> for ApplicationItem {
+    type Error = anyhow::Error;
+
+    fn try_from(raw: RawApplicationItem) -> Result<Self, Self::Error> {
+        if raw.external_id.is_empty() {
+            bail!("job url missing id: {}", raw.url);
+        }
+
+        let applied_at = DateTime::parse_from_rfc3339(&raw.applied_at_text)
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now());
+
+        Ok(ApplicationItem {
+            internal_job_id: raw.internal_job_id,
+            external_id: raw.external_id,
+            title: raw.title,
+            url: raw.url,
+            salary: raw.salary,
+            company: raw.company,
+            location: raw.location,
+            employment_type: raw.employment_type,
+            applied_at,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AuthInfo {
+    token: String,
+    #[serde(rename = "jobseeker_id")]
+    jobseeker_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum AuthResult {
+    Ok(AuthInfo),
+    Error { error: String },
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct BatchJob {
+    id: String,
+    #[serde(default)]
+    description: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct BatchResponse {
+    data: Vec<BatchJob>,
 }
 
 pub struct EfinancialcareersScraper {
@@ -131,6 +227,15 @@ impl EfinancialcareersScraper {
             description: extracted.description,
             posted_at: crate::models::parse_relative_time(&extracted.posted_at_text),
         })
+    }
+
+    fn html_to_text(html: &str) -> Option<String> {
+        if html.trim().is_empty() {
+            return None;
+        }
+        let text = html2text::from_read(html.as_bytes(), 120).ok()?;
+        let text = text.trim().to_string();
+        if text.is_empty() { None } else { Some(text) }
     }
 
     fn build_job(
@@ -281,6 +386,165 @@ impl PlatformClient for EfinancialcareersScraper {
 
         page.close().await.ok();
         Ok(all_jobs)
+    }
+
+    async fn sync_applications(
+        &self,
+        browser: &Browser,
+        db: &Db,
+        pause_ms: u64,
+        limit: Option<usize>,
+    ) -> Result<usize> {
+        let hosts = browser.get_page_hosts().await?;
+        if !hosts.iter().any(|h| h.contains("efinancialcareers.com")) {
+            bail!("eFinancialCareers requires open efinancialcareers.com tab in Brave");
+        }
+
+        let page = browser
+            .new_tab("https://www.efinancialcareers.com/myefc/my-jobs")
+            .await?;
+        let _ = wait_for_element(&page, &["efc-my-jobs"], None, None).await;
+        sleep(Duration::from_millis(pause_ms)).await;
+
+        let auth: AuthResult = page.evaluate(EXTRACT_AUTH_JS).await?.into_value()?;
+        let auth = match auth {
+            AuthResult::Ok(info) => info,
+            AuthResult::Error { error } => bail!("{}", error),
+        };
+        if auth.token.is_empty() || auth.jobseeker_id.is_empty() {
+            bail!("missing efinancialcareers auth token or jobseeker id");
+        }
+
+        let result: ApplicationsResult =
+            page.evaluate(FETCH_APPLICATIONS_JS).await?.into_value()?;
+        page.close().await.ok();
+
+        let raw_items = match result {
+            ApplicationsResult::Ok { applied } => applied,
+            ApplicationsResult::Error { error } => bail!("{}", error),
+        };
+
+        let items: Vec<ApplicationItem> = raw_items
+            .into_iter()
+            .filter_map(|raw| match raw.try_into() {
+                Ok(item) => Some(item),
+                Err(e) => {
+                    eprintln!("  Warning: skipping malformed application item: {}", e);
+                    None
+                }
+            })
+            .take(limit.unwrap_or(usize::MAX))
+            .collect();
+
+        let http = reqwest::Client::new();
+        let mut missing: Vec<&ApplicationItem> = Vec::new();
+        for item in &items {
+            if db
+                .job_id_by_external_id(&Platform::Efinancialcareers, &item.external_id)
+                .await?
+                .is_none()
+            {
+                missing.push(item);
+            }
+        }
+
+        let mut descriptions: HashMap<String, String> = HashMap::new();
+        if !missing.is_empty() {
+            for chunk in missing.chunks(BATCH_CHUNK_SIZE) {
+                let ids: Vec<&str> = chunk
+                    .iter()
+                    .map(|i| i.internal_job_id.as_str())
+                    .filter(|id| !id.is_empty())
+                    .collect();
+                if ids.is_empty() {
+                    continue;
+                }
+                let url = format!(
+                    "https://job.efinancialcareers.com/api/v1/jobs/batch?job_ids={}&response_properties=title,summary,description",
+                    ids.join(",")
+                );
+                let res = http
+                    .get(&url)
+                    .header("Authorization", format!("Bearer {}", auth.token))
+                    .header("Accept", "application/json")
+                    .send()
+                    .await?;
+                if !res.status().is_success() {
+                    let body = res.text().await.unwrap_or_default();
+                    bail!("batch job fetch failed: {}", body);
+                }
+                let batch: BatchResponse = res.json().await?;
+                for job in batch.data {
+                    if let Some(text) = Self::html_to_text(&job.description) {
+                        descriptions.insert(job.id, text);
+                    }
+                }
+            }
+        }
+
+        let mut synced = 0usize;
+        let total = items.len();
+        let _guard = CursorGuard::new();
+
+        for item in items {
+            let job_id = if let Some(id) = db
+                .job_id_by_external_id(&Platform::Efinancialcareers, &item.external_id)
+                .await?
+            {
+                id
+            } else {
+                let description = descriptions
+                    .get(&item.internal_job_id)
+                    .cloned()
+                    .unwrap_or_default();
+                let salary = item.salary.clone();
+                let budget = Budget::parse(&salary, Some("year"))
+                    .map(|b| b.to_string())
+                    .or_else(|| Some(salary.clone()).filter(|b| !b.is_empty()));
+
+                let job = Job {
+                    id: None,
+                    platform: Platform::Efinancialcareers,
+                    external_id: item.external_id.clone(),
+                    title: item.title.clone(),
+                    description: Some(description.clone()).filter(|d| !d.is_empty()),
+                    url: item.url.clone(),
+                    budget,
+                    tags: Vec::new(),
+                    raw: Data::Efinancialcareers {
+                        detail: EfinancialcareersJobDetail {
+                            company: item.company.clone(),
+                            location: item.location.clone(),
+                            employment_type: item.employment_type.clone(),
+                            salary: salary.clone(),
+                            description,
+                            ..Default::default()
+                        },
+                    },
+                    created_at: item.applied_at,
+                    updated_at: Utc::now(),
+                    liked: None,
+                    note: None,
+                    applied_at: None,
+                };
+
+                db.upsert_job(&job).await?
+            };
+
+            if db
+                .get_job(job_id)
+                .await?
+                .and_then(|j| j.applied_at)
+                .is_none()
+            {
+                db.set_applied(job_id, None, item.applied_at).await?;
+            }
+
+            synced += 1;
+            eprint!("\r  Progress {}/{}: {:.40}", synced, total, item.title);
+        }
+
+        Ok(synced)
     }
 }
 

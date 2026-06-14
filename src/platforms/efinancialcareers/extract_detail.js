@@ -1,10 +1,10 @@
 (() => {
   const desc = document.querySelector('efc-job-description');
   const text = document.body.innerText;
-  const metaMatch = text.match(/Posted[^\n]*Remote Job[^\n]*\n/);
-  const salaryMatch = metaMatch && metaMatch[0].match(/(?:Permanent|Contract|Full time|Part time)\s+(.+?)(?:\n|$)/);
-  const salary = salaryMatch ? salaryMatch[1].trim() : '';
   const postedMatch = text.match(/Posted\s+([^\n]+?)\s*\n/);
+  const postedLine = postedMatch ? postedMatch[0] : '';
+  const salaryMatch = postedLine.match(/(?:per annum|per year|per month|per hour|per day|\b(?:USD|EUR|GBP|PLN|CHF|\$|€|£)\b).+/i);
+  const salary = salaryMatch ? salaryMatch[0].trim() : '';
   const posted_at_text = postedMatch ? postedMatch[1].trim() : '';
   return {
     description: desc ? desc.innerText.trim() : '',

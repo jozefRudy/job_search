@@ -8,6 +8,7 @@
 - [[api-test-catches-reactivity-regressions]] - API-level tests with mocked fetch are essential for catching silent reactivity r
 - [[brave-cdp-macos-launch]] - macOS `open -a "Brave Browser" --args --remote-debugging-port=9222` silently dro
 - [[browser-eval-over-screenshots]] - When model doesn't support image rendering, use `browser_eval` with JS extractio
+- [[browser-no-focus-steal]] - When opening browser tabs for inspection during development, use background tabs
 - [[browser-scraping-bot-protection]] - For browser-driven scrapers behind bot protection (eFinancialCareers), reuse the
 - [[browser-test-debug-inspect-live]] - When debugging browser integration test failures, prefer live browser inspection
 - [[browser-wait-helpers-design]] - When extracting browser wait helpers, keep signatures simple: `tries: Option<u32
@@ -18,9 +19,11 @@
 - [[detail-list-shared-grid]] - For label/value rows in detail views, prefer a shared wrapper grid (`DetailList`
 - [[devenv-regen-api-script]] - `devenv.nix` `regen-api` script uses `pnpm -C frontend orval`, not `pnpm --dir f
 - [[dont-strip-platform-features]] - When refactoring to remove platform-specific leakage from generic types, don't a
+- [[efinancialcareers-applications-sync]] - eFinancialCareers My Jobs popup descriptions come from `https://job.efinancialca
 - [[efinancialcareers-empty-results-selector]] - eFinancialCareers zero-results page renders `efc-empty-job-search-results-wrappe
 - [[efinancialcareers-filter-url-pattern]] - eFinancialCareers filter URL pattern: multi-value filters use `|` separator (URL
 - [[efinancialcareers-search-results-selector]] - On eFinancialCareers search pages, matched results are rendered inside `<efc-job
+- [[efinancialcareers-sync-use-batch-api]] - eFinancialCareers application sync should use the batch API (`job.efinancialcare
 - [[efinancialcareers-total-unreliable]] - eFinancialCareers exposes a `transferredData()` script and a visible heading cou
 - [[file-move-pattern]] - When moving files, prefer `mv` (bash) + `edit` for import path updates over `wri
 - [[frontend-api-mismatch]] - Frontend `api.ts` must unwrap server response shape. Server `list_jobs` returns 
