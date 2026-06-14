@@ -107,32 +107,13 @@ pub struct SyncApplicationsCmd {
 
 #[derive(Subcommand)]
 pub enum SyncPlatform {
-    /// Sync Upwork submitted proposals
-    Upwork(SyncUpworkArgs),
-
-    /// Sync NoFluffJobs submitted applications
-    Nofluff(SyncNofluffArgs),
-
-    /// Sync eFinancialCareers applied jobs
-    Efinancialcareers(SyncEfinancialcareersArgs),
+    Upwork(SyncArgs),
+    Nofluff(SyncArgs),
+    Efinancialcareers(SyncArgs),
 }
 
 #[derive(Args)]
-pub struct SyncUpworkArgs {
-    /// Pause between interactions in ms (default: 2000)
-    #[arg(long, default_value = "2000")]
-    pub pause: u64,
-}
-
-#[derive(Args)]
-pub struct SyncNofluffArgs {
-    /// Pause between interactions in ms (default: 2000)
-    #[arg(long, default_value = "2000")]
-    pub pause: u64,
-}
-
-#[derive(Args)]
-pub struct SyncEfinancialcareersArgs {
+pub struct SyncArgs {
     /// Pause between interactions in ms (default: 2000)
     #[arg(long, default_value = "2000")]
     pub pause_ms: u64,

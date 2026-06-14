@@ -177,42 +177,38 @@ async fn main() -> Result<()> {
         }
         Commands::SyncApplications(cmd) => match cmd.platform {
             SyncPlatform::Upwork(args) => {
-                let scraper = UpworkScraper::new();
-                let browser = browser.ensure().await?;
-                match scraper
-                    .sync_applications(&browser, &db, args.pause, None)
-                    .await
-                {
-                    Ok(count) => eprintln!("Synced {} applications", count),
-                    Err(e) => eprintln!("Error syncing applications: {}", e),
-                }
+                sync_apps(&UpworkScraper::new(), &browser, &db, args.pause_ms).await?;
             }
             SyncPlatform::Nofluff(args) => {
-                let scraper = NoFluffJobsScraper::new();
-                let browser = browser.ensure().await?;
-                match scraper
-                    .sync_applications(&browser, &db, args.pause, None)
-                    .await
-                {
-                    Ok(count) => eprintln!("Synced {} applications", count),
-                    Err(e) => eprintln!("Error syncing applications: {}", e),
-                }
+                sync_apps(&NoFluffJobsScraper::new(), &browser, &db, args.pause_ms).await?;
             }
             SyncPlatform::Efinancialcareers(args) => {
-                let scraper = EfinancialcareersScraper::new();
-                let browser = browser.ensure().await?;
-                match scraper
-                    .sync_applications(&browser, &db, args.pause_ms, None)
-                    .await
-                {
-                    Ok(count) => eprintln!("Synced {} applications", count),
-                    Err(e) => eprintln!("Error syncing applications: {}", e),
-                }
+                sync_apps(
+                    &EfinancialcareersScraper::new(),
+                    &browser,
+                    &db,
+                    args.pause_ms,
+                )
+                .await?;
             }
         },
     }
 
     // Browser stays alive for reuse
+    Ok(())
+}
+
+async fn sync_apps(
+    client: &impl PlatformClient,
+    browser: &BrowserManager,
+    db: &Db,
+    pause_ms: u64,
+) -> Result<()> {
+    let browser = browser.ensure().await?;
+    match client.sync_applications(&browser, db, pause_ms, None).await {
+        Ok(count) => eprintln!("Synced {} applications", count),
+        Err(e) => eprintln!("Error syncing applications: {}", e),
+    }
     Ok(())
 }
 
