@@ -1,3 +1,4 @@
+use chromiumoxide::browser::Browser;
 use jobsearch::browser::{BrowserExt, BrowserManager};
 use jobsearch::platforms::PlatformClient;
 use jobsearch::platforms::upwork::UpworkScraper;
@@ -19,25 +20,36 @@ fn get_guard() -> std::sync::MutexGuard<'static, ()> {
     }
 }
 
-#[tokio::test]
-#[ignore = "requires Brave browser installed"]
-async fn test_browser_manager_connects_or_launches() {
-    let _guard = get_guard();
-    let manager = BrowserManager::new();
+async fn require_hosts(browser: &Browser) -> anyhow::Result<()> {
+    let hosts = browser.get_page_hosts().await?;
+    let required = ["upwork.com", "nofluffjobs.com", "efinancialcareers.com"];
+    for host in required {
+        if !hosts.iter().any(|h| h.contains(host)) {
+            anyhow::bail!(
+                "missing required {} tab. Run `cargo run -- init` first and log in where needed",
+                host
+            );
+        }
+    }
+    Ok(())
+}
 
-    tokio::time::timeout(Duration::from_secs(10), async {
-        let browser = manager
-            .ensure()
+async fn with_browser<F, Fut>(timeout_secs: u64, f: F)
+where
+    F: FnOnce(std::sync::Arc<Browser>) -> Fut,
+    Fut: std::future::Future<Output = ()>,
+{
+    let _guard = get_guard();
+    tokio::time::timeout(Duration::from_secs(timeout_secs), async {
+        let manager = BrowserManager::new();
+        let browser = manager.ensure().await.expect("Brave should connect");
+        require_hosts(&browser)
             .await
-            .expect("Brave should connect or launch");
-        let hosts = browser
-            .get_page_hosts()
-            .await
-            .expect("get_page_hosts should work");
-        println!("page hosts: {:?}", hosts);
+            .expect("required tabs missing");
+        f(browser).await;
     })
     .await
-    .expect("test should complete within 10s");
+    .expect("test should complete within timeout");
 }
 
 // --- Upwork: search page ---
@@ -45,11 +57,7 @@ async fn test_browser_manager_connects_or_launches() {
 #[tokio::test]
 #[ignore = "requires Brave browser installed and upwork.com logged in"]
 async fn test_upwork_search_page_has_cards() {
-    let _guard = get_guard();
-    let manager = BrowserManager::new();
-
-    tokio::time::timeout(Duration::from_secs(45), async {
-        let browser = manager.ensure().await.expect("Brave should connect");
+    with_browser(45, |browser| async move {
         let search_url = UpworkScraper::build_search_url("rust", None, None, None, 1);
         let page = browser
             .new_tab(&search_url)
@@ -79,8 +87,7 @@ async fn test_upwork_search_page_has_cards() {
 
         page.close().await.ok();
     })
-    .await
-    .expect("test should complete within 45s");
+    .await;
 }
 
 // --- Upwork: job detail ---
@@ -88,12 +95,7 @@ async fn test_upwork_search_page_has_cards() {
 #[tokio::test]
 #[ignore = "requires Brave browser installed and upwork.com logged in"]
 async fn test_upwork_job_detail_fetch() {
-    let _guard = get_guard();
-    let manager = BrowserManager::new();
-
-    tokio::time::timeout(Duration::from_secs(60), async {
-        let browser = manager.ensure().await.expect("Brave should connect");
-
+    with_browser(60, |browser| async move {
         // Grab a job URL from search
         let search_url = UpworkScraper::build_search_url("rust", None, None, None, 1);
         let page = browser.new_tab(&search_url).await.expect("open search");
@@ -142,8 +144,7 @@ async fn test_upwork_job_detail_fetch() {
         println!("detail struct:");
         println!("{}", serde_json::to_string_pretty(&detail).unwrap());
     })
-    .await
-    .expect("test should complete within 60s");
+    .await;
 }
 
 // --- Upwork: pagination ---
@@ -151,11 +152,7 @@ async fn test_upwork_job_detail_fetch() {
 #[tokio::test]
 #[ignore = "requires Brave browser installed and upwork.com logged in"]
 async fn test_upwork_pagination_has_next_page() {
-    let _guard = get_guard();
-    let manager = BrowserManager::new();
-
-    tokio::time::timeout(Duration::from_secs(60), async {
-        let browser = manager.ensure().await.expect("Brave should connect");
+    with_browser(60, |browser| async move {
         let search_url = UpworkScraper::build_search_url("rust", None, None, None, 1);
         let page = browser
             .new_tab(&search_url)
@@ -212,8 +209,7 @@ async fn test_upwork_pagination_has_next_page() {
 
         page.close().await.ok();
     })
-    .await
-    .expect("test should complete within 60s");
+    .await;
 }
 
 // --- Upwork: sync applications ---
@@ -221,11 +217,7 @@ async fn test_upwork_pagination_has_next_page() {
 #[tokio::test]
 #[ignore = "requires Brave browser installed and upwork.com logged in"]
 async fn test_upwork_sync_applications() {
-    let _guard = get_guard();
-    let manager = BrowserManager::new();
-
-    tokio::time::timeout(Duration::from_secs(120), async {
-        let browser = manager.ensure().await.expect("Brave should connect");
+    with_browser(120, |browser| async move {
         let tmp = tempfile::NamedTempFile::new().expect("temp db");
         let db = jobsearch::db::Db::open(tmp.path()).await.expect("open db");
         let scraper = UpworkScraper::new();
@@ -281,8 +273,7 @@ async fn test_upwork_sync_applications() {
             );
         }
     })
-    .await
-    .expect("test should complete within 120s");
+    .await;
 }
 
 // --- NoFluffJobs: search page ---
@@ -290,11 +281,7 @@ async fn test_upwork_sync_applications() {
 #[tokio::test]
 #[ignore = "requires Brave browser installed and nofluffjobs.com accessible"]
 async fn test_nofluffjobs_search_page_has_cards_and_details() {
-    let _guard = get_guard();
-    let manager = BrowserManager::new();
-
-    tokio::time::timeout(Duration::from_secs(45), async {
-        let browser = manager.ensure().await.expect("Brave should connect");
+    with_browser(45, |browser| async move {
         let scraper = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new();
         let search_url = scraper.build_search_url("rust");
         let page = browser
@@ -339,8 +326,7 @@ async fn test_nofluffjobs_search_page_has_cards_and_details() {
 
         page.close().await.ok();
     })
-    .await
-    .expect("test should complete within 45s");
+    .await;
 }
 
 // --- NoFluffJobs: load more ---
@@ -348,11 +334,7 @@ async fn test_nofluffjobs_search_page_has_cards_and_details() {
 #[tokio::test]
 #[ignore = "requires Brave browser installed and nofluffjobs.com accessible"]
 async fn test_nofluffjobs_load_more_adds_jobs() {
-    let _guard = get_guard();
-    let manager = BrowserManager::new();
-
-    tokio::time::timeout(Duration::from_secs(60), async {
-        let browser = manager.ensure().await.expect("Brave should connect");
+    with_browser(60, |browser| async move {
         let scraper = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new();
         let search_url = scraper.build_search_url("rust");
         let page = browser
@@ -399,8 +381,7 @@ async fn test_nofluffjobs_load_more_adds_jobs() {
 
         page.close().await.ok();
     })
-    .await
-    .expect("test should complete within 60s");
+    .await;
 }
 
 // --- eFinancialCareers: search page ---
@@ -408,11 +389,7 @@ async fn test_nofluffjobs_load_more_adds_jobs() {
 #[tokio::test]
 #[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
 async fn test_efinancialcareers_search_page_has_cards_and_details() {
-    let _guard = get_guard();
-    let manager = BrowserManager::new();
-
-    tokio::time::timeout(Duration::from_secs(45), async {
-        let browser = manager.ensure().await.expect("Brave should connect");
+    with_browser(45, |browser| async move {
         let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new();
         let search_url = scraper.build_search_url("developer");
         let page = browser
@@ -470,8 +447,7 @@ async fn test_efinancialcareers_search_page_has_cards_and_details() {
 
         page.close().await.ok();
     })
-    .await
-    .expect("test should complete within 45s");
+    .await;
 }
 
 // --- eFinancialCareers: load more ---
@@ -479,11 +455,7 @@ async fn test_efinancialcareers_search_page_has_cards_and_details() {
 #[tokio::test]
 #[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
 async fn test_efinancialcareers_show_more_adds_jobs() {
-    let _guard = get_guard();
-    let manager = BrowserManager::new();
-
-    tokio::time::timeout(Duration::from_secs(60), async {
-        let browser = manager.ensure().await.expect("Brave should connect");
+    with_browser(60, |browser| async move {
         let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new();
         let search_url = scraper.build_search_url("");
         let page = browser
@@ -534,18 +506,13 @@ async fn test_efinancialcareers_show_more_adds_jobs() {
 
         page.close().await.ok();
     })
-    .await
-    .expect("test should complete within 60s");
+    .await;
 }
 
 #[tokio::test]
 #[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
 async fn test_efinancialcareers_zero_results_returns_count_zero() {
-    let _guard = get_guard();
-    let manager = BrowserManager::new();
-
-    tokio::time::timeout(Duration::from_secs(45), async {
-        let browser = manager.ensure().await.expect("Brave should connect");
+    with_browser(45, |browser| async move {
         let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new();
         let search_url = scraper.build_search_url("xyznonexistent12345thisshouldreturnnojobs");
         let page = browser
@@ -568,8 +535,7 @@ async fn test_efinancialcareers_zero_results_returns_count_zero() {
 
         page.close().await.ok();
     })
-    .await
-    .expect("test should complete within 45s");
+    .await;
 }
 
 // --- eFinancialCareers: sync applications ---
@@ -577,11 +543,7 @@ async fn test_efinancialcareers_zero_results_returns_count_zero() {
 #[tokio::test]
 #[ignore = "requires Brave browser installed and efinancialcareers.com logged in"]
 async fn test_efinancialcareers_sync_applications() {
-    let _guard = get_guard();
-    let manager = BrowserManager::new();
-
-    tokio::time::timeout(Duration::from_secs(120), async {
-        let browser = manager.ensure().await.expect("Brave should connect");
+    with_browser(120, |browser| async move {
         let tmp = tempfile::NamedTempFile::new().expect("temp db");
         let db = jobsearch::db::Db::open(tmp.path()).await.expect("open db");
         let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new();
@@ -645,8 +607,7 @@ async fn test_efinancialcareers_sync_applications() {
             }
         }
     })
-    .await
-    .expect("test should complete within 120s");
+    .await;
 }
 
 // --- NoFluffJobs: sync applications ---
@@ -654,11 +615,7 @@ async fn test_efinancialcareers_sync_applications() {
 #[tokio::test]
 #[ignore = "requires Brave browser installed and nofluffjobs.com logged in"]
 async fn test_nofluffjobs_sync_applications() {
-    let _guard = get_guard();
-    let manager = BrowserManager::new();
-
-    tokio::time::timeout(Duration::from_secs(120), async {
-        let browser = manager.ensure().await.expect("Brave should connect");
+    with_browser(120, |browser| async move {
         let tmp = tempfile::NamedTempFile::new().expect("temp db");
         let db = jobsearch::db::Db::open(tmp.path()).await.expect("open db");
         let scraper = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new();
@@ -712,6 +669,5 @@ async fn test_nofluffjobs_sync_applications() {
             );
         }
     })
-    .await
-    .expect("test should complete within 120s");
+    .await;
 }
