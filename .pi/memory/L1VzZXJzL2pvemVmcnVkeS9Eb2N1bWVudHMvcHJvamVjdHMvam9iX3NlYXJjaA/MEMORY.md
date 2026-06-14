@@ -13,6 +13,7 @@
 - [[budget-parse-regex-pattern]] - Budget parsing prefers a single regex that handles separators with optional whit
 - [[copy-ui-components-checklist]] - When copying UI components from another project, always verify: 1) missing depen
 - [[deserializer-shape-normalization]] - When scraping external APIs, do shape-normalization in explicit `Raw*` structs p
+- [[detail-list-shared-grid]] - For label/value rows in detail views, prefer a shared wrapper grid (`DetailList`
 - [[devenv-regen-api-script]] - `devenv.nix` `regen-api` script uses `pnpm -C frontend orval`, not `pnpm --dir f
 - [[dont-strip-platform-features]] - When refactoring to remove platform-specific leakage from generic types, don't a
 - [[efinancialcareers-filter-url-pattern]] - eFinancialCareers filter URL pattern: multi-value filters use `|` separator (URL
