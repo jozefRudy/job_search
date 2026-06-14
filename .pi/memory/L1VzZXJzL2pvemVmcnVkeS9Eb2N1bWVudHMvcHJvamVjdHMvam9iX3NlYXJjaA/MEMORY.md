@@ -9,6 +9,7 @@
 - [[brave-cdp-macos-launch]] - macOS `open -a "Brave Browser" --args --remote-debugging-port=9222` silently dro
 - [[browser-eval-over-screenshots]] - When model doesn't support image rendering, use `browser_eval` with JS extractio
 - [[browser-scraping-bot-protection]] - For browser-driven scrapers behind bot protection (eFinancialCareers), reuse the
+- [[browser-test-debug-inspect-live]] - When debugging browser integration test failures, prefer live browser inspection
 - [[browser-wait-helpers-design]] - When extracting browser wait helpers, keep signatures simple: `tries: Option<u32
 - [[budget-model-centralized]] - Budget model is a central enum (`Range`/`Single`) in `src/models.rs` with `Displ
 - [[budget-parse-regex-pattern]] - Budget parsing prefers a single regex that handles separators with optional whit
@@ -17,6 +18,7 @@
 - [[detail-list-shared-grid]] - For label/value rows in detail views, prefer a shared wrapper grid (`DetailList`
 - [[devenv-regen-api-script]] - `devenv.nix` `regen-api` script uses `pnpm -C frontend orval`, not `pnpm --dir f
 - [[dont-strip-platform-features]] - When refactoring to remove platform-specific leakage from generic types, don't a
+- [[efinancialcareers-empty-results-selector]] - eFinancialCareers zero-results page renders `efc-empty-job-search-results-wrappe
 - [[efinancialcareers-filter-url-pattern]] - eFinancialCareers filter URL pattern: multi-value filters use `|` separator (URL
 - [[efinancialcareers-search-results-selector]] - On eFinancialCareers search pages, matched results are rendered inside `<efc-job
 - [[efinancialcareers-total-unreliable]] - eFinancialCareers exposes a `transferredData()` script and a visible heading cou
@@ -28,6 +30,7 @@
 - [[new-platform-variant-update-checklist]] - When a new `Platform` variant is added, also update `db.rs` test helper `test_jo
 - [[nix-pnpm-hash-update]] - When frontend `pnpm` dependencies change in `frontend/package.json` or `frontend
 - [[nix-pnpm-oom-fix]] - When packaging pnpm frontend in Nix flake on macOS, `pnpm_11` + `fetcherVersion 
+- [[nofluffjobs-auth-token-change]] - NoFluffJobs sync auth changed: `nfj_salt` cookie replaced by `nfj_token=<session
 - [[openapi-orval-experiment]] - Consider experimenting with OpenAPI + Orval for auto-generating TanStack Query h
 - [[orval-generation-workflow]] - When adding new backend endpoints, always regenerate the Orval API client via `r
 - [[orval-no-manual-edits]] - Orval-generated schemas should not be edited by hand. When backend schema change

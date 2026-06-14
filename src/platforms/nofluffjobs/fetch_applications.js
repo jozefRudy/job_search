@@ -2,26 +2,27 @@
   const page = __PAGE__;
   const limit = __LIMIT__;
 
-  const sessionEntry = document.cookie
+  const tokenEntry = document.cookie
     .split('; ')
-    .find((r) => r.startsWith('nfj_session='));
-  const saltEntry = document.cookie
-    .split('; ')
-    .find((r) => r.startsWith('nfj_salt='));
+    .find((r) => r.startsWith('nfj_token='));
 
-  if (!sessionEntry || !saltEntry) {
+  if (!tokenEntry) {
     return { error: 'missing nofluffjobs auth cookies' };
   }
 
-  const session = sessionEntry.split('=')[1];
-  const salt = saltEntry.split('=')[1];
+  const token = decodeURIComponent(tokenEntry.split('=')[1]);
+  const [session, secret] = token.split(':');
+
+  if (!session || !secret) {
+    return { error: 'invalid nofluffjobs auth token' };
+  }
 
   const path = '/candidates/my-applications';
   const encodedPath = encodeURI(path);
 
   const key = await crypto.subtle.importKey(
     'raw',
-    new TextEncoder().encode(salt),
+    new TextEncoder().encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign']

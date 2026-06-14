@@ -414,7 +414,7 @@ async fn test_efinancialcareers_search_page_has_cards_and_details() {
     tokio::time::timeout(Duration::from_secs(45), async {
         let browser = manager.ensure().await.expect("Brave should connect");
         let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new();
-        let search_url = scraper.build_search_url("Rust,Developer");
+        let search_url = scraper.build_search_url("developer");
         let page = browser
             .new_tab(&search_url)
             .await
