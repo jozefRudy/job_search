@@ -28,6 +28,7 @@
 - [[nix-pnpm-oom-fix]] - When packaging pnpm frontend in Nix flake on macOS, `pnpm_11` + `fetcherVersion 
 - [[openapi-orval-experiment]] - Consider experimenting with OpenAPI + Orval for auto-generating TanStack Query h
 - [[orval-generation-workflow]] - When adding new backend endpoints, always regenerate the Orval API client via `r
+- [[orval-no-manual-edits]] - Orval-generated schemas should not be edited by hand. When backend schema change
 - [[orval-solid-query-v5-incompatibility]] - Orval `client: 'solid-query'` was broken for TanStack Query v5 but is now FIXED 
 - [[pagination-single-query-pattern]] - For paginated APIs, use `COUNT(*) OVER() as total` in the same query instead of 
 - [[plan-before-implement]] - When the user says 'first verify/research before starting', provide a concise pl

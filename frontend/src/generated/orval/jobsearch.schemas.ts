@@ -18,8 +18,11 @@ export interface UpworkJobDetail {
   invites_sent?: string;
   /** @nullable */
   last_viewed?: string | null;
+  /** @nullable */
+  posted_at?: string | null;
   project_type?: string;
   proposals?: string;
+  tags?: string[];
   unanswered_invites?: string;
 }
 
@@ -29,6 +32,8 @@ export interface UpworkJobDetail {
 export interface NoFluffJobDetail {
   company?: string;
   description?: string;
+  /** @nullable */
+  employment_type?: string | null;
   languages?: string[];
   locations?: string[];
   must_have?: string[];
@@ -42,6 +47,19 @@ export interface NoFluffJobDetail {
 }
 
 /**
+ * Full detail scraped from an individual eFinancialCareers job page.
+ */
+export interface EfinancialcareersJobDetail {
+  company?: string;
+  description?: string;
+  employment_type?: string;
+  location?: string;
+  /** @nullable */
+  posted_at?: string | null;
+  salary?: string;
+}
+
+/**
  * Platform-specific scraped data stored on each job.
  */
 export type Data = {
@@ -50,12 +68,16 @@ export type Data = {
 } | {
   detail: NoFluffJobDetail;
   platform: 'nofluffjobs';
+} | {
+  detail: EfinancialcareersJobDetail;
+  platform: 'efinancialcareers';
 };
 
 export type Platform = typeof Platform[keyof typeof Platform];
 
 
 export const Platform = {
+  efinancialcareers: 'efinancialcareers',
   nofluffjobs: 'nofluffjobs',
   upwork: 'upwork',
 } as const;

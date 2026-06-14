@@ -32,6 +32,7 @@ const PLATFORM_SORTS: Record<
     { value: "upwork_viewed", label: "Last viewed" },
   ],
   nofluffjobs: [{ value: "created", label: "Created" }],
+  efinancialcareers: [{ value: "created", label: "Created" }],
 };
 
 export function JobList() {
@@ -40,7 +41,11 @@ export function JobList() {
 
   const platform = (): Platform | null =>
     z
-      .union([z.literal("upwork"), z.literal("nofluffjobs")])
+      .union([
+        z.literal("upwork"),
+        z.literal("nofluffjobs"),
+        z.literal("efinancialcareers"),
+      ])
       .nullable()
       .catch(null)
       .parse(searchParams.platform);
@@ -125,6 +130,15 @@ export function JobList() {
           </button>
         ),
       },
+      ...(platform() == null
+        ? [
+            {
+              key: "platform",
+              header: "Platform",
+              accessor: (j: Job) => j.platform,
+            },
+          ]
+        : []),
       {
         key: "posted",
         header: "Posted",
@@ -219,6 +233,7 @@ export function JobList() {
             <option value="all">All platforms</option>
             <option value="upwork">Upwork</option>
             <option value="nofluffjobs">NoFluffJobs</option>
+            <option value="efinancialcareers">eFinancialCareers</option>
           </select>
 
           <select

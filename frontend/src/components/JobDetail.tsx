@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "@solidjs/router";
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, type JSX, Show } from "solid-js";
 import {
   type Job,
   type Rating,
@@ -9,6 +9,7 @@ import {
 } from "~/api";
 import { Button } from "~/components/ui/Button";
 import { Container } from "~/components/ui/layout/Container";
+import { Grid } from "~/components/ui/layout/Grid";
 import { Row } from "~/components/ui/layout/Row";
 import { Stack } from "~/components/ui/layout/Stack";
 import { ConfirmModal } from "~/components/ui/Modal";
@@ -91,6 +92,9 @@ export function JobDetailContent(props: {
       <Show when={j.platform === "nofluffjobs"}>
         <NoFluffDetail job={j} />
       </Show>
+      <Show when={j.platform === "efinancialcareers"}>
+        <EfinancialcareersDetail job={j} />
+      </Show>
 
       <div class="card bg-base-200">
         <div class="card-body">
@@ -168,20 +172,22 @@ export function UpworkDetail(props: { job: Job }) {
       <div class="card-body">
         <h3 class="card-title text-lg">Details</h3>
         <Stack gap="sm">
-          <DetailRow label="Exact budget" value={d.exact_budget} />
-          <DetailRow label="Experience" value={d.experience_level} />
-          <DetailRow label="Project type" value={d.project_type} />
-          <DetailRow label="Duration" value={d.duration} />
-          <DetailRow label="Hours/week" value={d.hours_per_week} />
-          <DetailRow label="Hires" value={d.hires} />
-          <DetailRow label="Proposals" value={d.proposals} />
-          <DetailRow
-            label="Last viewed"
-            value={d.last_viewed ? fmtRelative(d.last_viewed) : "never"}
-          />
-          <DetailRow label="Interviewing" value={d.interviewing} />
-          <DetailRow label="Invites sent" value={d.invites_sent} />
-          <DetailRow label="Unanswered" value={d.unanswered_invites} />
+          <DetailList>
+            <DetailRow label="Exact budget" value={d.exact_budget} />
+            <DetailRow label="Experience" value={d.experience_level} />
+            <DetailRow label="Project type" value={d.project_type} />
+            <DetailRow label="Duration" value={d.duration} />
+            <DetailRow label="Hours/week" value={d.hours_per_week} />
+            <DetailRow label="Hires" value={d.hires} />
+            <DetailRow label="Proposals" value={d.proposals} />
+            <DetailRow
+              label="Last viewed"
+              value={d.last_viewed ? fmtRelative(d.last_viewed) : "never"}
+            />
+            <DetailRow label="Interviewing" value={d.interviewing} />
+            <DetailRow label="Invites sent" value={d.invites_sent} />
+            <DetailRow label="Unanswered" value={d.unanswered_invites} />
+          </DetailList>
           <Show when={d.description}>
             <div>
               <span class="font-semibold">Description:</span>
@@ -203,28 +209,30 @@ export function NoFluffDetail(props: { job: Job }) {
       <div class="card-body">
         <h3 class="card-title text-lg">Details</h3>
         <Stack gap="sm">
-          <DetailRow label="Company" value={d.company} />
-          <DetailRow label="Seniority" value={d.seniority} />
-          <DetailRow label="Remote" value={d.remote} />
-          <Show when={d.locations && d.locations.length > 0}>
-            <DetailRow
-              label="Locations"
-              value={d.locations?.join(", ") ?? ""}
-            />
-          </Show>
-          <DetailRow label="Valid until" value={d.offer_valid_until} />
-          <Show when={d.must_have && d.must_have.length > 0}>
-            <DetailRow
-              label="Must have"
-              value={d.must_have?.join(", ") ?? ""}
-            />
-          </Show>
-          <Show when={d.languages && d.languages.length > 0}>
-            <DetailRow
-              label="Languages"
-              value={d.languages?.join(", ") ?? ""}
-            />
-          </Show>
+          <DetailList>
+            <DetailRow label="Company" value={d.company} />
+            <DetailRow label="Seniority" value={d.seniority} />
+            <DetailRow label="Remote" value={d.remote} />
+            <Show when={d.locations && d.locations.length > 0}>
+              <DetailRow
+                label="Locations"
+                value={d.locations?.join(", ") ?? ""}
+              />
+            </Show>
+            <DetailRow label="Valid until" value={d.offer_valid_until} />
+            <Show when={d.must_have && d.must_have.length > 0}>
+              <DetailRow
+                label="Must have"
+                value={d.must_have?.join(", ") ?? ""}
+              />
+            </Show>
+            <Show when={d.languages && d.languages.length > 0}>
+              <DetailRow
+                label="Languages"
+                value={d.languages?.join(", ") ?? ""}
+              />
+            </Show>
+          </DetailList>
           <Show when={d.requirements}>
             <div>
               <span class="font-semibold">Requirements:</span>
@@ -249,12 +257,50 @@ export function NoFluffDetail(props: { job: Job }) {
   );
 }
 
+export function EfinancialcareersDetail(props: { job: Job }) {
+  const raw = props.job.raw;
+  if (raw.platform !== "efinancialcareers") return null;
+  const d = raw.detail;
+  return (
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h3 class="card-title text-lg">Details</h3>
+        <Stack gap="sm">
+          <DetailList>
+            <DetailRow label="Company" value={d.company} />
+            <DetailRow label="Location" value={d.location} />
+            <DetailRow label="Employment type" value={d.employment_type} />
+            <DetailRow
+              label="Posted"
+              value={d.posted_at ? fmtRelative(d.posted_at) : undefined}
+            />
+          </DetailList>
+          <Show when={d.description}>
+            <div>
+              <span class="font-semibold">Description:</span>
+              <p class="mt-1 whitespace-pre-line">{d.description}</p>
+            </div>
+          </Show>
+        </Stack>
+      </div>
+    </div>
+  );
+}
+
+function DetailList(props: { children: JSX.Element }) {
+  return (
+    <Grid cols={2} gap="sm" class="grid-cols-[max-content_1fr]">
+      {props.children}
+    </Grid>
+  );
+}
+
 function DetailRow(props: { label: string; value: string | undefined }) {
   if (!props.value) return null;
   return (
-    <div class="grid grid-cols-3 gap-2">
+    <>
       <span class="font-semibold text-base-content/70">{props.label}</span>
-      <span class="col-span-2">{props.value}</span>
-    </div>
+      <span>{props.value}</span>
+    </>
   );
 }
