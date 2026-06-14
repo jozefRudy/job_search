@@ -212,7 +212,6 @@ export function NoFluffDetail(props: { job: Job }) {
           <DetailList>
             <DetailRow label="Company" value={d.company} />
             <DetailRow label="Seniority" value={d.seniority} />
-            <DetailRow label="Remote" value={d.remote} />
             <Show when={d.locations && d.locations.length > 0}>
               <DetailRow
                 label="Locations"

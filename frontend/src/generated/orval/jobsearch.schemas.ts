@@ -41,7 +41,6 @@ export interface NoFluffJobDetail {
   offer_valid_until?: string;
   /** @nullable */
   posted_at?: string | null;
-  remote?: string;
   requirements?: string;
   seniority?: string;
 }
