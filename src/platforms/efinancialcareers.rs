@@ -415,8 +415,13 @@ impl PlatformClient for EfinancialcareersScraper {
             bail!("missing efinancialcareers auth token or jobseeker id");
         }
 
-        let result: ApplicationsResult =
-            page.evaluate(FETCH_APPLICATIONS_JS).await?.into_value()?;
+        let fetch_js = FETCH_APPLICATIONS_JS
+            .replace("__TOKEN__", &serde_json::to_string(&auth.token)?)
+            .replace(
+                "__JOBSEEKER_ID__",
+                &serde_json::to_string(&auth.jobseeker_id)?,
+            );
+        let result: ApplicationsResult = page.evaluate(fetch_js.as_str()).await?.into_value()?;
         page.close().await.ok();
 
         let raw_items = match result {

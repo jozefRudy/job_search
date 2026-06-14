@@ -1,19 +1,6 @@
 (async () => {
-  const tokenEntry = document.cookie
-    .split(';')
-    .find((c) => c.trim().startsWith('myEfcCookieAuth='));
-
-  if (!tokenEntry) {
-    return { error: 'missing efinancialcareers auth cookie' };
-  }
-
-  const token = tokenEntry.slice('myEfcCookieAuth='.length).trim();
-  const payload = JSON.parse(atob(token.split('.')[1]));
-  const jobseekerId = payload.jobseekerId;
-
-  if (!jobseekerId) {
-    return { error: 'missing jobseekerId in auth token' };
-  }
+  const token = __TOKEN__;
+  const jobseekerId = __JOBSEEKER_ID__;
 
   const res = await fetch(
     `https://job-activity.efinancialcareers.com/job-activities?jobseekerId=${jobseekerId}`,
