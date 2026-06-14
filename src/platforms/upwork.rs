@@ -1,4 +1,4 @@
-use crate::browser::BrowserExt;
+use crate::browser::{BrowserExt, wait_for_element};
 use crate::db::Db;
 use crate::models::{Budget, Data, Job, Platform, UpworkJobDetail};
 use crate::platforms::PlatformClient;
@@ -216,28 +216,20 @@ impl UpworkScraper {
     ) -> Result<UpworkJobDetail> {
         let page = browser.new_tab(job_url).await?;
 
-        let mut found = false;
-        for _ in 0..30 {
-            if page.find_element("[data-test='Description']").await.is_ok()
-                || page.find_element("[class*='description']").await.is_ok()
-            {
-                found = true;
-                break;
-            }
-            sleep(Duration::from_millis(500)).await;
-        }
-        if !found {
+        if !wait_for_element(
+            &page,
+            &["[data-test='Description']", "[class*='description']"],
+            None,
+            None,
+        )
+        .await?
+        {
             page.close().await.ok();
             bail!("Job detail page did not load");
         }
 
         // Best-effort wait for budget panel to render (fixed jobs may never show it).
-        for _ in 0..10 {
-            if page.find_element("[data-cy='clock-timelog']").await.is_ok() {
-                break;
-            }
-            sleep(Duration::from_millis(500)).await;
-        }
+        let _ = wait_for_element(&page, &["[data-cy='clock-timelog']"], Some(10), None).await;
 
         let raw: RawJobDetail = page.evaluate(FETCH_JOB_DETAIL_JS).await?.into_value()?;
 

@@ -5,8 +5,11 @@ use chromiumoxide::cdp::browser_protocol::target::{
     CloseTargetParams, CreateTargetParams, GetTargetsParams,
 };
 use futures::StreamExt;
+use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio::time::sleep;
 
 const CDP_URL: &str = "http://localhost:9222";
 const BROWSER_APP: &str = "Brave Browser";
@@ -90,6 +93,53 @@ impl BrowserExt for Browser {
     }
 }
 
+const DEFAULT_WAIT_DELAY_MS: u64 = 500;
+const DEFAULT_WAIT_TRIES: u32 = 30;
+
+/// Poll `condition` up to `tries` times, sleeping `delay` between attempts.
+/// Returns `Ok(true)` as soon as the condition returns `Ok(true)`.
+pub async fn wait_for<F, Fut>(
+    condition: F,
+    tries: Option<u32>,
+    delay: Option<Duration>,
+) -> Result<bool>
+where
+    F: Fn() -> Fut,
+    Fut: Future<Output = Result<bool>>,
+{
+    let tries = tries.unwrap_or(DEFAULT_WAIT_TRIES);
+    let delay = delay.unwrap_or(Duration::from_millis(DEFAULT_WAIT_DELAY_MS));
+    for _ in 0..tries {
+        if condition().await? {
+            return Ok(true);
+        }
+        sleep(delay).await;
+    }
+    Ok(false)
+}
+
+/// Wait until any of the `selectors` matches an element.
+pub async fn wait_for_element(
+    page: &chromiumoxide::Page,
+    selectors: &[&str],
+    tries: Option<u32>,
+    delay: Option<Duration>,
+) -> Result<bool> {
+    wait_for(
+        || async {
+            for s in selectors {
+                if page.find_element(*s).await.is_ok() {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        },
+        tries,
+        delay,
+    )
+    .await
+}
+
 #[derive(Clone)]
 pub struct BrowserManager {
     inner: Arc<Mutex<Option<Arc<Browser>>>>,
@@ -161,7 +211,7 @@ impl BrowserManager {
                 browser_and_handler = Some(b);
                 break;
             }
-            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+            sleep(Duration::from_millis(200)).await;
         }
         browser_and_handler.ok_or_else(|| anyhow::anyhow!("{BROWSER_APP} did not start in time"))
     }

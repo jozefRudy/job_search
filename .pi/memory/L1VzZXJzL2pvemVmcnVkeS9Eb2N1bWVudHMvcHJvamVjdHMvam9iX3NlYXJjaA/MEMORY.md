@@ -9,6 +9,7 @@
 - [[brave-cdp-macos-launch]] - macOS `open -a "Brave Browser" --args --remote-debugging-port=9222` silently dro
 - [[browser-eval-over-screenshots]] - When model doesn't support image rendering, use `browser_eval` with JS extractio
 - [[browser-scraping-bot-protection]] - For browser-driven scrapers behind bot protection (eFinancialCareers), reuse the
+- [[browser-wait-helpers-design]] - When extracting browser wait helpers, keep signatures simple: `tries: Option<u32
 - [[budget-model-centralized]] - Budget model is a central enum (`Range`/`Single`) in `src/models.rs` with `Displ
 - [[budget-parse-regex-pattern]] - Budget parsing prefers a single regex that handles separators with optional whit
 - [[copy-ui-components-checklist]] - When copying UI components from another project, always verify: 1) missing depen

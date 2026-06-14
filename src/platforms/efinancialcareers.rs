@@ -1,4 +1,4 @@
-use crate::browser::BrowserExt;
+use crate::browser::{BrowserExt, wait_for_element};
 use crate::db::Db;
 use crate::models::{Budget, Data, EfinancialcareersJobDetail, Job, Platform, parse_relative_time};
 use crate::platforms::PlatformClient;
@@ -9,6 +9,8 @@ use chromiumoxide::browser::Browser;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::time::Duration;
+use tokio::time::sleep;
 
 const SCRAPE_CARDS_JS: &str = include_str!("efinancialcareers/scrape_cards.js");
 const CLICK_SHOW_MORE_JS: &str = include_str!("efinancialcareers/click_show_more.js");
@@ -65,17 +67,7 @@ impl EfinancialcareersScraper {
     }
 
     pub async fn wait_for_jobs(page: &chromiumoxide::Page) -> Result<bool> {
-        for _ in 0..30 {
-            let has_cards: bool = page
-                .evaluate("!!document.querySelector('efc-job-search-results efc-job-card')")
-                .await?
-                .into_value()?;
-            if has_cards {
-                return Ok(true);
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        }
-        Ok(false)
+        wait_for_element(page, &["efc-job-search-results efc-job-card"], None, None).await
     }
 
     pub async fn scrape_page(page: &chromiumoxide::Page) -> Result<Vec<EfinancialcareersJobCard>> {
@@ -104,7 +96,7 @@ impl EfinancialcareersScraper {
             return false;
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
+        sleep(Duration::from_millis(pause_ms)).await;
         true
     }
 
@@ -116,12 +108,7 @@ impl EfinancialcareersScraper {
     ) -> Result<EfinancialcareersJobDetail> {
         let page = browser.new_tab(url).await?;
 
-        for _ in 0..30 {
-            if page.find_element("efc-job-description").await.is_ok() {
-                break;
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        }
+        let _ = wait_for_element(&page, &["efc-job-description"], None, None).await;
 
         let extracted: ExtractedDetail = page.evaluate(EXTRACT_DETAIL_JS).await?.into_value()?;
 
@@ -255,7 +242,7 @@ impl PlatformClient for EfinancialcareersScraper {
                     continue;
                 }
 
-                tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
+                sleep(Duration::from_millis(pause_ms)).await;
 
                 let detail = match self.fetch_detail(browser, &card.url).await {
                     Ok(d) => d,

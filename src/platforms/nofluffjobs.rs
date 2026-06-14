@@ -1,4 +1,4 @@
-use crate::browser::BrowserExt;
+use crate::browser::{BrowserExt, wait_for, wait_for_element};
 use crate::db::Db;
 use crate::models::{Budget, Data, Job, NoFluffJobDetail, Platform};
 use crate::platforms::PlatformClient;
@@ -468,15 +468,7 @@ impl NoFluffJobsScraper {
         let page = browser.new_tab(&search_url).await?;
 
         // Wait for job cards to appear
-        let mut found = false;
-        for _ in 0..30 {
-            if page.find_element("a.posting-list-item").await.is_ok() {
-                found = true;
-                break;
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        }
-        if !found {
+        if !wait_for_element(&page, &["a.posting-list-item"], None, None).await? {
             page.close().await.ok();
             bail!("NoFluffJobs search page did not load job cards");
         }
@@ -514,7 +506,7 @@ impl NoFluffJobsScraper {
                     continue;
                 }
 
-                tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
+                sleep(Duration::from_millis(pause_ms)).await;
 
                 match self.fetch_detail(&card.external_id).await {
                     Ok(detail) => {
@@ -576,17 +568,7 @@ impl NoFluffJobsScraper {
 
     /// Wait for job cards to appear on search page.
     pub async fn wait_for_jobs(page: &chromiumoxide::Page) -> Result<bool> {
-        for _ in 0..30 {
-            let has_cards: bool = page
-                .evaluate("!!document.querySelector('a.posting-list-item')")
-                .await?
-                .into_value()?;
-            if has_cards {
-                return Ok(true);
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-        }
-        Ok(false)
+        wait_for_element(page, &["a.posting-list-item"], None, None).await
     }
 
     /// Scrape job cards from current page.
@@ -616,21 +598,23 @@ impl NoFluffJobsScraper {
             return false;
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_millis(pause_ms)).await;
+        sleep(Duration::from_millis(pause_ms)).await;
 
-        for _ in 0..30 {
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            let count: i32 = page
-                .evaluate(COUNT_CARDS_JS)
-                .await
-                .ok()
-                .and_then(|v| v.into_value().ok())
-                .unwrap_or(0);
-            if count > prev_count {
-                return true;
-            }
-        }
-        false
+        wait_for(
+            || async {
+                let count: i32 = page
+                    .evaluate(COUNT_CARDS_JS)
+                    .await
+                    .ok()
+                    .and_then(|v| v.into_value().ok())
+                    .unwrap_or(0);
+                Ok(count > prev_count)
+            },
+            None,
+            None,
+        )
+        .await
+        .unwrap_or(false)
     }
 
     /// Fetch job detail from API (no DB dependency).
