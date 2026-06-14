@@ -443,6 +443,16 @@ impl NoFluffJobsScraper {
         }
     }
 
+    async fn set_currency_cookie(&self, browser: &Browser) -> Result<()> {
+        browser
+            .set_cookie(
+                "nfj_ui_settings_currency",
+                &self.config.salary_currency.to_lowercase(),
+                ".nofluffjobs.com",
+            )
+            .await
+    }
+
     /// Scrape job cards from NoFluffJobs search page via browser.
     /// The website respects filters (unlike the API), so this gives accurate results.
     /// Clicks "See more offers" to load additional pages.
@@ -454,13 +464,7 @@ impl NoFluffJobsScraper {
         pause_ms: u64,
     ) -> Result<Vec<Job>> {
         let search_url = self.build_search_url(query);
-        browser
-            .set_cookie(
-                "nfj_ui_settings_currency",
-                &self.config.salary_currency.to_lowercase(),
-                ".nofluffjobs.com",
-            )
-            .await?;
+        self.set_currency_cookie(browser).await?;
         let page = browser.new_tab(&search_url).await?;
 
         // Wait for job cards to appear
@@ -660,13 +664,7 @@ impl NoFluffJobsScraper {
             bail!("NoFluffJobs requires open nofluffjobs.com tab in Brave");
         }
 
-        browser
-            .set_cookie(
-                "nfj_ui_settings_currency",
-                &self.config.salary_currency.to_lowercase(),
-                ".nofluffjobs.com",
-            )
-            .await?;
+        self.set_currency_cookie(browser).await?;
         let page = browser
             .new_tab("https://nofluffjobs.com/profile/my-applications")
             .await?;
