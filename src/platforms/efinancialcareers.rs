@@ -67,7 +67,16 @@ impl EfinancialcareersScraper {
     }
 
     pub async fn wait_for_jobs(page: &chromiumoxide::Page) -> Result<bool> {
-        wait_for_element(page, &["efc-job-search-results efc-job-card"], None, None).await
+        wait_for_element(
+            page,
+            &[
+                "efc-job-search-results",
+                "efc-empty-job-search-results-wrapper",
+            ],
+            None,
+            None,
+        )
+        .await
     }
 
     pub async fn scrape_page(page: &chromiumoxide::Page) -> Result<Vec<EfinancialcareersJobCard>> {
