@@ -1,4 +1,4 @@
-use crate::browser::{BrowserExt, wait_for, wait_for_element};
+use crate::browser::{BrowserExt, host_of, wait_for, wait_for_element};
 use crate::db::Db;
 use crate::models::{Budget, Data, Job, NoFluffJobDetail, Platform};
 use crate::platforms::PlatformClient;
@@ -412,8 +412,13 @@ impl PlatformClient for NoFluffJobsScraper {
         query: &str,
         pause_ms: u64,
     ) -> Result<Vec<Job>> {
-        let hosts = browser.get_page_hosts().await?;
-        if !hosts.iter().any(|h| h.contains("nofluffjobs.com")) {
+        let page_hosts: Vec<_> = browser
+            .get_page_urls()
+            .await?
+            .into_iter()
+            .filter_map(|u| host_of(&u))
+            .collect();
+        if !page_hosts.iter().any(|h| h.contains("nofluffjobs.com")) {
             bail!("NoFluffJobs requires open nofluffjobs.com tab in Brave");
         }
 
@@ -643,8 +648,13 @@ impl NoFluffJobsScraper {
         pause_ms: u64,
         limit: Option<usize>,
     ) -> Result<usize> {
-        let hosts = browser.get_page_hosts().await?;
-        if !hosts.iter().any(|h| h.contains("nofluffjobs.com")) {
+        let page_hosts: Vec<_> = browser
+            .get_page_urls()
+            .await?
+            .into_iter()
+            .filter_map(|u| host_of(&u))
+            .collect();
+        if !page_hosts.iter().any(|h| h.contains("nofluffjobs.com")) {
             bail!("NoFluffJobs requires open nofluffjobs.com tab in Brave");
         }
 

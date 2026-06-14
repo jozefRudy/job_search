@@ -1,5 +1,5 @@
 use chromiumoxide::browser::Browser;
-use jobsearch::browser::{BrowserExt, BrowserManager};
+use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS};
 use jobsearch::platforms::PlatformClient;
 use jobsearch::platforms::upwork::UpworkScraper;
 use std::sync::Mutex;
@@ -20,20 +20,6 @@ fn get_guard() -> std::sync::MutexGuard<'static, ()> {
     }
 }
 
-async fn require_hosts(browser: &Browser) -> anyhow::Result<()> {
-    let hosts = browser.get_page_hosts().await?;
-    let required = ["upwork.com", "nofluffjobs.com", "efinancialcareers.com"];
-    for host in required {
-        if !hosts.iter().any(|h| h.contains(host)) {
-            anyhow::bail!(
-                "missing required {} tab. Run `cargo run -- init` first and log in where needed",
-                host
-            );
-        }
-    }
-    Ok(())
-}
-
 async fn with_browser<F, Fut>(timeout_secs: u64, f: F)
 where
     F: FnOnce(std::sync::Arc<Browser>) -> Fut,
@@ -43,9 +29,9 @@ where
     tokio::time::timeout(Duration::from_secs(timeout_secs), async {
         let manager = BrowserManager::new();
         let browser = manager.ensure().await.expect("Brave should connect");
-        require_hosts(&browser)
+        jobsearch::browser::ensure_init_tabs(&browser, DEFAULT_INIT_URLS)
             .await
-            .expect("required tabs missing");
+            .expect("ensure_init_tabs should succeed");
         f(browser).await;
     })
     .await

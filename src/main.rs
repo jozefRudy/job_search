@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use directories::ProjectDirs;
-use jobsearch::browser::{BrowserExt, BrowserManager};
+use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs};
 use jobsearch::cli::{
     Cli, Commands, ListTarget, ReactAction, SyncPlatform, UpdatePlatform, UpworkSortBy,
 };
@@ -16,30 +16,28 @@ use jobsearch::platforms::{
 };
 use jobsearch::server;
 
-const DEFAULT_INIT_URLS: &[&str] = &[
-    "https://www.upwork.com/freelancers/~01dba08086390dc196",
-    "https://nofluffjobs.com",
-    "https://www.efinancialcareers.com",
-];
-
 async fn cmd_init(browser: &BrowserManager, urls: &[&str]) -> Result<()> {
     eprintln!("Launching Brave browser with {} tabs...", urls.len());
 
     let browser = browser.ensure().await?;
-    let hosts = browser.get_page_hosts().await?;
+    let tabs_before = browser.get_page_urls().await?;
+    ensure_init_tabs(&browser, urls).await?;
+    let tabs_after = browser.get_page_urls().await?;
 
     for url in urls.iter() {
         let host = jobsearch::browser::host_of(url);
-        let has_tab = hosts.iter().any(|h| Some(h) == host.as_ref());
-        if has_tab {
-            eprintln!("  {} - already open, skipping", url);
-            continue;
-        }
-
-        let page = browser.new_blank_tab().await?;
-        match tokio::time::timeout(tokio::time::Duration::from_secs(3), page.goto(*url)).await {
-            Ok(Ok(_)) => eprintln!("  {} - opened", url),
-            _ => eprintln!("  {} - opened (loading...)", url),
+        let was_open = tabs_before
+            .iter()
+            .filter_map(|u| jobsearch::browser::host_of(u))
+            .any(|h| Some(h) == host);
+        let is_open = tabs_after
+            .iter()
+            .filter_map(|u| jobsearch::browser::host_of(u))
+            .any(|h| Some(h) == host);
+        match (was_open, is_open) {
+            (true, _) => eprintln!("  {} - already open, skipping", url),
+            (false, true) => eprintln!("  {} - opened", url),
+            (false, false) => eprintln!("  {} - opened (loading...)", url),
         }
     }
 

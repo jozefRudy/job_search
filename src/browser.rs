@@ -1,9 +1,7 @@
 use anyhow::Result;
 use chromiumoxide::browser::Browser;
 use chromiumoxide::cdp::browser_protocol::network::{CookieParam, CookieSameSite, TimeSinceEpoch};
-use chromiumoxide::cdp::browser_protocol::target::{
-    CloseTargetParams, CreateTargetParams, GetTargetsParams,
-};
+use chromiumoxide::cdp::browser_protocol::target::{CreateTargetParams, GetTargetsParams};
 use futures::StreamExt;
 use std::future::Future;
 use std::sync::Arc;
@@ -13,6 +11,32 @@ use tokio::time::sleep;
 
 const CDP_URL: &str = "http://localhost:9222";
 const BROWSER_APP: &str = "Brave Browser";
+
+pub const DEFAULT_INIT_URLS: &[&str] = &[
+    "https://www.upwork.com/freelancers/~01dba08086390dc196",
+    "https://nofluffjobs.com",
+    "https://www.efinancialcareers.com",
+];
+
+pub const REQUIRED_HOSTS: &[&str] = &["upwork.com", "nofluffjobs.com", "efinancialcareers.com"];
+
+/// Open the given URLs in background tabs for any host that is not already open.
+pub async fn ensure_init_tabs(browser: &Browser, urls: &[&str]) -> Result<()> {
+    let page_urls = browser.get_page_urls().await?;
+    for url in urls {
+        let host = host_of(url);
+        let has_tab = page_urls
+            .iter()
+            .filter_map(|u| host_of(u))
+            .any(|h| Some(&h) == host.as_ref());
+        if has_tab {
+            continue;
+        }
+        let page = browser.new_blank_tab().await?;
+        let _ = tokio::time::timeout(tokio::time::Duration::from_secs(5), page.goto(*url)).await;
+    }
+    Ok(())
+}
 
 pub fn host_of(url: &str) -> Option<String> {
     url::Url::parse(url)
@@ -25,8 +49,7 @@ pub fn host_of(url: &str) -> Option<String> {
 pub trait BrowserExt {
     async fn new_blank_tab(&self) -> Result<chromiumoxide::Page>;
     async fn new_tab(&self, url: &str) -> Result<chromiumoxide::Page>;
-    async fn get_page_hosts(&self) -> Result<Vec<String>>;
-    async fn close_tabs_by_host(&self, host_substr: &str) -> Result<()>;
+    async fn get_page_urls(&self) -> Result<Vec<String>>;
     /// Set a persistent, lax, root-path cookie for the given domain.
     async fn set_cookie(&self, name: &str, value: &str, domain: &str) -> Result<()>;
 }
@@ -50,30 +73,14 @@ impl BrowserExt for Browser {
         Ok(page)
     }
 
-    async fn get_page_hosts(&self) -> Result<Vec<String>> {
+    async fn get_page_urls(&self) -> Result<Vec<String>> {
         let targets = self.execute(GetTargetsParams::default()).await?;
         Ok(targets
             .target_infos
             .iter()
             .filter(|t| t.r#type == "page")
-            .filter_map(|t| host_of(&t.url))
+            .map(|t| t.url.clone())
             .collect())
-    }
-
-    async fn close_tabs_by_host(&self, host_substr: &str) -> Result<()> {
-        let targets = self.execute(GetTargetsParams::default()).await?;
-        for t in &targets.target_infos {
-            if t.r#type == "page"
-                && let Some(h) = host_of(&t.url)
-                && h.contains(host_substr)
-            {
-                self.execute(CloseTargetParams {
-                    target_id: t.target_id.clone(),
-                })
-                .await?;
-            }
-        }
-        Ok(())
     }
 
     async fn set_cookie(&self, name: &str, value: &str, domain: &str) -> Result<()> {
@@ -185,25 +192,23 @@ impl BrowserManager {
         std::process::Command::new("pgrep")
             .arg("-x")
             .arg(BROWSER_APP)
-            .status()
-            .map(|s| s.success())
+            .output()
+            .map(|o| o.status.success())
             .unwrap_or(false)
     }
 
     async fn launch() -> Result<(Browser, tokio::task::JoinHandle<()>)> {
         if Self::is_browser_running_without_cdp() {
-            anyhow::bail!(
-                "{BROWSER_APP} is running without remote debugging. Quit it and try again."
-            );
+            Self::quit_browser().await?;
         }
 
-        let mut cmd = std::process::Command::new("open");
-        cmd.arg("-g");
-        cmd.arg("-a");
-        cmd.arg(BROWSER_APP);
-        cmd.arg("--args");
-        cmd.arg("--remote-debugging-port=9222");
-        cmd.spawn()?;
+        let _ = std::process::Command::new("open")
+            .arg("-g")
+            .arg("-a")
+            .arg(BROWSER_APP)
+            .arg("--args")
+            .arg("--remote-debugging-port=9222")
+            .output()?;
 
         let mut browser_and_handler = None;
         for _ in 0..30 {
@@ -214,6 +219,24 @@ impl BrowserManager {
             sleep(Duration::from_millis(200)).await;
         }
         browser_and_handler.ok_or_else(|| anyhow::anyhow!("{BROWSER_APP} did not start in time"))
+    }
+
+    async fn quit_browser() -> Result<()> {
+        eprintln!("{BROWSER_APP} is running without remote debugging; restarting it with CDP...");
+
+        let _ = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg("quit app \"Brave Browser\"")
+            .output()?;
+
+        // Wait for the process to disappear.
+        for _ in 0..30 {
+            if !Self::is_browser_running_without_cdp() {
+                return Ok(());
+            }
+            sleep(Duration::from_millis(200)).await;
+        }
+        anyhow::bail!("{BROWSER_APP} did not quit in time")
     }
 }
 

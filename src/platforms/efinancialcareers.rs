@@ -1,4 +1,4 @@
-use crate::browser::{BrowserExt, wait_for_element};
+use crate::browser::{BrowserExt, host_of, wait_for_element};
 use crate::db::Db;
 use crate::models::{Budget, Data, EfinancialcareersJobDetail, Job, Platform, parse_relative_time};
 use crate::platforms::PlatformClient;
@@ -302,8 +302,16 @@ impl PlatformClient for EfinancialcareersScraper {
         query: &str,
         pause_ms: u64,
     ) -> Result<Vec<Job>> {
-        let hosts = browser.get_page_hosts().await?;
-        if !hosts.iter().any(|h| h.contains("efinancialcareers.com")) {
+        let page_hosts: Vec<_> = browser
+            .get_page_urls()
+            .await?
+            .into_iter()
+            .filter_map(|u| host_of(&u))
+            .collect();
+        if !page_hosts
+            .iter()
+            .any(|h| h.contains("efinancialcareers.com"))
+        {
             bail!("eFinancialCareers requires open efinancialcareers.com tab in Brave");
         }
 
@@ -395,8 +403,16 @@ impl PlatformClient for EfinancialcareersScraper {
         pause_ms: u64,
         limit: Option<usize>,
     ) -> Result<usize> {
-        let hosts = browser.get_page_hosts().await?;
-        if !hosts.iter().any(|h| h.contains("efinancialcareers.com")) {
+        let page_hosts: Vec<_> = browser
+            .get_page_urls()
+            .await?
+            .into_iter()
+            .filter_map(|u| host_of(&u))
+            .collect();
+        if !page_hosts
+            .iter()
+            .any(|h| h.contains("efinancialcareers.com"))
+        {
             bail!("eFinancialCareers requires open efinancialcareers.com tab in Brave");
         }
 
