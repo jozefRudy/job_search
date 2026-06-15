@@ -734,8 +734,6 @@ impl NoFluffJobsScraper {
                 break;
             }
 
-            sleep(Duration::from_millis(pause_ms)).await;
-
             state.inc_checked();
             let applied_at = applied_at_for(&item);
 
@@ -796,6 +794,7 @@ impl NoFluffJobsScraper {
             db.set_applied(job_id, None, applied_at).await?;
             state.inc_new();
             eprint!("{}", state.progress_line(Some(total), &job.title));
+            sleep(Duration::from_millis(pause_ms)).await;
         }
         eprintln!();
         eprintln!("{}", state.summary());

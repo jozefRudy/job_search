@@ -572,6 +572,7 @@ impl PlatformClient for EfinancialcareersScraper {
             eprint!("{}", state.progress_line(Some(items.len()), label));
         }
         eprintln!();
+        eprintln!("{}", state.summary());
 
         Ok(state.checked())
     }
