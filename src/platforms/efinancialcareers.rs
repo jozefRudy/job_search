@@ -564,6 +564,7 @@ impl PlatformClient for EfinancialcareersScraper {
             synced += 1;
             eprint!("\r  Progress {}/{}: {:.40}", synced, total, item.title);
         }
+        eprintln!();
 
         Ok(synced)
     }

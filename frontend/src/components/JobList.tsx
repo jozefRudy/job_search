@@ -107,6 +107,7 @@ export function JobList() {
   }
 
   function setPageAndUpdate(p: number) {
+    window.scrollTo({ top: 0, behavior: "auto" });
     setSearchParams({ page: p === 1 ? "" : String(p) }, { replace: true });
   }
 

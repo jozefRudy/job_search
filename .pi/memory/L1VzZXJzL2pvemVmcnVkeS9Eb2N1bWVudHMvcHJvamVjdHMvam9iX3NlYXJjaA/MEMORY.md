@@ -17,6 +17,7 @@
 - [[budget-parse-regex-pattern]] - Budget parsing prefers a single regex that handles separators with optional whit
 - [[clippy-all-targets-validation]] - Validation command should include `--all-targets` for clippy so tests and integr
 - [[copy-ui-components-checklist]] - When copying UI components from another project, always verify: 1) missing depen
+- [[cursor-guard-no-newline]] - CursorGuard cursor restore should use `eprint!("\x1B[?25h")` without a trailing 
 - [[db-row-count-types]] - Row counts from `sqlx::query!.execute().rows_affected()` are `u64`. Return `u64`
 - [[deserializer-shape-normalization]] - When scraping external APIs, do shape-normalization in explicit `Raw*` structs p
 - [[detail-list-shared-grid]] - For label/value rows in detail views, prefer a shared wrapper grid (`DetailList`
@@ -36,11 +37,13 @@
 - [[new-platform-variant-update-checklist]] - When a new `Platform` variant is added, also update `db.rs` test helper `test_jo
 - [[nix-pnpm-hash-update]] - When frontend `pnpm` dependencies change in `frontend/package.json` or `frontend
 - [[nix-pnpm-oom-fix]] - When packaging pnpm frontend in Nix flake on macOS, `pnpm_11` + `fetcherVersion 
+- [[nix-vs-pnpm-global-packages]] - When using Home Manager together with pnpm global packages, prefer letting pnpm 
 - [[nofluffjobs-auth-token-change]] - NoFluffJobs sync auth changed: `nfj_salt` cookie replaced by `nfj_token=<session
 - [[openapi-orval-experiment]] - Consider experimenting with OpenAPI + Orval for auto-generating TanStack Query h
 - [[orval-generation-workflow]] - When adding new backend endpoints, always regenerate the Orval API client via `r
 - [[orval-no-manual-edits]] - Orval-generated schemas should not be edited by hand. When backend schema change
 - [[orval-solid-query-v5-incompatibility]] - Orval `client: 'solid-query'` was broken for TanStack Query v5 but is now FIXED 
+- [[pagination-scroll-to-top]] - For paginated lists, don't rely on router auto-scroll. Browser/router scroll res
 - [[pagination-single-query-pattern]] - For paginated APIs, use `COUNT(*) OVER() as total` in the same query instead of 
 - [[plan-before-implement]] - When the user says 'first verify/research before starting', provide a concise pl
 - [[platform-specific-sort-pattern]] - For platform-specific sorting in shared API, use a single strongly-typed `Sort` 
@@ -61,6 +64,7 @@
 ## preference
 
 - [[refactor-prefer-explicit-match]] - When refactoring repeated platform-specific code, the user prefers keeping expli
+- [[update-command-output-spacing]] - When chaining multiple `jobsearch update` commands, print a blank line before ea
 
 ## context
 

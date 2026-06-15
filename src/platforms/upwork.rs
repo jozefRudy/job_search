@@ -596,6 +596,7 @@ impl PlatformClient for UpworkScraper {
                 .unwrap_or(all_proposals.len());
             eprint!("\r  Progress {}/{}: {:.40}", synced, total, item.title);
         }
+        eprintln!();
         Ok(synced)
     }
 

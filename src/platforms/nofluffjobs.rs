@@ -425,6 +425,16 @@ impl PlatformClient for NoFluffJobsScraper {
         self.fetch_jobs_via_browser(browser, db, query, pause_ms)
             .await
     }
+
+    async fn sync_applications(
+        &self,
+        browser: &Browser,
+        db: &Db,
+        pause_ms: u64,
+        limit: Option<usize>,
+    ) -> Result<usize> {
+        NoFluffJobsScraper::sync_applications(self, browser, db, pause_ms, limit).await
+    }
 }
 
 impl NoFluffJobsScraper {
