@@ -15,6 +15,7 @@
 - [[browser-wait-helpers-design]] - When extracting browser wait helpers, keep signatures simple: `tries: Option<u32
 - [[budget-model-centralized]] - Budget model is a central enum (`Range`/`Single`) in `src/models.rs` with `Displ
 - [[budget-parse-regex-pattern]] - Budget parsing prefers a single regex that handles separators with optional whit
+- [[clippy-all-targets-validation]] - Validation command should include `--all-targets` for clippy so tests and integr
 - [[copy-ui-components-checklist]] - When copying UI components from another project, always verify: 1) missing depen
 - [[db-row-count-types]] - Row counts from `sqlx::query!.execute().rows_affected()` are `u64`. Return `u64`
 - [[deserializer-shape-normalization]] - When scraping external APIs, do shape-normalization in explicit `Raw*` structs p
@@ -54,6 +55,7 @@
 - [[sqlx-query-as-default-limitation]] - `#[sqlx(flatten)]` does **not** work with the `query_as!` macro — it only works 
 - [[tanstack-query-over-engineering]] - Don't over-engineer TanStack Query cache invalidation. User prefers short, maint
 - [[tanstack-solidjs-structural-sharing]] - When using TanStack Query v5 with SolidJS, always set `structuralSharing: false`
+- [[upwork-hidden-budget-marker]] - Upwork detail pages may hide hourly budgets client-side. The server still emits 
 - [[url-as-state-source-of-truth]] - URL query params are the correct source of truth for filter/list state in SPAs —
 
 ## preference

@@ -2,30 +2,19 @@ use chromiumoxide::browser::Browser;
 use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS};
 use jobsearch::platforms::PlatformClient;
 use jobsearch::platforms::upwork::UpworkScraper;
-use std::sync::Mutex;
+use std::sync::LazyLock;
 use std::time::Duration;
+use tokio::sync::Mutex;
 
 /// Serialize access to shared Brave browser.
-static BROWSER_LOCK: Mutex<()> = Mutex::new(());
-
-fn get_guard() -> std::sync::MutexGuard<'static, ()> {
-    loop {
-        match BROWSER_LOCK.lock() {
-            Ok(g) => return g,
-            Err(_) => {
-                let mut guard = BROWSER_LOCK.lock().unwrap();
-                *guard = ();
-            }
-        }
-    }
-}
+static BROWSER_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 async fn with_browser<F, Fut>(timeout_secs: u64, f: F)
 where
     F: FnOnce(std::sync::Arc<Browser>) -> Fut,
     Fut: std::future::Future<Output = ()>,
 {
-    let _guard = get_guard();
+    let _guard = BROWSER_LOCK.lock().await;
     tokio::time::timeout(Duration::from_secs(timeout_secs), async {
         let manager = BrowserManager::new();
         let browser = manager.browser().await.expect("Brave should connect");
@@ -115,7 +104,7 @@ async fn test_upwork_job_detail_fetch() {
         );
         assert!(
             !detail.exact_budget.is_empty(),
-            "detail should have exact_budget for hourly jobs"
+            "detail should have exact_budget or a hidden-budget marker"
         );
         assert!(
             !detail.experience_level.is_empty(),

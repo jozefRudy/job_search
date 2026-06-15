@@ -56,7 +56,14 @@
         }
     }
 
-    const exact_budget = itemText('[data-cy="clock-timelog"]', 'Hourly', 'Hourly');
+    let exact_budget = itemText('[data-cy="clock-timelog"]', 'Hourly', 'Hourly');
+    if (!exact_budget) {
+        const html = document.documentElement.innerHTML;
+        const budgetHidden = html.match(/hourlyBudgetType[^,]*,\s*"([^"]+)"/);
+        if (budgetHidden && budgetHidden[1] === 'NOT_PROVIDED') {
+            exact_budget = 'Budget hidden';
+        }
+    }
 
     const tags = Array.from(document.querySelectorAll('a[href*="ontology_skill_uid"]'))
         .map(a => a.innerText?.trim())
