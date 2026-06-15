@@ -246,7 +246,7 @@ export function JobList() {
               )
             }
           >
-            <option value="all">All platforms</option>
+            <option value="all">Platforms: any</option>
             <option value="upwork">Upwork</option>
             <option value="nofluffjobs">NoFluffJobs</option>
             <option value="efinancialcareers">eFinancialCareers</option>
