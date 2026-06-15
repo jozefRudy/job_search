@@ -23,6 +23,7 @@
 - [[nix-vs-pnpm-global-packages]] - When using Home Manager together with pnpm global packages, prefer letting pnpm 
 - [[nofluffjobs-sync]] - NoFluffJobs applications sync uses `/api/candidates/my-applications`, paginated,
 - [[orval-api-generation]] - API types and fetch clients are generated from backend OpenAPI via Orval (`clien
+- [[output-label-match-actual-work]] - When output shows counts, prefer language that matches work done. For fetch/upda
 - [[pagination-patterns]] - Backend: use `COUNT(*) OVER() as total` in the same query to avoid duplicated WH
 - [[plan-before-implement]] - When the user says 'first verify/research before starting', provide a concise pl
 - [[platform-abstractions]] - Platform-specific sync methods (e.g. `sync_applications`) belong in `PlatformCli
@@ -44,5 +45,7 @@
 
 - [[db-set-applied-signature]] - `Db::set_applied` should take explicit non-optional `applied_at: NaiveDateTime` 
 - [[devenv-scripts]] - `devenv up` starts backend (`cargo run -- serve`) + frontend (`pnpm start`) toge
+- [[fetch-state-shared-struct]] - Created `FetchState` in `src/platforms/fetch_state.rs` and re-exported from `src
 - [[frontend-validation-pipeline]] - Frontend validation pipeline lives in `frontend/` dir: `pnpm typecheck && pnpm c
+- [[skip-detail-fetch-existing-jobs]] - In fetch loops, skip detail fetch for existing jobs via `db.find_job_id()` befor
 - [[web-server-design]] - Frontend stack: SolidJS + Tailwind + DaisyUI, built locally in `frontend/` dir a

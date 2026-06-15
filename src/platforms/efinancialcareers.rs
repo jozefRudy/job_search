@@ -1,7 +1,7 @@
 use crate::browser::{BrowserExt, host_of, wait_for_element};
 use crate::db::Db;
 use crate::models::{Budget, Data, EfinancialcareersJobDetail, Job, Platform, parse_relative_time};
-use crate::platforms::PlatformClient;
+use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
@@ -331,7 +331,7 @@ impl PlatformClient for EfinancialcareersScraper {
 
         let mut all_jobs = Vec::new();
         let mut processed_ids: HashSet<String> = HashSet::new();
-        let mut checked_count = 0usize;
+        let mut state = FetchState::new();
         let _guard = CursorGuard::new();
 
         let mut no_progress = 0usize;
@@ -352,16 +352,14 @@ impl PlatformClient for EfinancialcareersScraper {
             }
 
             for card in &new_cards {
-                checked_count += 1;
+                state.inc_checked();
                 if db
                     .find_job_id(&Platform::Efinancialcareers, &card.external_id)
                     .await?
                     .is_some()
                 {
-                    eprint!(
-                        "\r    Progress: {:>5}/{:<5} {:.40}\x1B[K",
-                        checked_count, total_jobs, ""
-                    );
+                    state.inc_existing();
+                    eprint!("{}", state.progress_line(Some(total_jobs), ""));
                     continue;
                 }
 
@@ -380,12 +378,10 @@ impl PlatformClient for EfinancialcareersScraper {
 
                 let job = self.build_job(card, detail);
                 db.upsert_job(&job).await?;
+                state.inc_new();
                 all_jobs.push(job);
 
-                eprint!(
-                    "\r    Progress: {:>5}/{:<5} {:.40}\x1B[K",
-                    checked_count, total_jobs, card.title
-                );
+                eprint!("{}", state.progress_line(Some(total_jobs), &card.title));
             }
 
             if !Self::click_show_more(&page, pause_ms).await {
@@ -394,6 +390,7 @@ impl PlatformClient for EfinancialcareersScraper {
         }
 
         page.close().await.ok();
+        eprintln!("  {}", state.summary());
         Ok(all_jobs)
     }
 

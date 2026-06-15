@@ -1,7 +1,7 @@
 use crate::browser::{BrowserExt, host_of, wait_for, wait_for_element};
 use crate::db::Db;
 use crate::models::{Budget, Data, Job, NoFluffJobDetail, Platform};
-use crate::platforms::PlatformClient;
+use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
@@ -502,7 +502,7 @@ impl NoFluffJobsScraper {
         let mut all_jobs = Vec::new();
         let platform = Platform::NoFluffJobs;
         let mut processed_ids: HashSet<String> = HashSet::new();
-        let mut checked_count = 0;
+        let mut state = FetchState::new();
 
         let _guard = CursorGuard::new();
 
@@ -515,13 +515,14 @@ impl NoFluffJobsScraper {
                 .collect();
 
             for card in &new_cards {
-                checked_count += 1;
+                state.inc_checked();
                 if db
                     .find_job_id(&platform, &card.external_id)
                     .await?
                     .is_some()
                 {
-                    eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, "");
+                    state.inc_existing();
+                    eprint!("{}", state.progress_line(None, ""));
                     continue;
                 }
 
@@ -560,6 +561,7 @@ impl NoFluffJobsScraper {
                             applied_at: None,
                         };
                         db.upsert_job(&job).await?;
+                        state.inc_new();
                         all_jobs.push(job);
                     }
                     Err(e) => {
@@ -570,10 +572,7 @@ impl NoFluffJobsScraper {
                     }
                 }
 
-                eprint!(
-                    "\r    Progress: {:>5} {:.40}\x1B[K",
-                    checked_count, card.external_id
-                );
+                eprint!("{}", state.progress_line(None, &card.external_id));
             }
 
             if !Self::click_load_more(&page, pause_ms).await {
@@ -582,6 +581,7 @@ impl NoFluffJobsScraper {
         }
 
         page.close().await.ok();
+        eprintln!("  {}", state.summary());
         Ok(all_jobs)
     }
 

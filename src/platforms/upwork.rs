@@ -1,7 +1,7 @@
 use crate::browser::{BrowserExt, host_of, wait_for_element};
 use crate::db::Db;
 use crate::models::{Budget, Data, Job, Platform, UpworkJobDetail};
-use crate::platforms::PlatformClient;
+use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, anyhow, bail};
 use async_trait::async_trait;
@@ -393,9 +393,7 @@ impl PlatformClient for UpworkScraper {
 
         let mut all_jobs: Vec<Job> = Vec::new();
         let mut page_num = 1u32;
-        let mut checked_count = 0usize;
-        let mut new_count = 0usize;
-        let mut updated_count = 0usize;
+        let mut state = FetchState::new();
         let fetch_started_at = chrono::Utc::now();
         let detail_ttl = chrono::Duration::hours(24);
 
@@ -405,7 +403,7 @@ impl PlatformClient for UpworkScraper {
             let raw_jobs = Self::scrape_page(&page).await?;
 
             for v in &raw_jobs {
-                checked_count += 1;
+                state.inc_checked();
                 let is_stale = v.posted_at_text.is_some_and(|posted| {
                     let age = chrono::Utc::now() - posted;
                     age.num_days() >= 7
@@ -416,7 +414,8 @@ impl PlatformClient for UpworkScraper {
                 if let Some(ts) = updated_at
                     && (fetch_started_at - ts < detail_ttl || is_stale)
                 {
-                    eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, "");
+                    state.inc_existing();
+                    eprint!("{}", state.progress_line(None, ""));
                     continue;
                 }
 
@@ -444,9 +443,9 @@ impl PlatformClient for UpworkScraper {
 
                         let exists = updated_at.is_some();
                         if exists {
-                            updated_count += 1;
+                            state.inc_existing();
                         } else {
-                            new_count += 1;
+                            state.inc_new();
                         }
                         all_jobs.push(job);
                     }
@@ -455,7 +454,7 @@ impl PlatformClient for UpworkScraper {
                     }
                 }
 
-                eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, v.title);
+                eprint!("{}", state.progress_line(None, &v.title));
                 sleep(Duration::from_millis(pause_ms)).await;
             }
 
@@ -477,12 +476,7 @@ impl PlatformClient for UpworkScraper {
         }
 
         page.close().await.ok();
-        eprintln!(
-            "  Fetched: {} ({} new, {} updated)",
-            all_jobs.len(),
-            new_count,
-            updated_count
-        );
+        eprintln!("  {}", state.summary());
         Ok(all_jobs)
     }
 
