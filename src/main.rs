@@ -207,8 +207,8 @@ async fn sync_apps(
     let browser = manager.browser().await?;
     eprintln!("Syncing applications from {}...", client.name());
     match client.sync_applications(&browser, db, pause_ms, None).await {
-        Ok(count) => eprintln!("Synced {} applications from {}", count, client.name()),
-        Err(e) => eprintln!("Error syncing applications from {}: {}", client.name(), e),
+        Ok(count) => eprintln!("  Synced {} applications from {}", count, client.name()),
+        Err(e) => eprintln!("  Error syncing applications from {}: {}", client.name(), e),
     }
     Ok(())
 }
