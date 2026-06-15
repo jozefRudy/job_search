@@ -501,14 +501,16 @@ impl PlatformClient for EfinancialcareersScraper {
             }
         }
 
-        let mut synced = 0usize;
+        let mut state = FetchState::new();
         let _guard = CursorGuard::new();
 
-        for (processed, item) in items.iter().enumerate() {
+        for item in &items {
+            state.inc_checked();
             let (job_id, is_new) = if let Some(id) = db
                 .find_job_id(&Platform::Efinancialcareers, &item.external_id)
                 .await?
             {
+                state.inc_existing();
                 (id, false)
             } else {
                 let description = descriptions
@@ -558,8 +560,8 @@ impl PlatformClient for EfinancialcareersScraper {
                 db.set_applied(job_id, None, item.applied_at).await?;
             }
 
-            if is_new || !stored_applied {
-                synced += 1;
+            if is_new {
+                state.inc_new();
             }
 
             let label = if item.title.is_empty() {
@@ -567,16 +569,11 @@ impl PlatformClient for EfinancialcareersScraper {
             } else {
                 item.title.as_str()
             };
-            eprint!(
-                "\r  Progress {}/{}: {:.40}",
-                processed + 1,
-                items.len(),
-                label
-            );
+            eprint!("{}", state.progress_line(Some(items.len()), label));
         }
         eprintln!();
 
-        Ok(synced)
+        Ok(state.checked())
     }
 }
 

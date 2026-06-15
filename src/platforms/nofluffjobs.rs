@@ -725,17 +725,18 @@ impl NoFluffJobsScraper {
         }
 
         let max = limit.unwrap_or(usize::MAX);
-        let mut synced = 0usize;
+        let mut state = FetchState::new();
         let total = min(max, latest_by_posting.len());
 
         let _guard = CursorGuard::new();
         for item in latest_by_posting.into_values() {
-            if synced >= max {
+            if state.checked() >= max {
                 break;
             }
 
             sleep(Duration::from_millis(pause_ms)).await;
 
+            state.inc_checked();
             let applied_at = applied_at_for(&item);
 
             if let Some(job_id) = db
@@ -743,7 +744,7 @@ impl NoFluffJobsScraper {
                 .await?
             {
                 db.set_applied(job_id, None, applied_at).await?;
-                synced += 1;
+                state.inc_existing();
                 continue;
             }
 
@@ -792,13 +793,13 @@ impl NoFluffJobsScraper {
 
             let job_id = db.upsert_job(&job).await?;
             db.set_applied(job_id, None, applied_at).await?;
-
-            synced += 1;
-            eprint!("\r  Progress {}/{}: {:.40}", synced, total, job.title);
+            state.inc_new();
+            eprint!("{}", state.progress_line(Some(total), &job.title));
         }
         eprintln!();
+        eprintln!("{}", state.summary());
 
-        Ok(synced)
+        Ok(state.checked())
     }
 
     fn build_criteria(&self, query: &str) -> String {

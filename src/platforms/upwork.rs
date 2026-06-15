@@ -533,16 +533,20 @@ impl PlatformClient for UpworkScraper {
 
         page.close().await.ok();
 
-        let mut synced = 0usize;
+        let mut state = FetchState::new();
+        let total = limit.map(|l| min(l, all_proposals.len())).unwrap_or(all_proposals.len());
+
         for item in &all_proposals {
-            if synced >= max {
+            if state.checked() >= max {
                 break;
             }
+            state.inc_checked();
             let external_id = normalize_upwork_external_id(&item.openingUID);
             let job_url = format!("https://www.upwork.com/jobs/{}", external_id);
 
-            let job_id = if let Some(id) = db.find_job_id(&Platform::Upwork, &external_id).await? {
-                Some(id)
+            let (job_id, is_new) = if let Some(id) = db.find_job_id(&Platform::Upwork, &external_id).await? {
+                state.inc_existing();
+                (Some(id), false)
             } else {
                 match self.fetch_job_detail(browser, &job_url).await {
                     Ok(detail) => {
@@ -564,14 +568,14 @@ impl PlatformClient for UpworkScraper {
                             note: None,
                             applied_at: None,
                         };
-                        Some(db.upsert_job(&job).await?)
+                        (Some(db.upsert_job(&job).await?), true)
                     }
                     Err(e) => {
                         eprintln!(
                             "  Warning: failed to fetch detail for {}: {}",
                             item.title, e
                         );
-                        None
+                        (None, false)
                     }
                 }
             };
@@ -585,6 +589,9 @@ impl PlatformClient for UpworkScraper {
                 .is_some()
             {
                 continue;
+            }
+            if is_new {
+                state.inc_new();
             }
 
             let cover_letter: String = {
@@ -617,14 +624,11 @@ impl PlatformClient for UpworkScraper {
             };
 
             db.set_applied(job_id, note, applied_at).await?;
-            synced += 1;
-            let total = limit
-                .map(|l| min(l, all_proposals.len()))
-                .unwrap_or(all_proposals.len());
-            eprint!("\r  Progress {}/{}: {:.40}", synced, total, item.title);
+            eprint!("{}", state.progress_line(Some(total), &item.title));
         }
         eprintln!();
-        Ok(synced)
+        eprintln!("{}", state.summary());
+        Ok(state.checked())
     }
 
     async fn react(&self, _job: &Job, _note: Option<String>) -> Result<()> {
