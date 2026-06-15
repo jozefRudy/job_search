@@ -505,18 +505,15 @@ impl PlatformClient for EfinancialcareersScraper {
         }
 
         let mut synced = 0usize;
-        let total = items.len();
         let _guard = CursorGuard::new();
 
-        for item in items {
-            let mut changed = false;
-            let job_id = if let Some(id) = db
+        for (processed, item) in items.iter().enumerate() {
+            let (job_id, is_new) = if let Some(id) = db
                 .find_job_id(&Platform::Efinancialcareers, &item.external_id)
                 .await?
             {
-                id
+                (id, false)
             } else {
-                changed = true;
                 let description = descriptions
                     .get(&item.internal_job_id)
                     .cloned()
@@ -552,23 +549,33 @@ impl PlatformClient for EfinancialcareersScraper {
                     applied_at: None,
                 };
 
-                db.upsert_job(&job).await?
+                (db.upsert_job(&job).await?, true)
             };
 
-            let was_applied = db
+            let stored_applied = db
                 .get_job(job_id)
                 .await?
                 .and_then(|j| j.applied_at)
                 .is_some();
-            if !was_applied {
+            if !stored_applied {
                 db.set_applied(job_id, None, item.applied_at).await?;
-                changed = true;
             }
 
-            if changed {
+            if is_new || !stored_applied {
                 synced += 1;
             }
-            eprint!("\r  Progress {}/{}: {:.40}", synced, total, item.title);
+
+            let label = if item.title.is_empty() {
+                item.external_id.as_str()
+            } else {
+                item.title.as_str()
+            };
+            eprint!(
+                "\r  Progress {}/{}: {:.40}",
+                processed + 1,
+                items.len(),
+                label
+            );
         }
         eprintln!();
 
