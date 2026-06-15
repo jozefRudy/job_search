@@ -220,8 +220,8 @@ impl EfinancialcareersScraper {
         page.close().await.ok();
 
         Ok(EfinancialcareersJobDetail {
-            company: String::new(),
-            location: String::new(),
+            company: extracted.company,
+            location: extracted.location,
             employment_type: String::new(),
             salary: extracted.salary,
             description: extracted.description,
@@ -283,6 +283,10 @@ impl EfinancialcareersScraper {
 struct ExtractedDetail {
     #[serde(default)]
     description: String,
+    #[serde(default)]
+    company: String,
+    #[serde(default)]
+    location: String,
     #[serde(default)]
     salary: String,
     #[serde(default)]

@@ -1,5 +1,7 @@
 (() => {
   const desc = document.querySelector('efc-job-description');
+  const company = document.querySelector('.companyInfo')?.textContent?.trim() || '';
+  const location = document.querySelector('.loc')?.textContent?.trim() || '';
   const text = document.body.innerText;
   const postedMatch = text.match(/Posted\s+([^\n]+?)\s*\n/);
   const postedLine = postedMatch ? postedMatch[0] : '';
@@ -8,6 +10,8 @@
   const posted_at_text = postedMatch ? postedMatch[1].trim() : '';
   return {
     description: desc ? desc.innerText.trim() : '',
+    company,
+    location,
     salary,
     posted_at_text,
   };

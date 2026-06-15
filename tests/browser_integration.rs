@@ -429,6 +429,16 @@ async fn test_efinancialcareers_search_page_has_cards_and_details() {
             !detail.description.is_empty(),
             "detail should have description"
         );
+        assert!(
+            !detail.company.is_empty(),
+            "detail should have company: {} - add selector if missing",
+            first.url
+        );
+        assert!(
+            !detail.location.is_empty(),
+            "detail should have location: {} - add selector if missing",
+            first.url
+        );
 
         println!("detail struct:");
         println!(
