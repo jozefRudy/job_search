@@ -86,16 +86,6 @@ export function JobDetailContent(props: {
         </div>
       </div>
 
-      <Show when={j.platform === "upwork"}>
-        <UpworkDetail job={j} />
-      </Show>
-      <Show when={j.platform === "nofluffjobs"}>
-        <NoFluffDetail job={j} />
-      </Show>
-      <Show when={j.platform === "efinancialcareers"}>
-        <EfinancialcareersDetail job={j} />
-      </Show>
-
       <div class="card bg-base-200">
         <div class="card-body">
           <h3 class="card-title text-lg">Actions</h3>
@@ -146,6 +136,16 @@ export function JobDetailContent(props: {
           </Show>
         </div>
       </div>
+
+      <Show when={j.platform === "upwork"}>
+        <UpworkDetail job={j} />
+      </Show>
+      <Show when={j.platform === "nofluffjobs"}>
+        <NoFluffDetail job={j} />
+      </Show>
+      <Show when={j.platform === "efinancialcareers"}>
+        <EfinancialcareersDetail job={j} />
+      </Show>
 
       <ConfirmModal
         open={showDelete()}
