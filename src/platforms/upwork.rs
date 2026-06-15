@@ -41,6 +41,42 @@ fn parse_upwork_budget(s: &str) -> String {
         .unwrap_or_else(|| s.trim().to_string())
 }
 
+/// Upwork canonical external id prefix.
+const UPWORK_ID_PREFIX: &str = "~02";
+
+/// Normalize Upwork external id to `~02{digits}`.
+/// Handles ids from search (`data-ev-job-uid`) and from proposals API (`openingUID`).
+fn normalize_upwork_external_id(id: &str) -> String {
+    let digits = id
+        .trim()
+        .trim_start_matches(UPWORK_ID_PREFIX)
+        .trim_start_matches("02")
+        .trim_start_matches('~')
+        .trim();
+    if digits.is_empty() {
+        String::new()
+    } else {
+        format!("{}{}", UPWORK_ID_PREFIX, digits)
+    }
+}
+
+/// Extract external id from either canonical or slugged Upwork job URL.
+fn extract_upwork_external_id_from_url(url: &str) -> Option<String> {
+    let parsed = url::Url::parse(url).ok()?;
+    let segment = parsed.path_segments()?.filter(|s| !s.is_empty()).last()?;
+    segment
+        .rsplit('_')
+        .find(|part| part.contains('~') || part.chars().any(|c| c.is_ascii_digit()))
+        .map(normalize_upwork_external_id)
+}
+
+/// Strip slug, query params, and referrer from Upwork job URL.
+fn normalize_upwork_url(url: &str) -> String {
+    extract_upwork_external_id_from_url(url)
+        .map(|id| format!("https://www.upwork.com/jobs/{}", id))
+        .unwrap_or_else(|| url.to_string())
+}
+
 /// Raw job card from JS scraper (all strings).
 #[derive(Debug, Clone, Deserialize)]
 struct RawJobCard {
@@ -244,10 +280,10 @@ impl UpworkScraper {
         Ok(raw
             .into_iter()
             .map(|r| UpworkJobCard {
-                external_id: r.external_id,
+                external_id: normalize_upwork_external_id(&r.external_id),
                 title: r.title,
                 description: r.description,
-                url: r.url,
+                url: normalize_upwork_url(&r.url),
                 budget: r.budget.map(|b| parse_upwork_budget(&b)),
                 posted_at_text: crate::models::parse_relative_time(&r.posted_at_text),
                 tags: r.tags,
@@ -508,7 +544,7 @@ impl PlatformClient for UpworkScraper {
             if synced >= max {
                 break;
             }
-            let external_id = format!("~02{}", item.openingUID);
+            let external_id = normalize_upwork_external_id(&item.openingUID);
             let job_url = format!("https://www.upwork.com/jobs/{}", external_id);
 
             let job_id = if let Some(id) = db
@@ -660,5 +696,48 @@ mod tests {
         assert!(url.contains("t=0"));
         assert!(url.contains("client_hires=10-"));
         assert!(url.contains("page=3"));
+    }
+
+    #[test]
+    fn test_normalize_upwork_external_id_variants() {
+        assert_eq!(
+            normalize_upwork_external_id("2062803789757972368"),
+            "~022062803789757972368"
+        );
+        assert_eq!(
+            normalize_upwork_external_id("~022062803789757972368"),
+            "~022062803789757972368"
+        );
+        assert_eq!(
+            normalize_upwork_external_id("022062803789757972368"),
+            "~022062803789757972368"
+        );
+        assert_eq!(
+            normalize_upwork_external_id("  ~022062803789757972368  "),
+            "~022062803789757972368"
+        );
+        assert_eq!(normalize_upwork_external_id(""), "");
+    }
+
+    #[test]
+    fn test_extract_upwork_external_id_from_slug_url() {
+        let url = "https://www.upwork.com/jobs/Kalshi-span-class-highlight-Trading-span-Bot-Developer-Python-Prediction-Markets_~022062803789757972368/?referrer_url_path=/nx/search/jobs/";
+        assert_eq!(
+            extract_upwork_external_id_from_url(url),
+            Some("~022062803789757972368".to_string())
+        );
+    }
+
+    #[test]
+    fn test_normalize_upwork_url_strips_slug_and_query() {
+        let slug = "https://www.upwork.com/jobs/Kalshi-span-class-highlight-Trading-span-Bot-Developer-Python-Prediction-Markets_~022062803789757972368/?referrer_url_path=/nx/search/jobs/";
+        assert_eq!(
+            normalize_upwork_url(slug),
+            "https://www.upwork.com/jobs/~022062803789757972368"
+        );
+        assert_eq!(
+            normalize_upwork_url("https://www.upwork.com/jobs/~022062803789757972368"),
+            "https://www.upwork.com/jobs/~022062803789757972368"
+        );
     }
 }
