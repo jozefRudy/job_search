@@ -249,16 +249,17 @@ impl Db {
         Ok(())
     }
 
-    /// Returns true if a job with this platform+external_id already exists.
-    pub async fn job_exists(&self, platform: &Platform, external_id: &str) -> Result<bool> {
-        let count: i64 = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM jobs WHERE platform = ?1 AND external_id = ?2",
+    /// Fetch job id by platform + external_id.
+    pub async fn find_job_id(&self, platform: &Platform, external_id: &str) -> Result<Option<i64>> {
+        let id = sqlx::query_scalar!(
+            "SELECT id FROM jobs WHERE platform = ?1 AND external_id = ?2",
             platform,
             external_id
         )
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(count > 0)
+        .fetch_optional(&self.pool)
+        .await?
+        .flatten();
+        Ok(id)
     }
 
     /// Fetch updated_at for a job by platform + external_id.
@@ -280,9 +281,12 @@ impl Db {
 
     pub async fn delete_jobs(&self, ids: &[i64]) -> Result<u64> {
         let ids_json = serde_json::to_string(ids)?;
-        let rows = sqlx::query!("DELETE FROM jobs WHERE id IN (SELECT value FROM json_each(?1))", ids_json)
-            .execute(&self.pool)
-            .await?;
+        let rows = sqlx::query!(
+            "DELETE FROM jobs WHERE id IN (SELECT value FROM json_each(?1))",
+            ids_json
+        )
+        .execute(&self.pool)
+        .await?;
         Ok(rows.rows_affected())
     }
 

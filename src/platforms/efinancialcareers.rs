@@ -354,8 +354,9 @@ impl PlatformClient for EfinancialcareersScraper {
             for card in &new_cards {
                 checked_count += 1;
                 if db
-                    .job_exists(&Platform::Efinancialcareers, &card.external_id)
+                    .find_job_id(&Platform::Efinancialcareers, &card.external_id)
                     .await?
+                    .is_some()
                 {
                     eprint!(
                         "\r    Progress: {:>5}/{:<5} {:.40}\x1B[K",

@@ -516,7 +516,11 @@ impl NoFluffJobsScraper {
 
             for card in &new_cards {
                 checked_count += 1;
-                if db.job_exists(&platform, &card.external_id).await? {
+                if db
+                    .find_job_id(&platform, &card.external_id)
+                    .await?
+                    .is_some()
+                {
                     eprint!("\r    Progress: {:>5} {:.40}\x1B[K", checked_count, "");
                     continue;
                 }
@@ -675,7 +679,7 @@ impl NoFluffJobsScraper {
         sleep(Duration::from_millis(pause_ms)).await;
 
         let per_page = 20i32;
-        let mut page_num = 1i32;
+        let mut page_num = 0i32;
         let mut all_items: Vec<ApplicationItem> = Vec::new();
 
         loop {
@@ -730,14 +734,18 @@ impl NoFluffJobsScraper {
                 break;
             }
 
-            if db
-                .job_exists(&Platform::NoFluffJobs, &item.posting_id)
+            sleep(Duration::from_millis(pause_ms)).await;
+
+            let applied_at = applied_at_for(&item);
+
+            if let Some(job_id) = db
+                .find_job_id(&Platform::NoFluffJobs, &item.posting_id)
                 .await?
             {
+                db.set_applied(job_id, None, applied_at).await?;
+                synced += 1;
                 continue;
             }
-
-            sleep(Duration::from_millis(pause_ms)).await;
 
             let slug = item.offer.url.trim_start_matches('/');
             let slug = slug.strip_prefix("job/").unwrap_or(slug);
@@ -783,7 +791,6 @@ impl NoFluffJobsScraper {
             };
 
             let job_id = db.upsert_job(&job).await?;
-            let applied_at = applied_at_for(&item);
             db.set_applied(job_id, None, applied_at).await?;
 
             synced += 1;
