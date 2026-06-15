@@ -1,7 +1,9 @@
 use anyhow::Result;
 use chromiumoxide::browser::Browser;
 use chromiumoxide::cdp::browser_protocol::network::{CookieParam, CookieSameSite, TimeSinceEpoch};
-use chromiumoxide::cdp::browser_protocol::target::{CreateTargetParams, GetTargetsParams};
+use chromiumoxide::cdp::browser_protocol::target::{
+    CloseTargetParams, CreateTargetParams, GetTargetsParams, TargetId,
+};
 use futures::StreamExt;
 use std::future::Future;
 use std::sync::Arc;
@@ -50,6 +52,10 @@ pub trait BrowserExt {
     async fn new_blank_tab(&self) -> Result<chromiumoxide::Page>;
     async fn new_tab(&self, url: &str) -> Result<chromiumoxide::Page>;
     async fn get_page_urls(&self) -> Result<Vec<String>>;
+    /// Return (target_id, url) pairs for all page targets.
+    async fn get_page_targets(&self) -> Result<Vec<(TargetId, String)>>;
+    /// Close page targets whose IDs are not in `keep_ids`.
+    async fn close_pages_except(&self, keep_ids: &[TargetId]) -> Result<()>;
     /// Set a persistent, lax, root-path cookie for the given domain.
     async fn set_cookie(&self, name: &str, value: &str, domain: &str) -> Result<()>;
 }
@@ -74,13 +80,33 @@ impl BrowserExt for Browser {
     }
 
     async fn get_page_urls(&self) -> Result<Vec<String>> {
+        Ok(self
+            .get_page_targets()
+            .await?
+            .into_iter()
+            .map(|(_, url)| url)
+            .collect())
+    }
+
+    async fn get_page_targets(&self) -> Result<Vec<(TargetId, String)>> {
         let targets = self.execute(GetTargetsParams::default()).await?;
         Ok(targets
             .target_infos
             .iter()
             .filter(|t| t.r#type == "page")
-            .map(|t| t.url.clone())
+            .map(|t| (t.target_id.clone(), t.url.clone()))
             .collect())
+    }
+
+    async fn close_pages_except(&self, keep_ids: &[TargetId]) -> Result<()> {
+        let targets = self.get_page_targets().await?;
+        for (id, _) in targets {
+            if keep_ids.contains(&id) {
+                continue;
+            }
+            let _ = self.execute(CloseTargetParams::new(id)).await;
+        }
+        Ok(())
     }
 
     async fn set_cookie(&self, name: &str, value: &str, domain: &str) -> Result<()> {

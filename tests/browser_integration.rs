@@ -1,4 +1,5 @@
 use chromiumoxide::browser::Browser;
+use futures::FutureExt;
 use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS};
 use jobsearch::platforms::PlatformClient;
 use jobsearch::platforms::upwork::UpworkScraper;
@@ -21,7 +22,24 @@ where
         jobsearch::browser::ensure_init_tabs(&browser, DEFAULT_INIT_URLS)
             .await
             .expect("ensure_init_tabs should succeed");
-        f(browser).await;
+        let initial = browser
+            .get_page_targets()
+            .await
+            .expect("snapshot initial tabs");
+        let initial_ids: Vec<_> = initial.into_iter().map(|(id, _)| id).collect();
+
+        let result = std::panic::AssertUnwindSafe(f(browser.clone()))
+            .catch_unwind()
+            .await;
+
+        browser
+            .close_pages_except(&initial_ids)
+            .await
+            .expect("close test tabs");
+
+        if let Err(err) = result {
+            std::panic::resume_unwind(err);
+        }
     })
     .await
     .expect("test should complete within timeout");
