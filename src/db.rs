@@ -87,6 +87,7 @@ impl Db {
         &self,
         platform: Option<Platform>,
         liked: Option<Rating>,
+        applied: Option<bool>,
         sort: Sort,
         limit: i64,
         offset: i64,
@@ -109,9 +110,14 @@ impl Db {
                 (?2 = 'disliked' AND j.liked = 0) OR
                 (?2 = 'neutral' AND j.liked IS NULL)
               ))
+              AND (?3 IS NULL OR (
+                (?3 = 1 AND r.applied_at IS NOT NULL) OR
+                (?3 = 0 AND r.applied_at IS NULL)
+              ))
             "#,
             platform,
             liked_str,
+            applied,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -129,13 +135,18 @@ impl Db {
                 (?2 = 'disliked' AND j.liked = 0) OR
                 (?2 = 'neutral' AND j.liked IS NULL)
               ))
-            ORDER BY {} LIMIT ?3 OFFSET ?4
+              AND (?3 IS NULL OR (
+                (?3 = 1 AND r.applied_at IS NOT NULL) OR
+                (?3 = 0 AND r.applied_at IS NULL)
+              ))
+            ORDER BY {} LIMIT ?4 OFFSET ?5
             "#,
             order_by
         );
         let rows = sqlx::query_as::<_, JobRow>(&sql)
             .bind(platform)
             .bind(liked_str)
+            .bind(applied)
             .bind(limit)
             .bind(offset)
             .fetch_all(&self.pool)
@@ -560,6 +571,52 @@ mod tests {
                 .fetch_one(&db.pool)
                 .await?;
         assert_eq!(reaction_count, 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_jobs_filtered_applied() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let id1 = db
+            .upsert_job(&test_job(Platform::Upwork, "u1", "Applied"))
+            .await?;
+        db.upsert_job(&test_job(Platform::Upwork, "u2", "Not applied"))
+            .await?;
+        db.set_applied(id1, None, chrono::Utc::now()).await?;
+
+        let applied = db
+            .list_jobs_filtered(
+                Some(Platform::Upwork),
+                None,
+                Some(true),
+                Sort::Created,
+                10,
+                0,
+            )
+            .await?;
+        assert_eq!(applied.items.len(), 1);
+        assert_eq!(applied.items[0].title, "Applied");
+
+        let not_applied = db
+            .list_jobs_filtered(
+                Some(Platform::Upwork),
+                None,
+                Some(false),
+                Sort::Created,
+                10,
+                0,
+            )
+            .await?;
+        assert_eq!(not_applied.items.len(), 1);
+        assert_eq!(not_applied.items[0].title, "Not applied");
+
+        let all = db
+            .list_jobs_filtered(Some(Platform::Upwork), None, None, Sort::Created, 10, 0)
+            .await?;
+        assert_eq!(all.items.len(), 2);
 
         Ok(())
     }

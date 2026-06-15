@@ -31,6 +31,7 @@
 - [[efinancialcareers-total-unreliable]] - eFinancialCareers exposes a `transferredData()` script and a visible heading cou
 - [[file-move-pattern]] - When moving files, prefer `mv` (bash) + `edit` for import path updates over `wri
 - [[frontend-api-mismatch]] - Frontend `api.ts` must unwrap server response shape. Server `list_jobs` returns 
+- [[frontend-filter-url-pattern]] - Frontend optional filter dropdowns should follow a single pattern: parse with `z
 - [[frontend-ui-pure-copies]] - When copying UI components from `../reddit/frontend-solid/src/components/ui/`, u
 - [[integration-test-timeout-means-bug]] - When an ignored browser integration test times out or hangs, treat it as a bug, 
 - [[new-platform-integration-spike]] - When integrating a new job board, scrape enough detail to make the listing usefu

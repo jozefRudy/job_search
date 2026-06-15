@@ -91,7 +91,14 @@ async fn list_jobs(
 
     let paginated = state
         .db
-        .list_jobs_filtered(query.platform, query.rating, query.sort_by, limit, offset)
+        .list_jobs_filtered(
+            query.platform,
+            query.rating,
+            query.applied,
+            query.sort_by,
+            limit,
+            offset,
+        )
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

@@ -57,6 +57,16 @@ export function JobList() {
       .catch(null)
       .parse(searchParams.rating);
 
+  const appliedFilter = (): boolean | null =>
+    z
+      .union([
+        z.literal("true").transform(() => true),
+        z.literal("false").transform(() => false),
+        z.null(),
+      ])
+      .catch(null)
+      .parse(searchParams.applied);
+
   const sortBy = (): Sort => {
     const supported = PLATFORM_SORTS[platform() ?? "all"].map((s) => s.value);
     const schema = z.enum(supported as [Sort, ...Sort[]]).catch(supported[0]);
@@ -74,6 +84,7 @@ export function JobList() {
         page_size: PAGE_SIZE,
         platform: platform(),
         rating: ratingFilter(),
+        applied: appliedFilter(),
       },
       isNotNil,
     ) as ListJobsParams;
@@ -100,6 +111,10 @@ export function JobList() {
 
   function setRatingAndReset(r: Rating | null) {
     setSearchParams({ rating: r, page: "" }, { replace: true });
+  }
+
+  function setAppliedAndReset(a: boolean | null) {
+    setSearchParams({ applied: a, page: "" }, { replace: true });
   }
 
   function setSortByAndReset(s: Sort) {
@@ -248,10 +263,26 @@ export function JobList() {
               )
             }
           >
-            <option value="all">No filter</option>
+            <option value="all">Liked: any</option>
             <option value="liked">Liked</option>
             <option value="neutral">Neutral</option>
             <option value="disliked">Disliked</option>
+          </select>
+
+          <select
+            class="select select-sm"
+            value={String(appliedFilter() ?? "all")}
+            onChange={(e) =>
+              setAppliedAndReset(
+                e.currentTarget.value === "all"
+                  ? null
+                  : e.currentTarget.value === "true",
+              )
+            }
+          >
+            <option value="all">Applied: any</option>
+            <option value="true">Applied</option>
+            <option value="false">Not applied</option>
           </select>
 
           <Show when={PLATFORM_SORTS[platform() ?? "all"].length > 1}>

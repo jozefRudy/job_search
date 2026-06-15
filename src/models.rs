@@ -208,6 +208,7 @@ fn default_page_size() -> usize {
 pub struct ListQuery {
     pub platform: Option<Platform>,
     pub rating: Option<Rating>,
+    pub applied: Option<bool>,
     #[serde(default)]
     pub sort_by: Sort,
     #[serde(default = "default_page")]

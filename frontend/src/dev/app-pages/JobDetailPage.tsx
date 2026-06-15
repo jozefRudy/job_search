@@ -56,7 +56,6 @@ const mockNoFluffJob: Job = {
     detail: {
       company: "TechCorp Poland",
       seniority: "Senior",
-      remote: "Fully remote",
       locations: ["Warsaw", "Kraków"],
       offer_valid_until: "2026-07-01",
       posted_at: "2026-06-05T08:00:00Z",

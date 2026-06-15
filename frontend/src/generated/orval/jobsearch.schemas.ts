@@ -140,6 +140,7 @@ export const Sort = {
 export type ListJobsParams = {
 platform?: Platform;
 rating?: Rating;
+applied?: boolean;
 sort_by?: Sort;
 /**
  * @minimum 0
