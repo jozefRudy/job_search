@@ -8,6 +8,7 @@ import {
   useRateJob,
 } from "~/api";
 import { Button } from "~/components/ui/Button";
+import { Card } from "~/components/ui/Card";
 import { Container } from "~/components/ui/layout/Container";
 import { Grid } from "~/components/ui/layout/Grid";
 import { Row } from "~/components/ui/layout/Row";
@@ -86,9 +87,9 @@ export function JobDetailContent(props: {
         </div>
       </div>
 
-      <div class="card bg-base-200">
-        <div class="card-body">
-          <h3 class="card-title text-lg">Actions</h3>
+      <Card>
+        <Card.Body>
+          <Card.Title class="text-lg">Actions</Card.Title>
           <p class="text-base-content/70 text-sm">
             Current:{" "}
             {j.liked === true
@@ -121,21 +122,17 @@ export function JobDetailContent(props: {
             </Button>
           </Row>
           <hr class="border-base-300" />
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => setShowDelete(true)}
-          >
-            🗑️ Delete
-          </Button>
-          <Show when={j.applied_at}>
-            <p class="text-success">Applied {fmtRelative(j.applied_at)}</p>
-          </Show>
-          <Show when={j.note}>
-            <p class="whitespace-pre-line text-base-content/70">{j.note}</p>
-          </Show>
-        </div>
-      </div>
+          <div>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setShowDelete(true)}
+            >
+              🗑️ Delete
+            </Button>
+          </div>
+        </Card.Body>
+      </Card>
 
       <Show when={j.platform === "upwork"}>
         <UpworkDetail job={j} />
@@ -146,6 +143,8 @@ export function JobDetailContent(props: {
       <Show when={j.platform === "efinancialcareers"}>
         <EfinancialcareersDetail job={j} />
       </Show>
+
+      <ApplicationCard appliedAt={j.applied_at} note={j.note} />
 
       <ConfirmModal
         open={showDelete()}
@@ -283,6 +282,28 @@ export function EfinancialcareersDetail(props: { job: Job }) {
         </Stack>
       </div>
     </div>
+  );
+}
+
+function ApplicationCard(props: {
+  appliedAt?: string | null;
+  note?: string | null;
+}) {
+  return (
+    <Card>
+      <Card.Body>
+        <Card.Title class="text-lg">Job Application</Card.Title>
+        <Show
+          when={props.appliedAt}
+          fallback={<p class="text-base-content/70">Not applied yet.</p>}
+        >
+          {(d) => <p class="text-success">Applied {fmtRelative(d())}</p>}
+        </Show>
+        <Show when={props.note}>
+          {(n) => <p class="whitespace-pre-line text-base-content/70">{n()}</p>}
+        </Show>
+      </Card.Body>
+    </Card>
   );
 }
 
