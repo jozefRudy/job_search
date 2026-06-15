@@ -15,6 +15,7 @@ Local CLI tool at `~/Documents/projects/job_search/target/release/jobsearch` (or
   open -a "Brave Browser" --args --remote-debugging-port=9222
   ```
   Must be logged into Upwork in that Brave instance.
+- **eFinancialCareers**: requires Brave browser running with remote debugging, and an open `efinancialcareers.com` tab (logged in for applications sync). Start with the command above and open the site.
 
 ## Commands
 
@@ -23,9 +24,10 @@ All commands support `--json` for machine-readable output.
 ### Update / fetch jobs
 
 ```bash
-./target/release/jobsearch update --platform nofluffjobs --query "rust"
-./target/release/jobsearch update --platform upwork --query "rust"
-./target/release/jobsearch update --query "rust"          # both platforms
+./target/release/jobsearch update nofluff --query "rust"
+./target/release/jobsearch update upwork --query "rust"
+./target/release/jobsearch update efinancialcareers --query "Rust,Developer"
+./target/release/jobsearch update --query "rust"          # all platforms
 ```
 
 ### List jobs
@@ -49,6 +51,14 @@ Statuses: `new`, `viewed`, `saved`, `applied`, `rejected`, `hidden`
 ./target/release/jobsearch react <id> save
 ./target/release/jobsearch react <id> hide
 ./target/release/jobsearch react <id> apply
+```
+
+### Sync applications
+
+```bash
+./target/release/jobsearch sync-applications upwork
+./target/release/jobsearch sync-applications nofluff
+./target/release/jobsearch sync-applications efinancialcareers
 ```
 
 ### Stats

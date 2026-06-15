@@ -226,6 +226,7 @@ async fn fetch_and_store(
         .await
     {
         Ok(jobs) => {
+            eprintln!();
             eprintln!("  Total new jobs: {}", jobs.len());
         }
         Err(e) => {
