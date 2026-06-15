@@ -267,7 +267,7 @@ impl Db {
         Ok(row.map(|dt| dt.and_utc()))
     }
 
-    pub async fn delete_jobs(&self, ids: &[i64]) -> Result<usize> {
+    pub async fn delete_jobs(&self, ids: &[i64]) -> Result<u64> {
         let ids_json = serde_json::to_string(ids)?;
         let rows = sqlx::query!(
             "DELETE FROM jobs WHERE id IN (SELECT value FROM json_each(?1))",
@@ -275,7 +275,7 @@ impl Db {
         )
         .execute(&self.pool)
         .await?;
-        Ok(rows.rows_affected() as usize)
+        Ok(rows.rows_affected())
     }
 
     pub async fn stats(&self) -> Result<Stats> {
