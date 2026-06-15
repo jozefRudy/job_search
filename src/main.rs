@@ -16,10 +16,10 @@ use jobsearch::platforms::{
 };
 use jobsearch::server;
 
-async fn cmd_init(browser: &BrowserManager, urls: &[&str]) -> Result<()> {
+async fn cmd_init(manager: &BrowserManager, urls: &[&str]) -> Result<()> {
     eprintln!("Launching Brave browser with {} tabs...", urls.len());
 
-    let browser = browser.ensure().await?;
+    let browser = manager.browser().await?;
     let tabs_before = browser.get_page_urls().await?;
     ensure_init_tabs(&browser, urls).await?;
     let tabs_after = browser.get_page_urls().await?;
@@ -200,11 +200,11 @@ async fn main() -> Result<()> {
 
 async fn sync_apps(
     client: &impl PlatformClient,
-    browser: &BrowserManager,
+    manager: &BrowserManager,
     db: &Db,
     pause_ms: u64,
 ) -> Result<()> {
-    let browser = browser.ensure().await?;
+    let browser = manager.browser().await?;
     match client.sync_applications(&browser, db, pause_ms, None).await {
         Ok(count) => eprintln!("Synced {} applications", count),
         Err(e) => eprintln!("Error syncing applications: {}", e),
@@ -214,14 +214,14 @@ async fn sync_apps(
 
 async fn fetch_and_store(
     db: &Db,
-    browser: &BrowserManager,
+    manager: &BrowserManager,
     client: &impl PlatformClient,
     query: &str,
     pause_ms: u64,
 ) -> Result<()> {
     eprintln!("Fetching from {}...", client.name());
     match client
-        .fetch_with_manager(browser, db, query, pause_ms)
+        .fetch_with_manager(manager, db, query, pause_ms)
         .await
     {
         Ok(jobs) => {

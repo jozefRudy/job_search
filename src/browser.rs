@@ -161,7 +161,7 @@ impl BrowserManager {
         }
     }
 
-    pub async fn ensure(&self) -> Result<Arc<Browser>> {
+    pub async fn browser(&self) -> Result<Arc<Browser>> {
         let mut guard = self.inner.lock().await;
 
         if guard.is_none() {

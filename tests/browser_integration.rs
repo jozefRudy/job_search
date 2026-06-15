@@ -28,7 +28,7 @@ where
     let _guard = get_guard();
     tokio::time::timeout(Duration::from_secs(timeout_secs), async {
         let manager = BrowserManager::new();
-        let browser = manager.ensure().await.expect("Brave should connect");
+        let browser = manager.browser().await.expect("Brave should connect");
         jobsearch::browser::ensure_init_tabs(&browser, DEFAULT_INIT_URLS)
             .await
             .expect("ensure_init_tabs should succeed");

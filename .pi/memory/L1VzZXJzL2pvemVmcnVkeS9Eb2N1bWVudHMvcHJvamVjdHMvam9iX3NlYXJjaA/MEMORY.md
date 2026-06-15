@@ -8,6 +8,7 @@
 - [[api-test-catches-reactivity-regressions]] - API-level tests with mocked fetch are essential for catching silent reactivity r
 - [[brave-cdp-macos-launch]] - macOS `open -a "Brave Browser" --args --remote-debugging-port=9222` silently dro
 - [[browser-eval-over-screenshots]] - When model doesn't support image rendering, use `browser_eval` with JS extractio
+- [[browser-manager-lazy-init]] - Hide lazy initialization inside an accessor like `browser()` rather than exposin
 - [[browser-no-focus-steal]] - When opening browser tabs for inspection during development, use background tabs
 - [[browser-scraping-bot-protection]] - For browser-driven scrapers behind bot protection (eFinancialCareers), reuse the
 - [[browser-test-debug-inspect-live]] - When debugging browser integration test failures, prefer live browser inspection
@@ -15,6 +16,7 @@
 - [[budget-model-centralized]] - Budget model is a central enum (`Range`/`Single`) in `src/models.rs` with `Displ
 - [[budget-parse-regex-pattern]] - Budget parsing prefers a single regex that handles separators with optional whit
 - [[copy-ui-components-checklist]] - When copying UI components from another project, always verify: 1) missing depen
+- [[db-row-count-types]] - Row counts from `sqlx::query!.execute().rows_affected()` are `u64`. Return `u64`
 - [[deserializer-shape-normalization]] - When scraping external APIs, do shape-normalization in explicit `Raw*` structs p
 - [[detail-list-shared-grid]] - For label/value rows in detail views, prefer a shared wrapper grid (`DetailList`
 - [[devenv-regen-api-script]] - `devenv.nix` `regen-api` script uses `pnpm -C frontend orval`, not `pnpm --dir f
@@ -48,6 +50,7 @@
 - [[solidjs-url-filter-state]] - For persistent filter state in SolidJS: use `@solidjs/router`'s `useSearchParams
 - [[solidjs-vs-angular-state-persistence]] - In SolidJS (and modern SPAs), persist list/filter state in URL query params via 
 - [[sqlite-foreign-keys-default-off]] - SQLite foreign keys are disabled by default and must be enabled per connection v
+- [[sqlite-id-i64]] - SQLite `INTEGER PRIMARY KEY` and `COUNT(*)` are inferred as `i64` by sqlx. Keep 
 - [[sqlx-query-as-default-limitation]] - `#[sqlx(flatten)]` does **not** work with the `query_as!` macro — it only works 
 - [[tanstack-query-over-engineering]] - Don't over-engineer TanStack Query cache invalidation. User prefers short, maint
 - [[tanstack-solidjs-structural-sharing]] - When using TanStack Query v5 with SolidJS, always set `structuralSharing: false`

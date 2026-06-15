@@ -23,7 +23,7 @@ pub trait PlatformClient: Send + Sync {
         query: &str,
         pause_ms: u64,
     ) -> Result<Vec<Job>> {
-        let browser = manager.ensure().await?;
+        let browser = manager.browser().await?;
         self.fetch_with_browser(&browser, db, query, pause_ms).await
     }
 
