@@ -441,7 +441,6 @@ impl PlatformClient for UpworkScraper {
         }
 
         page.close().await.ok();
-        eprintln!();
         eprintln!(
             "  Fetched: {} ({} new, {} updated)",
             all_jobs.len(),
