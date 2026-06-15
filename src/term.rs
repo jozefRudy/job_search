@@ -28,5 +28,5 @@ fn hide_cursor() {
 
 /// Show terminal cursor (ANSI escape).
 fn show_cursor() {
-    eprintln!("\x1B[?25h");
+    eprint!("\x1B[?25h");
 }
