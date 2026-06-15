@@ -244,7 +244,6 @@ async fn fetch_and_store(
     query: &str,
     pause_ms: u64,
 ) -> Result<()> {
-    eprintln!();
     eprintln!("Fetching from {}...", client.name());
     match client
         .fetch_with_manager(manager, db, query, pause_ms)
