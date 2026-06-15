@@ -57,7 +57,7 @@
   };
   scripts = {
     test.exec = ''
-      cargo build && cargo clippy -- -D warnings && cargo test && cargo fmt
+      cargo build && cargo clippy --all-targets -- -D warnings && cargo test && cargo fmt
     '';
     test-integration.exec = ''
       cargo test -- --include-ignored
