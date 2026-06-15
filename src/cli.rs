@@ -77,6 +77,16 @@ pub struct CommonListArgs {
     /// Filter by rating: liked, disliked, or neutral. Omit for all.
     #[arg(long)]
     pub rating: Option<crate::models::Rating>,
+
+    /// Sort order: created, applied
+    #[arg(long, value_enum, default_value = "created")]
+    pub sort: CommonSortBy,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum CommonSortBy {
+    Created,
+    Applied,
 }
 
 #[derive(Args)]
@@ -84,7 +94,7 @@ pub struct UpworkListArgs {
     #[command(flatten)]
     pub common: CommonListArgs,
 
-    /// Sort order: created, upwork_viewed
+    /// Sort order: created, upwork_viewed, applied
     #[arg(long, value_enum, default_value = "upwork_viewed")]
     pub sort: UpworkSortBy,
 }
@@ -94,6 +104,7 @@ pub enum UpworkSortBy {
     Created,
     #[value(name = "upwork_viewed")]
     UpworkViewed,
+    Applied,
 }
 
 #[derive(Parser)]

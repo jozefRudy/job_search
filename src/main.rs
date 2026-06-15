@@ -3,7 +3,8 @@ use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs};
 use jobsearch::cli::{
-    Cli, Commands, ListTarget, ReactAction, SyncPlatform, UpdatePlatform, UpworkSortBy,
+    Cli, Commands, CommonSortBy, ListTarget, ReactAction, SyncPlatform, UpdatePlatform,
+    UpworkSortBy,
 };
 use jobsearch::db::Db;
 use jobsearch::display;
@@ -105,7 +106,11 @@ async fn main() -> Result<()> {
                     applied: args.applied,
                     liked: args.rating,
                 };
-                cmd_list(&db, None, filter, args.detailed, Sort::Created, cli.json).await?;
+                let sort = match args.sort {
+                    CommonSortBy::Created => Sort::Created,
+                    CommonSortBy::Applied => Sort::Applied,
+                };
+                cmd_list(&db, None, filter, args.detailed, sort, cli.json).await?;
             }
             ListTarget::Upwork(args) => {
                 let filter = JobFilter {
@@ -116,6 +121,7 @@ async fn main() -> Result<()> {
                 let sort = match args.sort {
                     UpworkSortBy::Created => Sort::Created,
                     UpworkSortBy::UpworkViewed => Sort::UpworkViewed,
+                    UpworkSortBy::Applied => Sort::Applied,
                 };
                 cmd_list(
                     &db,
@@ -133,12 +139,16 @@ async fn main() -> Result<()> {
                     applied: args.applied,
                     liked: args.rating,
                 };
+                let sort = match args.sort {
+                    CommonSortBy::Created => Sort::Created,
+                    CommonSortBy::Applied => Sort::Applied,
+                };
                 cmd_list(
                     &db,
                     Some(Platform::NoFluffJobs),
                     filter,
                     args.detailed,
-                    Sort::Created,
+                    sort,
                     cli.json,
                 )
                 .await?;
@@ -149,12 +159,16 @@ async fn main() -> Result<()> {
                     applied: args.applied,
                     liked: args.rating,
                 };
+                let sort = match args.sort {
+                    CommonSortBy::Created => Sort::Created,
+                    CommonSortBy::Applied => Sort::Applied,
+                };
                 cmd_list(
                     &db,
                     Some(Platform::Efinancialcareers),
                     filter,
                     args.detailed,
-                    Sort::Created,
+                    sort,
                     cli.json,
                 )
                 .await?;

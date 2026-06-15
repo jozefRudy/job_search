@@ -63,7 +63,7 @@ fn normalize_upwork_external_id(id: &str) -> String {
 /// Extract external id from either canonical or slugged Upwork job URL.
 fn extract_upwork_external_id_from_url(url: &str) -> Option<String> {
     let parsed = url::Url::parse(url).ok()?;
-    let segment = parsed.path_segments()?.filter(|s| !s.is_empty()).last()?;
+    let segment = parsed.path_segments()?.rfind(|s| !s.is_empty())?;
     segment
         .rsplit('_')
         .find(|part| part.contains('~') || part.chars().any(|c| c.is_ascii_digit()))

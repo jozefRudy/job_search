@@ -26,13 +26,23 @@ const PLATFORM_SORTS: Record<
   Platform | "all",
   ReadonlyArray<{ value: Sort; label: string }>
 > = {
-  all: [{ value: "created", label: "Created" }],
+  all: [
+    { value: "created", label: "Created" },
+    { value: "applied", label: "Applied" },
+  ],
   upwork: [
     { value: "created", label: "Created" },
     { value: "upwork_viewed", label: "Last viewed" },
+    { value: "applied", label: "Applied" },
   ],
-  nofluffjobs: [{ value: "created", label: "Created" }],
-  efinancialcareers: [{ value: "created", label: "Created" }],
+  nofluffjobs: [
+    { value: "created", label: "Created" },
+    { value: "applied", label: "Applied" },
+  ],
+  efinancialcareers: [
+    { value: "created", label: "Created" },
+    { value: "applied", label: "Applied" },
+  ],
 };
 
 export function JobList() {

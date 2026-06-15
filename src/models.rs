@@ -185,6 +185,7 @@ pub enum Sort {
     #[default]
     Created,
     UpworkViewed,
+    Applied,
 }
 
 impl Sort {
@@ -192,6 +193,7 @@ impl Sort {
         match self {
             Sort::Created => "j.created_at DESC",
             Sort::UpworkViewed => "j.upwork_last_viewed_at DESC NULLS LAST",
+            Sort::Applied => "r.applied_at DESC NULLS LAST",
         }
     }
 }

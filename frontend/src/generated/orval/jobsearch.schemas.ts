@@ -135,6 +135,7 @@ export type Sort = typeof Sort[keyof typeof Sort];
 export const Sort = {
   created: 'created',
   upwork_viewed: 'upwork_viewed',
+  applied: 'applied',
 } as const;
 
 export type ListJobsParams = {
