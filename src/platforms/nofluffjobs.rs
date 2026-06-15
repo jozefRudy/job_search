@@ -495,9 +495,6 @@ impl NoFluffJobsScraper {
             .and_then(|v| v.into_value().ok())
             .flatten()
             .map(|n: i32| n as usize);
-        if let Some(total) = total_results {
-            eprintln!("  Total results: {}", total);
-        }
 
         let mut all_jobs = Vec::new();
         let platform = Platform::NoFluffJobs;
@@ -522,7 +519,7 @@ impl NoFluffJobsScraper {
                     .is_some()
                 {
                     state.inc_existing();
-                    eprint!("{}", state.progress_line(None, ""));
+                    eprint!("{}", state.progress_line(total_results, ""));
                     continue;
                 }
 
