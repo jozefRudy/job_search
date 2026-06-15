@@ -221,8 +221,18 @@ async fn sync_apps(
     let browser = manager.browser().await?;
     eprintln!("Syncing applications from {}...", client.name());
     match client.sync_applications(&browser, db, pause_ms, None).await {
-        Ok(_count) => eprintln!(),
-        Err(e) => eprintln!("  Error syncing applications from {}: {}", client.name(), e),
+        Ok(state) => {
+            eprintln!();
+            eprintln!("    {}", state.summary());
+        }
+        Err(e) => {
+            eprintln!();
+            eprintln!(
+                "\r    Error syncing applications from {}: {}",
+                client.name(),
+                e
+            );
+        }
     }
     Ok(())
 }
@@ -240,12 +250,13 @@ async fn fetch_and_store(
         .fetch_with_manager(manager, db, query, pause_ms)
         .await
     {
-        Ok(jobs) => {
+        Ok(state) => {
             eprintln!();
-            eprintln!("  Total new jobs: {}", jobs.len());
+            eprintln!("    {}", state.summary());
         }
         Err(e) => {
-            eprintln!("  Error from {}: {}", client.name(), e);
+            eprintln!();
+            eprintln!("    Error from {}: {}", client.name(), e);
         }
     }
     Ok(())

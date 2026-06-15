@@ -301,7 +301,7 @@ impl PlatformClient for EfinancialcareersScraper {
         db: &Db,
         query: &str,
         pause_ms: u64,
-    ) -> Result<Vec<Job>> {
+    ) -> Result<FetchState> {
         let page_hosts: Vec<_> = browser
             .get_page_urls()
             .await?
@@ -326,7 +326,7 @@ impl PlatformClient for EfinancialcareersScraper {
         let total_jobs = Self::scrape_total(&page).await?;
         if total_jobs == 0 {
             page.close().await.ok();
-            return Ok(Vec::new());
+            return Ok(FetchState::new());
         }
 
         let mut all_jobs = Vec::new();
@@ -390,8 +390,7 @@ impl PlatformClient for EfinancialcareersScraper {
         }
 
         page.close().await.ok();
-        eprintln!("  {}", state.summary());
-        Ok(all_jobs)
+        Ok(state)
     }
 
     async fn sync_applications(
@@ -400,7 +399,7 @@ impl PlatformClient for EfinancialcareersScraper {
         db: &Db,
         pause_ms: u64,
         limit: Option<usize>,
-    ) -> Result<usize> {
+    ) -> Result<FetchState> {
         let page_hosts: Vec<_> = browser
             .get_page_urls()
             .await?
@@ -576,10 +575,8 @@ impl PlatformClient for EfinancialcareersScraper {
 
             eprint!("{}", state.progress_line(Some(items.len()), label));
         }
-        eprintln!();
-        eprintln!("{}", state.summary());
 
-        Ok(state.checked())
+        Ok(state)
     }
 }
 

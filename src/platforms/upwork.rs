@@ -366,7 +366,7 @@ impl PlatformClient for UpworkScraper {
         db: &Db,
         query: &str,
         pause_ms: u64,
-    ) -> Result<Vec<Job>> {
+    ) -> Result<FetchState> {
         let page_hosts: Vec<_> = browser
             .get_page_urls()
             .await?
@@ -476,8 +476,7 @@ impl PlatformClient for UpworkScraper {
         }
 
         page.close().await.ok();
-        eprintln!("  {}", state.summary());
-        Ok(all_jobs)
+        Ok(state)
     }
 
     async fn sync_applications(
@@ -486,7 +485,7 @@ impl PlatformClient for UpworkScraper {
         db: &Db,
         pause_ms: u64,
         limit: Option<usize>,
-    ) -> Result<usize> {
+    ) -> Result<FetchState> {
         let page_hosts: Vec<_> = browser
             .get_page_urls()
             .await?
@@ -633,9 +632,7 @@ impl PlatformClient for UpworkScraper {
             db.set_applied(job_id, note, applied_at).await?;
             eprint!("{}", state.progress_line(Some(total), &item.title));
         }
-        eprintln!();
-        eprintln!("{}", state.summary());
-        Ok(state.checked())
+        Ok(state)
     }
 
     async fn react(&self, _job: &Job, _note: Option<String>) -> Result<()> {

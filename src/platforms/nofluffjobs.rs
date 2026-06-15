@@ -411,7 +411,7 @@ impl PlatformClient for NoFluffJobsScraper {
         db: &Db,
         query: &str,
         pause_ms: u64,
-    ) -> Result<Vec<Job>> {
+    ) -> Result<FetchState> {
         let page_hosts: Vec<_> = browser
             .get_page_urls()
             .await?
@@ -432,7 +432,7 @@ impl PlatformClient for NoFluffJobsScraper {
         db: &Db,
         pause_ms: u64,
         limit: Option<usize>,
-    ) -> Result<usize> {
+    ) -> Result<FetchState> {
         NoFluffJobsScraper::sync_applications(self, browser, db, pause_ms, limit).await
     }
 }
@@ -477,7 +477,7 @@ impl NoFluffJobsScraper {
         db: &Db,
         query: &str,
         pause_ms: u64,
-    ) -> Result<Vec<Job>> {
+    ) -> Result<FetchState> {
         let search_url = self.build_search_url(query);
         self.set_currency_cookie(browser).await?;
         let page = browser.new_tab(&search_url).await?;
@@ -581,8 +581,7 @@ impl NoFluffJobsScraper {
         }
 
         page.close().await.ok();
-        eprintln!("  {}", state.summary());
-        Ok(all_jobs)
+        Ok(state)
     }
 
     /// Wait for job cards to appear on search page.
@@ -661,7 +660,7 @@ impl NoFluffJobsScraper {
         db: &Db,
         pause_ms: u64,
         limit: Option<usize>,
-    ) -> Result<usize> {
+    ) -> Result<FetchState> {
         let page_hosts: Vec<_> = browser
             .get_page_urls()
             .await?
@@ -796,10 +795,8 @@ impl NoFluffJobsScraper {
             eprint!("{}", state.progress_line(Some(total), &job.title));
             sleep(Duration::from_millis(pause_ms)).await;
         }
-        eprintln!();
-        eprintln!("{}", state.summary());
 
-        Ok(state.checked())
+        Ok(state)
     }
 
     fn build_criteria(&self, query: &str) -> String {

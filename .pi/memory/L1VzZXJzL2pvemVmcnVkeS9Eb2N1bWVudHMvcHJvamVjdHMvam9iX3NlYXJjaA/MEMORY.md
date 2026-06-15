@@ -32,6 +32,7 @@
 - [[sqlite-foreign-keys-default-off]] - SQLite foreign keys are disabled by default and must be enabled per connection v
 - [[sqlx-numeric-types]] - SQLite `INTEGER PRIMARY KEY` and `COUNT(*)` infer as `i64`; keep row struct `id:
 - [[sqlx-query-as-default-limitation]] - `#[sqlx(flatten)]` does **not** work with the `query_as!` macro — it only works 
+- [[sync-progress-summary-consistency]] - eFinancialCareers `sync_applications` printed per-item progress but omitted fina
 - [[tanstack-query-over-engineering]] - Don't over-engineer TanStack Query cache invalidation. User prefers short, maint
 - [[tanstack-solidjs-reactivity]] - Use TanStack Query v5 with SolidJS: set `structuralSharing: false` on every `cre
 - [[upwork-hidden-budget-marker]] - Upwork detail pages may hide hourly budgets client-side. The server still emits 

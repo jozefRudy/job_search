@@ -14,7 +14,7 @@ pub trait PlatformClient: Send + Sync {
         db: &Db,
         query: &str,
         pause_ms: u64,
-    ) -> Result<Vec<Job>>;
+    ) -> Result<FetchState>;
 
     async fn fetch_with_manager(
         &self,
@@ -22,7 +22,7 @@ pub trait PlatformClient: Send + Sync {
         db: &Db,
         query: &str,
         pause_ms: u64,
-    ) -> Result<Vec<Job>> {
+    ) -> Result<FetchState> {
         let browser = manager.browser().await?;
         self.fetch_with_browser(&browser, db, query, pause_ms).await
     }
@@ -37,7 +37,7 @@ pub trait PlatformClient: Send + Sync {
         _db: &Db,
         _pause_ms: u64,
         _limit: Option<usize>,
-    ) -> Result<usize> {
+    ) -> Result<FetchState> {
         Err(anyhow::anyhow!(
             "sync_applications not implemented for {}",
             self.name()

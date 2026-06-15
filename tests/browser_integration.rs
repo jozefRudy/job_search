@@ -220,9 +220,7 @@ async fn test_upwork_sync_applications() {
             .await
             .expect("sync_applications should succeed");
 
-        println!("Synced {} applications", synced);
-
-        if synced == 0 {
+        if synced.checked() == 0 {
             println!("No new submitted proposals found — skipping DB assertions");
             return;
         }
@@ -546,9 +544,9 @@ async fn test_efinancialcareers_sync_applications() {
             .await
             .expect("sync_applications should succeed");
 
-        println!("Synced {} applications", synced);
+        println!("Synced {} applications", synced.checked());
 
-        if synced == 0 {
+        if synced.checked() == 0 {
             println!("No applications found — skipping DB assertions");
             return;
         }
@@ -618,9 +616,7 @@ async fn test_nofluffjobs_sync_applications() {
             .await
             .expect("sync_applications should succeed");
 
-        println!("Synced {} applications", synced);
-
-        if synced == 0 {
+        if synced.checked() == 0 {
             println!("No applications found — skipping DB assertions");
             return;
         }
