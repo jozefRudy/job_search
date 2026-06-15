@@ -745,6 +745,7 @@ impl NoFluffJobsScraper {
             {
                 db.set_applied(job_id, None, applied_at).await?;
                 state.inc_existing();
+                eprint!("{}", state.progress_line(Some(total), &item.offer.title));
                 continue;
             }
 
