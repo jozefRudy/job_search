@@ -240,6 +240,12 @@ impl BrowserManager {
     }
 }
 
+impl Default for BrowserManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,11 +279,5 @@ mod tests {
             host_of("http://localhost:9222"),
             Some("localhost".to_string())
         );
-    }
-}
-
-impl Default for BrowserManager {
-    fn default() -> Self {
-        Self::new()
     }
 }
