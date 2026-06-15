@@ -556,19 +556,24 @@ impl PlatformClient for EfinancialcareersScraper {
                 .await?
                 .and_then(|j| j.applied_at)
                 .is_some();
-            if !stored_applied {
-                db.set_applied(job_id, None, item.applied_at).await?;
-            }
-
-            if is_new {
-                state.inc_new();
-            }
 
             let label = if item.title.is_empty() {
                 item.external_id.as_str()
             } else {
                 item.title.as_str()
             };
+
+            if stored_applied {
+                eprint!("{}", state.progress_line(Some(items.len()), label));
+                continue;
+            }
+
+            db.set_applied(job_id, None, item.applied_at).await?;
+
+            if is_new {
+                state.inc_new();
+            }
+
             eprint!("{}", state.progress_line(Some(items.len()), label));
         }
         eprintln!();

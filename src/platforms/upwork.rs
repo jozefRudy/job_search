@@ -534,7 +534,9 @@ impl PlatformClient for UpworkScraper {
         page.close().await.ok();
 
         let mut state = FetchState::new();
-        let total = limit.map(|l| min(l, all_proposals.len())).unwrap_or(all_proposals.len());
+        let total = limit
+            .map(|l| min(l, all_proposals.len()))
+            .unwrap_or(all_proposals.len());
 
         for item in &all_proposals {
             if state.checked() >= max {
@@ -544,7 +546,9 @@ impl PlatformClient for UpworkScraper {
             let external_id = normalize_upwork_external_id(&item.openingUID);
             let job_url = format!("https://www.upwork.com/jobs/{}", external_id);
 
-            let (job_id, is_new) = if let Some(id) = db.find_job_id(&Platform::Upwork, &external_id).await? {
+            let (job_id, is_new) = if let Some(id) =
+                db.find_job_id(&Platform::Upwork, &external_id).await?
+            {
                 state.inc_existing();
                 (Some(id), false)
             } else {
@@ -588,8 +592,11 @@ impl PlatformClient for UpworkScraper {
                 .and_then(|j| j.applied_at)
                 .is_some()
             {
+                state.inc_existing();
+                eprint!("{}", state.progress_line(Some(total), &item.title));
                 continue;
             }
+
             if is_new {
                 state.inc_new();
             }
