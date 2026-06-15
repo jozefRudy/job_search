@@ -176,23 +176,6 @@ impl Db {
         Ok(row.map(|r| r.into()))
     }
 
-    /// Fetch job id by platform + external_id.
-    pub async fn job_id_by_external_id(
-        &self,
-        platform: &Platform,
-        external_id: &str,
-    ) -> Result<Option<i64>> {
-        let id: Option<i64> = sqlx::query_scalar!(
-            "SELECT id FROM jobs WHERE platform = ?1 AND external_id = ?2",
-            platform,
-            external_id
-        )
-        .fetch_optional(&self.pool)
-        .await?
-        .flatten();
-        Ok(id)
-    }
-
     pub async fn set_applied(
         &self,
         job_id: i64,

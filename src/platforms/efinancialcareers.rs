@@ -462,7 +462,7 @@ impl PlatformClient for EfinancialcareersScraper {
         let mut missing: Vec<&ApplicationItem> = Vec::new();
         for item in &items {
             if db
-                .job_id_by_external_id(&Platform::Efinancialcareers, &item.external_id)
+                .find_job_id(&Platform::Efinancialcareers, &item.external_id)
                 .await?
                 .is_none()
             {
@@ -509,12 +509,14 @@ impl PlatformClient for EfinancialcareersScraper {
         let _guard = CursorGuard::new();
 
         for item in items {
+            let mut changed = false;
             let job_id = if let Some(id) = db
-                .job_id_by_external_id(&Platform::Efinancialcareers, &item.external_id)
+                .find_job_id(&Platform::Efinancialcareers, &item.external_id)
                 .await?
             {
                 id
             } else {
+                changed = true;
                 let description = descriptions
                     .get(&item.internal_job_id)
                     .cloned()
@@ -553,16 +555,19 @@ impl PlatformClient for EfinancialcareersScraper {
                 db.upsert_job(&job).await?
             };
 
-            if db
+            let was_applied = db
                 .get_job(job_id)
                 .await?
                 .and_then(|j| j.applied_at)
-                .is_none()
-            {
+                .is_some();
+            if !was_applied {
                 db.set_applied(job_id, None, item.applied_at).await?;
+                changed = true;
             }
 
-            synced += 1;
+            if changed {
+                synced += 1;
+            }
             eprint!("\r  Progress {}/{}: {:.40}", synced, total, item.title);
         }
         eprintln!();

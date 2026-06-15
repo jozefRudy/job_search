@@ -547,10 +547,7 @@ impl PlatformClient for UpworkScraper {
             let external_id = normalize_upwork_external_id(&item.openingUID);
             let job_url = format!("https://www.upwork.com/jobs/{}", external_id);
 
-            let job_id = if let Some(id) = db
-                .job_id_by_external_id(&Platform::Upwork, &external_id)
-                .await?
-            {
+            let job_id = if let Some(id) = db.find_job_id(&Platform::Upwork, &external_id).await? {
                 Some(id)
             } else {
                 match self.fetch_job_detail(browser, &job_url).await {
