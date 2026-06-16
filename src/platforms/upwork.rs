@@ -15,6 +15,7 @@ use tokio::time::{Duration, sleep};
 const FETCH_JOB_DETAIL_JS: &str = include_str!("upwork/fetch_job_detail.js");
 const SCRAPE_CARDS_JS: &str = include_str!("upwork/scrape_cards.js");
 const HAS_CARDS_JS: &str = include_str!("upwork/has_cards.js");
+const HAS_DETAIL_JS: &str = include_str!("upwork/has_detail.js");
 const CHALLENGE_JS: &str = include_str!("upwork/challenge.js");
 const HAS_NEXT_PAGE_JS: &str = include_str!("upwork/has_next_page.js");
 const EXTRACT_SUBMITTED_LIST_JS: &str = include_str!("upwork/extract_submitted_list.js");
@@ -252,14 +253,16 @@ impl UpworkScraper {
     ) -> Result<UpworkJobDetail> {
         let page = browser.new_tab(job_url).await?;
 
-        if !wait_for_element(
+        let detail_loaded = wait_for_with_challenge_recovery(
             &page,
-            &["[data-test='Description']", "[class*='description']"],
+            HAS_DETAIL_JS,
+            Some(CHALLENGE_JS),
+            None,
             None,
             None,
         )
-        .await?
-        {
+        .await?;
+        if !detail_loaded {
             page.close().await.ok();
             bail!("Job detail page did not load");
         }
