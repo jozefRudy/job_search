@@ -512,7 +512,6 @@ impl NoFluffJobsScraper {
                 .collect();
 
             for card in &new_cards {
-                state.inc_checked();
                 if db
                     .find_job_id(&platform, &card.external_id)
                     .await?
@@ -730,67 +729,77 @@ impl NoFluffJobsScraper {
                 break;
             }
 
-            state.inc_checked();
-            let applied_at = applied_at_for(&item);
-
-            if let Some(job_id) = db
+            let job_id = if let Some(job_id) = db
                 .find_job_id(&Platform::NoFluffJobs, &item.posting_id)
                 .await?
             {
-                db.set_applied(job_id, None, applied_at).await?;
+                Some(job_id)
+            } else {
+                let slug = item.offer.url.trim_start_matches('/');
+                let slug = slug.strip_prefix("job/").unwrap_or(slug);
+                let url = format!("https://nofluffjobs.com/job/{}", slug);
+
+                sleep(Duration::from_millis(pause_ms)).await;
+
+                match self.fetch_detail(slug).await {
+                    Ok(detail) => {
+                        let created_at = detail
+                            .posted_at
+                            .or(item.offer.posted)
+                            .unwrap_or(item.applied_date);
+
+                        let mut detail = detail;
+                        detail.employment_type = item.offer.employment_type.clone();
+
+                        let budget = item.offer.budget.clone();
+                        let tags = item.offer.tags.clone();
+
+                        let job = Job {
+                            id: None,
+                            platform: Platform::NoFluffJobs,
+                            external_id: item.posting_id.clone(),
+                            title: item.offer.title.clone(),
+                            description: Some(detail.description.clone()).filter(|d| !d.is_empty()),
+                            url,
+                            budget,
+                            tags,
+                            raw: Data::Nofluffjobs { detail },
+                            created_at,
+                            updated_at: Utc::now(),
+                            liked: None,
+                            note: None,
+                            applied_at: None,
+                        };
+                        Some(db.upsert_job(&job).await?)
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "  Warning: failed to fetch detail for {}: {}",
+                            item.offer.title, e
+                        );
+                        None
+                    }
+                }
+            };
+            let Some(job_id) = job_id else { continue };
+
+            let stored_applied = db
+                .get_job(job_id)
+                .await?
+                .and_then(|j| j.applied_at)
+                .is_some();
+
+            let label = &item.offer.title;
+
+            if stored_applied {
                 state.inc_existing();
-                eprint!("{}", state.progress_line(Some(total), &item.offer.title));
+                eprint!("{}", state.progress_line(Some(total), label));
                 continue;
             }
 
-            let slug = item.offer.url.trim_start_matches('/');
-            let slug = slug.strip_prefix("job/").unwrap_or(slug);
-            let url = format!("https://nofluffjobs.com/job/{}", slug);
-
-            let detail = match self.fetch_detail(slug).await {
-                Ok(d) => d,
-                Err(e) => {
-                    eprintln!(
-                        "  Warning: failed to fetch detail for {}: {}",
-                        item.offer.title, e
-                    );
-                    continue;
-                }
-            };
-
-            let created_at = detail
-                .posted_at
-                .or(item.offer.posted)
-                .unwrap_or(item.applied_date);
-
-            let mut detail = detail;
-            detail.employment_type = item.offer.employment_type.clone();
-
-            let budget = item.offer.budget.clone();
-            let tags = item.offer.tags.clone();
-
-            let job = Job {
-                id: None,
-                platform: Platform::NoFluffJobs,
-                external_id: item.posting_id.clone(),
-                title: item.offer.title.clone(),
-                description: Some(detail.description.clone()).filter(|d| !d.is_empty()),
-                url,
-                budget,
-                tags,
-                raw: Data::Nofluffjobs { detail },
-                created_at,
-                updated_at: Utc::now(),
-                liked: None,
-                note: None,
-                applied_at: None,
-            };
-
-            let job_id = db.upsert_job(&job).await?;
-            db.set_applied(job_id, None, applied_at).await?;
+            db.set_applied(job_id, None, applied_at_for(&item)).await?;
             state.inc_new();
-            eprint!("{}", state.progress_line(Some(total), &job.title));
-            sleep(Duration::from_millis(pause_ms)).await;
+            eprint!("{}", state.progress_line(Some(total), label));
         }
 
         Ok(state)

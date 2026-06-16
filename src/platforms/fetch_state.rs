@@ -10,10 +10,6 @@ impl FetchState {
         Self::default()
     }
 
-    pub fn inc_checked(&mut self) {
-        self.checked += 1;
-    }
-
     pub fn inc_new(&mut self) {
         self.new += 1;
     }
@@ -23,7 +19,7 @@ impl FetchState {
     }
 
     pub fn checked(&self) -> usize {
-        self.checked
+        self.existing + self.new
     }
 
     pub fn new_count(&self) -> usize {

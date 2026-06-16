@@ -403,7 +403,6 @@ impl PlatformClient for UpworkScraper {
             let raw_jobs = Self::scrape_page(&page).await?;
 
             for v in &raw_jobs {
-                state.inc_checked();
                 let is_stale = v.posted_at_text.is_some_and(|posted| {
                     let age = chrono::Utc::now() - posted;
                     age.num_days() >= 7
@@ -541,15 +540,11 @@ impl PlatformClient for UpworkScraper {
             if state.checked() >= max {
                 break;
             }
-            state.inc_checked();
             let external_id = normalize_upwork_external_id(&item.openingUID);
             let job_url = format!("https://www.upwork.com/jobs/{}", external_id);
 
-            let (job_id, is_new) = if let Some(id) =
-                db.find_job_id(&Platform::Upwork, &external_id).await?
-            {
-                state.inc_existing();
-                (Some(id), false)
+            let job_id = if let Some(id) = db.find_job_id(&Platform::Upwork, &external_id).await? {
+                Some(id)
             } else {
                 match self.fetch_job_detail(browser, &job_url).await {
                     Ok(detail) => {
@@ -571,14 +566,14 @@ impl PlatformClient for UpworkScraper {
                             note: None,
                             applied_at: None,
                         };
-                        (Some(db.upsert_job(&job).await?), true)
+                        Some(db.upsert_job(&job).await?)
                     }
                     Err(e) => {
                         eprintln!(
                             "  Warning: failed to fetch detail for {}: {}",
                             item.title, e
                         );
-                        (None, false)
+                        None
                     }
                 }
             };
@@ -594,10 +589,6 @@ impl PlatformClient for UpworkScraper {
                 state.inc_existing();
                 eprint!("{}", state.progress_line(Some(total), &item.title));
                 continue;
-            }
-
-            if is_new {
-                state.inc_new();
             }
 
             let cover_letter: String = {
@@ -630,6 +621,8 @@ impl PlatformClient for UpworkScraper {
             };
 
             db.set_applied(job_id, note, applied_at).await?;
+            state.inc_new();
+
             eprint!("{}", state.progress_line(Some(total), &item.title));
         }
         Ok(state)

@@ -356,7 +356,6 @@ impl PlatformClient for EfinancialcareersScraper {
             }
 
             for card in &new_cards {
-                state.inc_checked();
                 if db
                     .find_job_id(&Platform::Efinancialcareers, &card.external_id)
                     .await?
@@ -508,13 +507,11 @@ impl PlatformClient for EfinancialcareersScraper {
         let _guard = CursorGuard::new();
 
         for item in &items {
-            state.inc_checked();
-            let (job_id, is_new) = if let Some(id) = db
+            let job_id = if let Some(id) = db
                 .find_job_id(&Platform::Efinancialcareers, &item.external_id)
                 .await?
             {
-                state.inc_existing();
-                (id, false)
+                id
             } else {
                 let description = descriptions
                     .get(&item.internal_job_id)
@@ -550,8 +547,7 @@ impl PlatformClient for EfinancialcareersScraper {
                     note: None,
                     applied_at: None,
                 };
-
-                (db.upsert_job(&job).await?, true)
+                db.upsert_job(&job).await?
             };
 
             let stored_applied = db
@@ -567,16 +563,13 @@ impl PlatformClient for EfinancialcareersScraper {
             };
 
             if stored_applied {
+                state.inc_existing();
                 eprint!("{}", state.progress_line(Some(items.len()), label));
                 continue;
             }
 
             db.set_applied(job_id, None, item.applied_at).await?;
-
-            if is_new {
-                state.inc_new();
-            }
-
+            state.inc_new();
             eprint!("{}", state.progress_line(Some(items.len()), label));
         }
 
