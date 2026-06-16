@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use chromiumoxide::browser::Browser;
 use chromiumoxide::cdp::browser_protocol::network::{CookieParam, CookieSameSite, TimeSinceEpoch};
 use chromiumoxide::cdp::browser_protocol::target::{
@@ -128,6 +128,7 @@ impl BrowserExt for Browser {
 
 const DEFAULT_WAIT_DELAY_MS: u64 = 500;
 const DEFAULT_WAIT_TRIES: u32 = 30;
+const CHALLENGE_GRACE_PERIOD_SECS: u64 = 10;
 
 /// Poll `condition` up to `tries` times, sleeping `delay` between attempts.
 /// Returns `Ok(true)` as soon as the condition returns `Ok(true)`.
@@ -171,6 +172,90 @@ pub async fn wait_for_element(
         delay,
     )
     .await
+}
+
+/// Show an OS notification.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+pub fn notify_user(title: &str, message: &str) {
+    #[cfg(target_os = "macos")]
+    {
+        let script = format!("display notification {:?} with title {:?}", message, title);
+        let _ = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .output();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("notify-send")
+            .arg(title)
+            .arg(message)
+            .output();
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+pub fn notify_user(_title: &str, _message: &str) {}
+
+/// Poll a JS condition until it returns true. If `challenge_js` is provided and
+/// detects a bot challenge, send an OS notification and wait for the user to
+/// solve it before resuming.
+pub async fn wait_for_with_challenge_recovery(
+    page: &chromiumoxide::Page,
+    condition_js: &str,
+    challenge_js: Option<&str>,
+    tries: Option<u32>,
+    delay: Option<Duration>,
+    grace_period: Option<Duration>,
+) -> Result<bool> {
+    let tries = tries.unwrap_or(DEFAULT_WAIT_TRIES);
+    let delay = delay.unwrap_or(Duration::from_millis(DEFAULT_WAIT_DELAY_MS));
+    let grace = grace_period.unwrap_or(Duration::from_secs(CHALLENGE_GRACE_PERIOD_SECS));
+    let mut notified = false;
+
+    for _ in 0..tries {
+        let matched: bool = page.evaluate(condition_js).await?.into_value()?;
+        if matched {
+            return Ok(true);
+        }
+
+        let Some(js) = challenge_js else {
+            sleep(delay).await;
+            continue;
+        };
+
+        let is_challenge: bool = page.evaluate(js).await?.into_value()?;
+        if is_challenge {
+            if !notified {
+                notified = true;
+                let url = page.url().await?.unwrap_or_default();
+                notify_user(
+                    "Jobsearch bot check",
+                    &format!(
+                        "{} hit a robot check. Solve it in the browser; test will resume.",
+                        url
+                    ),
+                );
+                eprintln!(
+                    "Bot check detected at {}. Waiting {}s for user to solve...",
+                    url,
+                    grace.as_secs()
+                );
+            }
+            sleep(grace).await;
+            if page.evaluate(js).await?.into_value()? {
+                bail!(
+                    "Bot check still present after {}s. Solve it in the browser and retry.",
+                    grace.as_secs()
+                );
+            }
+            continue;
+        }
+
+        sleep(delay).await;
+    }
+
+    Ok(false)
 }
 
 #[derive(Clone)]

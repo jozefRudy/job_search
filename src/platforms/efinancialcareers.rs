@@ -14,6 +14,8 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 const SCRAPE_CARDS_JS: &str = include_str!("efinancialcareers/scrape_cards.js");
+const SEARCH_RESULTS_CONTAINER_JS: &str =
+    include_str!("efinancialcareers/search_results_container.js");
 const CLICK_SHOW_MORE_JS: &str = include_str!("efinancialcareers/click_show_more.js");
 const SCRAPE_TOTAL_JS: &str = include_str!("efinancialcareers/scrape_total.js");
 const EXTRACT_DETAIL_JS: &str = include_str!("efinancialcareers/extract_detail.js");
@@ -163,12 +165,11 @@ impl EfinancialcareersScraper {
     }
 
     pub async fn wait_for_jobs(page: &chromiumoxide::Page) -> Result<bool> {
-        wait_for_element(
+        crate::browser::wait_for_with_challenge_recovery(
             page,
-            &[
-                "efc-job-search-results",
-                "efc-empty-job-search-results-wrapper",
-            ],
+            SEARCH_RESULTS_CONTAINER_JS,
+            None,
+            None,
             None,
             None,
         )

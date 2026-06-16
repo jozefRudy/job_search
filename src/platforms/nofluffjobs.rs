@@ -16,6 +16,7 @@ use std::collections::{HashMap, HashSet};
 use tokio::time::{Duration, sleep};
 
 const SCRAPE_CARDS_JS: &str = include_str!("nofluffjobs/scrape_cards.js");
+const POSTING_LIST_ITEM_JS: &str = include_str!("nofluffjobs/posting_list_item.js");
 const CLICK_LOAD_MORE_JS: &str = include_str!("nofluffjobs/click_load_more.js");
 const COUNT_CARDS_JS: &str = include_str!("nofluffjobs/count_cards.js");
 const GET_TOTAL_RESULTS_JS: &str = include_str!("nofluffjobs/get_total_results.js");
@@ -585,7 +586,15 @@ impl NoFluffJobsScraper {
 
     /// Wait for job cards to appear on search page.
     pub async fn wait_for_jobs(page: &chromiumoxide::Page) -> Result<bool> {
-        wait_for_element(page, &["a.posting-list-item"], None, None).await
+        crate::browser::wait_for_with_challenge_recovery(
+            page,
+            POSTING_LIST_ITEM_JS,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
     }
 
     /// Scrape job cards from current page.

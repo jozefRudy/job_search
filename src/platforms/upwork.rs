@@ -1,4 +1,4 @@
-use crate::browser::{BrowserExt, host_of, wait_for_element};
+use crate::browser::{BrowserExt, host_of, wait_for_element, wait_for_with_challenge_recovery};
 use crate::db::Db;
 use crate::models::{Budget, Data, Job, Platform, UpworkJobDetail};
 use crate::platforms::{FetchState, PlatformClient};
@@ -14,8 +14,8 @@ use tokio::time::{Duration, sleep};
 
 const FETCH_JOB_DETAIL_JS: &str = include_str!("upwork/fetch_job_detail.js");
 const SCRAPE_CARDS_JS: &str = include_str!("upwork/scrape_cards.js");
-const IS_CHALLENGE_JS: &str = include_str!("upwork/is_challenge.js");
 const HAS_CARDS_JS: &str = include_str!("upwork/has_cards.js");
+const CHALLENGE_JS: &str = include_str!("upwork/challenge.js");
 const HAS_NEXT_PAGE_JS: &str = include_str!("upwork/has_next_page.js");
 const EXTRACT_SUBMITTED_LIST_JS: &str = include_str!("upwork/extract_submitted_list.js");
 const EXTRACT_PROPOSAL_DETAIL_JS: &str = include_str!("upwork/extract_proposal_detail.js");
@@ -293,21 +293,15 @@ impl UpworkScraper {
 
     /// Wait for job cards to appear (or CAPTCHA). Returns true if cards found.
     pub async fn wait_for_jobs(page: &chromiumoxide::Page) -> Result<bool> {
-        for i in 0..120 {
-            let is_challenge: bool = page.evaluate(IS_CHALLENGE_JS).await?.into_value()?;
-
-            let has_cards: bool = page.evaluate(HAS_CARDS_JS).await?.into_value()?;
-
-            if !is_challenge && has_cards {
-                return Ok(true);
-            }
-
-            if i == 30 {
-                eprintln!("  Upwork showing CAPTCHA. Login in Brave first, then retry.");
-            }
-            sleep(Duration::from_millis(500)).await;
-        }
-        Ok(false)
+        wait_for_with_challenge_recovery(
+            page,
+            HAS_CARDS_JS,
+            Some(CHALLENGE_JS),
+            Some(120),
+            Some(Duration::from_millis(500)),
+            None,
+        )
+        .await
     }
 }
 
