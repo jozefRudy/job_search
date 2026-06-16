@@ -1,6 +1,5 @@
 #[derive(Debug, Default, Clone, Copy)]
 pub struct FetchState {
-    checked: usize,
     new: usize,
     existing: usize,
 }
@@ -33,14 +32,21 @@ impl FetchState {
     pub fn summary(&self) -> String {
         format!(
             "Total checked: {} ({} new, {} existing)",
-            self.checked, self.new, self.existing
+            self.checked(),
+            self.new,
+            self.existing
         )
     }
 
     pub fn progress_line(&self, total: Option<usize>, label: &str) -> String {
         match total {
-            Some(t) => format!("\r    Progress: {:>5}/{:<5} {:.40}", self.checked, t, label),
-            None => format!("\r    Progress: {:>5} {:.40}", self.checked, label),
+            Some(t) => format!(
+                "\r    Progress: {:>5}/{:<5} {:.40}",
+                self.checked(),
+                t,
+                label
+            ),
+            None => format!("\r    Progress: {:>5} {:.40}", self.checked(), label),
         }
     }
 }
