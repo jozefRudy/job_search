@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT platform, external_id, liked FROM jobs WHERE liked IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "platform",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "external_id",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "liked",
+        "ordinal": 2,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "f5fad654b5750c43be38d765459115e61014140c77763af65aee38991db2fc2e"
+}

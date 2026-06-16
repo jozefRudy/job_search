@@ -44,6 +44,14 @@ pub enum Commands {
 
     /// Sync your sent applications from platforms
     SyncApplications(SyncApplicationsCmd),
+
+    /// Sync liked/disliked state from one database into another
+    SyncLikes {
+        /// Source database path
+        from: std::path::PathBuf,
+        /// Target database path
+        to: std::path::PathBuf,
+    },
 }
 
 #[derive(Parser)]

@@ -206,6 +206,22 @@ async fn main() -> Result<()> {
                 .await?;
             }
         },
+        Commands::SyncLikes { from, to } => {
+            if let Some(parent) = from.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            if let Some(parent) = to.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let source = Db::open(&from).await?;
+            let target = Db::open(&to).await?;
+            let synced = target.sync_likes_from(&source).await?;
+            println!(
+                "Synced {} like{}",
+                synced,
+                if synced == 1 { "" } else { "s" }
+            );
+        }
     }
 
     // Browser stays alive for reuse

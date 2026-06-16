@@ -220,6 +220,31 @@ impl Db {
         Ok(())
     }
 
+    /// Copy non-null liked state from `source` into self, matching by
+    /// (platform, external_id). Ignore rows missing in target.
+    pub async fn sync_likes_from(&self, source: &Db) -> Result<u64> {
+        let rows =
+            sqlx::query!("SELECT platform, external_id, liked FROM jobs WHERE liked IS NOT NULL")
+                .fetch_all(&source.pool)
+                .await?;
+
+        let mut synced = 0u64;
+        for row in rows {
+            let liked = row.liked.expect("filtered IS NOT NULL");
+            let result = sqlx::query!(
+                "UPDATE jobs SET liked = ?1 WHERE platform = ?2 AND external_id = ?3",
+                liked,
+                row.platform,
+                row.external_id
+            )
+            .execute(&self.pool)
+            .await?;
+            synced += result.rows_affected();
+        }
+
+        Ok(synced)
+    }
+
     pub async fn update_raw(&self, id: i64, raw: &Data) -> Result<()> {
         let raw_str = serde_json::to_string(raw)?;
         sqlx::query!(
@@ -538,6 +563,43 @@ mod tests {
                 .fetch_one(&db.pool)
                 .await?;
         assert_eq!(reaction_count, 0);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_sync_likes_updates_existing_ignores_missing() -> Result<()> {
+        let source_tmp = temp_db();
+        let target_tmp = temp_db();
+        let source = Db::open(source_tmp.path()).await?;
+        let target = Db::open(target_tmp.path()).await?;
+
+        let a = test_job(Platform::Upwork, "a", "A");
+        let b = test_job(Platform::Upwork, "b", "B");
+        let c = test_job(Platform::Upwork, "c", "C");
+        let d = test_job(Platform::NoFluffJobs, "d", "D");
+
+        let id_a = source.upsert_job(&a).await?;
+        let id_b = source.upsert_job(&b).await?;
+        let _id_c = source.upsert_job(&c).await?;
+        let _id_d = source.upsert_job(&d).await?;
+        source.set_liked(&[id_a], true).await?;
+        source.set_liked(&[id_b], false).await?;
+
+        // Target has A, B, C; lacks D.
+        let target_a = target.upsert_job(&a).await?;
+        let target_b = target.upsert_job(&b).await?;
+        target.upsert_job(&c).await?;
+        target.set_liked(&[target_a, target_b], true).await?;
+
+        let synced = target.sync_likes_from(&source).await?;
+        assert_eq!(synced, 2);
+
+        let jobs = target.list_jobs(None, Sort::Created, 100).await?;
+        let find = |ext_id: &str| jobs.iter().find(|j| j.external_id == ext_id).unwrap();
+        assert_eq!(find("a").liked, Some(true));
+        assert_eq!(find("b").liked, Some(false));
+        assert_eq!(find("c").liked, None);
 
         Ok(())
     }

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE jobs SET liked = ?1 WHERE platform = ?2 AND external_id = ?3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "12c240e451b5f14b641d876db1061b9ec4696aabcb0e7abdca33ee587ad0a79b"
+}
