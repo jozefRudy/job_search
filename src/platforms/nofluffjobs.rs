@@ -568,7 +568,7 @@ impl NoFluffJobsScraper {
                     }
                 }
 
-                eprint!("{}", state.progress_line(None, &card.external_id));
+                eprint!("{}", state.progress_line(total_results, &card.external_id));
             }
 
             if !Self::click_load_more(&page, pause_ms).await {

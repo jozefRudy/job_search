@@ -414,7 +414,7 @@ impl PlatformClient for UpworkScraper {
                     && (fetch_started_at - ts < detail_ttl || is_stale)
                 {
                     state.inc_existing();
-                    eprint!("{}", state.progress_line(None, ""));
+                    eprint!("{}", state.progress_line(Some(raw_jobs.len()), ""));
                     continue;
                 }
 
@@ -453,7 +453,7 @@ impl PlatformClient for UpworkScraper {
                     }
                 }
 
-                eprint!("{}", state.progress_line(None, &v.title));
+                eprint!("{}", state.progress_line(Some(raw_jobs.len()), &v.title));
                 sleep(Duration::from_millis(pause_ms)).await;
             }
 
