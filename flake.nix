@@ -52,6 +52,7 @@
         src = self;
         cargoLock.lockFile = ./Cargo.lock;
         nativeBuildInputs = with pkgs; [pkg-config];
+        env.GIT_HASH = self.shortRev or "dirty";
         preBuild = ''
           mkdir -p frontend/dist
           cp -r ${frontend}/* frontend/dist/

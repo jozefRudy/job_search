@@ -2,8 +2,13 @@ use crate::models::Recency;
 use crate::platforms::upwork::UpworkTier;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
+const VERSION: &str = match option_env!("GIT_HASH") {
+    Some(v) => v,
+    None => "dev",
+};
+
 #[derive(Parser)]
-#[command(name = "jobsearch")]
+#[command(name = "jobsearch", version = VERSION)]
 #[command(about = "Unified job search CLI")]
 pub struct Cli {
     #[arg(long, global = true)]
