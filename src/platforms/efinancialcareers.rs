@@ -1,6 +1,6 @@
 use crate::browser::{BrowserExt, host_of, wait_for_element};
 use crate::db::Db;
-use crate::models::{Budget, Data, EfinancialcareersJobDetail, Job, Platform, parse_relative_time};
+use crate::models::{Budget, Data, EfinancialcareersJobDetail, Job, Platform};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
@@ -225,7 +225,9 @@ impl EfinancialcareersScraper {
             employment_type: String::new(),
             salary: extracted.salary,
             description: extracted.description,
-            posted_at: crate::models::parse_relative_time(&extracted.posted_at_text),
+            posted_at: crate::models::parse_relative_time(&extracted.posted_at_text)
+                .unwrap_or_else(Utc::now),
+            remote: extracted.remote,
         })
     }
 
@@ -243,9 +245,7 @@ impl EfinancialcareersScraper {
         card: &EfinancialcareersJobCard,
         detail: EfinancialcareersJobDetail,
     ) -> Job {
-        let created_at = detail
-            .posted_at
-            .unwrap_or_else(|| parse_relative_time(&card.posted_at_text).unwrap_or_else(Utc::now));
+        let created_at = detail.posted_at;
         let salary = if detail.salary.is_empty() {
             card.salary.clone()
         } else {
@@ -291,6 +291,8 @@ struct ExtractedDetail {
     salary: String,
     #[serde(default)]
     posted_at_text: String,
+    #[serde(default)]
+    remote: bool,
 }
 
 #[async_trait]
@@ -538,7 +540,8 @@ impl PlatformClient for EfinancialcareersScraper {
                             employment_type: item.employment_type.clone(),
                             salary: salary.clone(),
                             description,
-                            ..Default::default()
+                            posted_at: item.applied_at,
+                            remote: false,
                         },
                     },
                     created_at: item.applied_at,

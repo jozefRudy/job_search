@@ -8,54 +8,52 @@
  * Full detail scraped from an individual Upwork job page.
  */
 export interface UpworkJobDetail {
-  description?: string;
-  duration?: string;
-  exact_budget?: string;
-  experience_level?: string;
-  hires?: string;
-  hours_per_week?: string;
-  interviewing?: string;
-  invites_sent?: string;
+  description: string;
+  duration: string;
+  exact_budget: string;
+  experience_level: string;
+  hires: string;
+  hours_per_week: string;
+  interviewing: string;
+  invites_sent: string;
   /** @nullable */
   last_viewed?: string | null;
-  /** @nullable */
-  posted_at?: string | null;
-  project_type?: string;
-  proposals?: string;
-  tags?: string[];
-  unanswered_invites?: string;
+  posted_at: string;
+  project_type: string;
+  proposals: string;
+  tags: string[];
+  unanswered_invites: string;
 }
 
 /**
  * Full detail scraped from an individual NoFluffJobs job page.
  */
 export interface NoFluffJobDetail {
-  company?: string;
-  description?: string;
+  company: string;
+  description: string;
   /** @nullable */
   employment_type?: string | null;
-  languages?: string[];
-  locations?: string[];
-  must_have?: string[];
-  nice_to_have?: string;
-  offer_valid_until?: string;
-  /** @nullable */
-  posted_at?: string | null;
-  requirements?: string;
-  seniority?: string;
+  languages: string[];
+  locations: string[];
+  must_have: string[];
+  nice_to_have: string;
+  offer_valid_until: string;
+  posted_at: string;
+  requirements: string;
+  seniority: string;
 }
 
 /**
  * Full detail scraped from an individual eFinancialCareers job page.
  */
 export interface EfinancialcareersJobDetail {
-  company?: string;
-  description?: string;
-  employment_type?: string;
-  location?: string;
-  /** @nullable */
-  posted_at?: string | null;
-  salary?: string;
+  company: string;
+  description: string;
+  employment_type: string;
+  location: string;
+  posted_at: string;
+  remote: boolean;
+  salary: string;
 }
 
 /**

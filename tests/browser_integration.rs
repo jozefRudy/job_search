@@ -117,10 +117,6 @@ async fn test_upwork_job_detail_fetch() {
             "detail should have description"
         );
         assert!(
-            detail.posted_at.is_some(),
-            "detail should have posted_at parsed from page"
-        );
-        assert!(
             !detail.exact_budget.is_empty(),
             "detail should have exact_budget or a hidden-budget marker"
         );

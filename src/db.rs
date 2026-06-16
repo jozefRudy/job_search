@@ -311,29 +311,12 @@ struct JobRow {
 
 impl From<JobRow> for Job {
     fn from(r: JobRow) -> Self {
-        // Deserialize raw; fall back to default if old schema (missing `platform` tag)
-        let raw: Data =
-            serde_json::from_str(&r.raw).unwrap_or_else(|_| match r.platform.as_str() {
-                "upwork" => Data::Upwork {
-                    detail: crate::models::UpworkJobDetail::default(),
-                },
-                "nofluffjobs" => Data::Nofluffjobs {
-                    detail: crate::models::NoFluffJobDetail::default(),
-                },
-                "efinancialcareers" => Data::Efinancialcareers {
-                    detail: crate::models::EfinancialcareersJobDetail::default(),
-                },
-                _ => panic!("unknown platform in db: '{}'", r.platform),
-            });
+        let raw: Data = serde_json::from_str(&r.raw)
+            .unwrap_or_else(|e| panic!("failed to deserialize raw for job {}: {}", r.id, e));
 
         Job {
             id: Some(r.id),
-            platform: match r.platform.as_str() {
-                "upwork" => Platform::Upwork,
-                "nofluffjobs" => Platform::NoFluffJobs,
-                "efinancialcareers" => Platform::Efinancialcareers,
-                _ => panic!("unknown platform in db: '{}'", r.platform),
-            },
+            platform: r.platform.parse().expect("unknown platform in db"),
             external_id: r.external_id,
             title: r.title,
             description: r.description,
@@ -431,7 +414,7 @@ mod tests {
             duration: "1 to 3 months".to_string(),
             hours_per_week: "Less than 30 hrs/week".to_string(),
             tags: vec!["rust".to_string(), "api".to_string()],
-            posted_at: None,
+            posted_at: chrono::Utc::now(),
         };
         let job = Job {
             id: None,
@@ -481,7 +464,7 @@ mod tests {
             nice_to_have: "Cool project".to_string(),
             offer_valid_until: "2026-12-31".to_string(),
             languages: vec!["en".to_string()],
-            posted_at: None,
+            posted_at: chrono::Utc::now(),
             employment_type: Some("b2b".to_string()),
         };
         let job = Job {

@@ -3,6 +3,7 @@ use clap::ValueEnum;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::str::FromStr;
 use std::sync::LazyLock;
 use utoipa::IntoParams;
 use utoipa::ToSchema;
@@ -18,53 +19,69 @@ pub enum Data {
 }
 
 /// Full detail scraped from an individual eFinancialCareers job page.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct EfinancialcareersJobDetail {
-    #[serde(default)]
     pub company: String,
-    #[serde(default)]
     pub location: String,
-    #[serde(default)]
     pub employment_type: String,
-    #[serde(default)]
     pub salary: String,
-    #[serde(default)]
     pub description: String,
-    #[serde(default)]
-    pub posted_at: Option<DateTime<Utc>>,
+    pub posted_at: DateTime<Utc>,
+    pub remote: bool,
+}
+
+impl Default for EfinancialcareersJobDetail {
+    fn default() -> Self {
+        Self {
+            company: String::new(),
+            location: String::new(),
+            employment_type: String::new(),
+            salary: String::new(),
+            description: String::new(),
+            posted_at: Utc::now(),
+            remote: false,
+        }
+    }
 }
 
 /// Full detail scraped from an individual Upwork job page.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct UpworkJobDetail {
-    #[serde(default)]
     pub proposals: String,
-    #[serde(default)]
     pub last_viewed: Option<DateTime<Utc>>,
-    #[serde(default)]
     pub interviewing: String,
-    #[serde(default)]
     pub invites_sent: String,
-    #[serde(default)]
     pub unanswered_invites: String,
-    #[serde(default)]
     pub description: String,
-    #[serde(default)]
     pub exact_budget: String,
-    #[serde(default)]
     pub experience_level: String,
-    #[serde(default)]
     pub hires: String,
-    #[serde(default)]
     pub project_type: String,
-    #[serde(default)]
     pub duration: String,
-    #[serde(default)]
     pub hours_per_week: String,
-    #[serde(default)]
     pub tags: Vec<String>,
-    #[serde(default)]
-    pub posted_at: Option<DateTime<Utc>>,
+    pub posted_at: DateTime<Utc>,
+}
+
+impl Default for UpworkJobDetail {
+    fn default() -> Self {
+        Self {
+            proposals: String::new(),
+            last_viewed: None,
+            interviewing: String::new(),
+            invites_sent: String::new(),
+            unanswered_invites: String::new(),
+            description: String::new(),
+            exact_budget: String::new(),
+            experience_level: String::new(),
+            hires: String::new(),
+            project_type: String::new(),
+            duration: String::new(),
+            hours_per_week: String::new(),
+            tags: Vec::new(),
+            posted_at: Utc::now(),
+        }
+    }
 }
 
 static RELATIVE_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -103,39 +120,38 @@ fn unit_to_duration(unit: &str, n: i64, now: DateTime<Utc>) -> Option<DateTime<U
     }
 }
 
-pub fn deserialize_relative_time<'de, D>(deserializer: D) -> Result<Option<DateTime<Utc>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let s = Option::<String>::deserialize(deserializer)?;
-    Ok(s.and_then(|s| parse_relative_time(&s)))
+/// Full detail scraped from an individual NoFluffJobs job page.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct NoFluffJobDetail {
+    pub company: String,
+    pub seniority: String,
+    pub locations: Vec<String>,
+    pub must_have: Vec<String>,
+    pub description: String,
+    pub requirements: String,
+    pub nice_to_have: String,
+    pub offer_valid_until: String,
+    pub languages: Vec<String>,
+    pub posted_at: DateTime<Utc>,
+    pub employment_type: Option<String>,
 }
 
-/// Full detail scraped from an individual NoFluffJobs job page.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
-pub struct NoFluffJobDetail {
-    #[serde(default)]
-    pub company: String,
-    #[serde(default)]
-    pub seniority: String,
-    #[serde(default)]
-    pub locations: Vec<String>,
-    #[serde(default)]
-    pub must_have: Vec<String>,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub requirements: String,
-    #[serde(default)]
-    pub nice_to_have: String,
-    #[serde(default)]
-    pub offer_valid_until: String,
-    #[serde(default)]
-    pub languages: Vec<String>,
-    #[serde(default)]
-    pub posted_at: Option<DateTime<Utc>>,
-    #[serde(default)]
-    pub employment_type: Option<String>,
+impl Default for NoFluffJobDetail {
+    fn default() -> Self {
+        Self {
+            company: String::new(),
+            seniority: String::new(),
+            locations: Vec::new(),
+            must_have: Vec::new(),
+            description: String::new(),
+            requirements: String::new(),
+            nice_to_have: String::new(),
+            offer_valid_until: String::new(),
+            languages: Vec::new(),
+            posted_at: Utc::now(),
+            employment_type: None,
+        }
+    }
 }
 
 #[derive(
@@ -156,6 +172,19 @@ impl fmt::Display for Platform {
             Platform::Efinancialcareers => write!(f, "efinancialcareers"),
             Platform::NoFluffJobs => write!(f, "nofluffjobs"),
             Platform::Upwork => write!(f, "upwork"),
+        }
+    }
+}
+
+impl FromStr for Platform {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "efinancialcareers" => Ok(Platform::Efinancialcareers),
+            "nofluffjobs" => Ok(Platform::NoFluffJobs),
+            "upwork" => Ok(Platform::Upwork),
+            _ => anyhow::bail!("unknown platform: '{}'", s),
         }
     }
 }

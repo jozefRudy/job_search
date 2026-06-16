@@ -30,9 +30,11 @@ const mockUpworkJob: Job = {
       hires: "1",
       proposals: "15 to 20",
       last_viewed: "2026-06-09T12:00:00Z",
+      posted_at: "2026-06-05T08:00:00Z",
       interviewing: "2",
       invites_sent: "5",
       unanswered_invites: "1",
+      tags: ["rust", "web3", "solidity", "react"],
     },
   },
 };

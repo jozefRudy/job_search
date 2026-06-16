@@ -267,11 +267,9 @@ export function EfinancialcareersDetail(props: { job: Job }) {
           <DetailList>
             <DetailRow label="Company" value={d.company} />
             <DetailRow label="Location" value={d.location} />
+            <DetailRow label="Remote" value={d.remote ? "yes" : "no"} />
             <DetailRow label="Employment type" value={d.employment_type} />
-            <DetailRow
-              label="Posted"
-              value={d.posted_at ? fmtRelative(d.posted_at) : undefined}
-            />
+            <DetailRow label="Posted" value={fmtRelative(d.posted_at)} />
           </DetailList>
           <Show when={d.description}>
             <div>

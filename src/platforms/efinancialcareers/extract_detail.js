@@ -8,11 +8,13 @@
   const salaryMatch = postedLine.match(/(?:per annum|per year|per month|per hour|per day|\b(?:USD|EUR|GBP|PLN|CHF|\$|€|£)\b).+/i);
   const salary = salaryMatch ? salaryMatch[0].trim() : '';
   const posted_at_text = postedMatch ? postedMatch[1].trim() : '';
+  const remote = /\bremote\b/i.test(document.body.innerText);
   return {
     description: desc ? desc.innerText.trim() : '',
     company,
     location,
     salary,
     posted_at_text,
+    remote,
   };
 })();

@@ -312,7 +312,10 @@ impl TryFrom<RawPostingEnvelope> for NoFluffJobDetail {
             .map(|l| l.code.clone())
             .collect();
 
-        let posted_at = raw.posted.and_then(chrono::DateTime::from_timestamp_millis);
+        let posted_at = raw
+            .posted
+            .and_then(chrono::DateTime::from_timestamp_millis)
+            .unwrap_or_else(Utc::now);
 
         let locations: Vec<String> = raw
             .location
@@ -550,7 +553,7 @@ impl NoFluffJobsScraper {
                             budget,
                             tags: card.tags.clone(),
                             raw: Data::Nofluffjobs { detail },
-                            created_at: posted.unwrap_or_else(chrono::Utc::now),
+                            created_at: posted,
                             updated_at: chrono::Utc::now(),
                             liked: None,
                             note: None,
@@ -742,14 +745,10 @@ impl NoFluffJobsScraper {
                 sleep(Duration::from_millis(pause_ms)).await;
 
                 match self.fetch_detail(slug).await {
-                    Ok(detail) => {
-                        let created_at = detail
-                            .posted_at
-                            .or(item.offer.posted)
-                            .unwrap_or(item.applied_date);
-
-                        let mut detail = detail;
+                    Ok(mut detail) => {
+                        detail.posted_at = item.offer.posted.unwrap_or(detail.posted_at);
                         detail.employment_type = item.offer.employment_type.clone();
+                        let created_at = detail.posted_at;
 
                         let budget = item.offer.budget.clone();
                         let tags = item.offer.tags.clone();
@@ -1047,6 +1046,6 @@ mod tests {
         assert!(detail.must_have.contains(&".NET".to_string()));
         assert!(detail.nice_to_have.contains("React"));
         assert_eq!(detail.languages, vec!["en"]);
-        assert!(detail.posted_at.is_some());
+        assert!(detail.posted_at <= Utc::now() - chrono::Duration::minutes(1));
     }
 }

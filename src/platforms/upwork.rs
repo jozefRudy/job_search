@@ -349,7 +349,8 @@ impl TryFrom<RawJobDetail> for UpworkJobDetail {
             duration: raw.duration,
             hours_per_week: raw.hours_per_week,
             tags: raw.tags,
-            posted_at: crate::models::parse_relative_time(&raw.posted_at_text),
+            posted_at: crate::models::parse_relative_time(&raw.posted_at_text)
+                .unwrap_or_else(Utc::now),
         })
     }
 }
@@ -548,7 +549,7 @@ impl PlatformClient for UpworkScraper {
             } else {
                 match self.fetch_job_detail(browser, &job_url).await {
                     Ok(detail) => {
-                        let created_at = detail.posted_at.unwrap_or_else(chrono::Utc::now);
+                        let created_at = detail.posted_at;
                         let job = Job {
                             id: None,
                             platform: Platform::Upwork,
