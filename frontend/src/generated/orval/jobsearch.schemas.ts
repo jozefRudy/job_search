@@ -88,8 +88,7 @@ export interface Job {
   /** @nullable */
   description?: string | null;
   external_id: string;
-  /** @nullable */
-  id?: number | null;
+  id: number;
   /** @nullable */
   liked?: boolean | null;
   /** @nullable */

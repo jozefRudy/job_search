@@ -315,7 +315,7 @@ impl From<JobRow> for Job {
             .unwrap_or_else(|e| panic!("failed to deserialize raw for job {}: {}", r.id, e));
 
         Job {
-            id: Some(r.id),
+            id: r.id,
             platform: r.platform.parse().expect("unknown platform in db"),
             external_id: r.external_id,
             title: r.title,
@@ -363,7 +363,7 @@ mod tests {
             },
         };
         Job {
-            id: None,
+            id: 0,
             platform,
             external_id: external_id.to_string(),
             title: title.to_string(),
@@ -417,7 +417,7 @@ mod tests {
             posted_at: chrono::Utc::now(),
         };
         let job = Job {
-            id: None,
+            id: 0,
             platform: Platform::Upwork,
             external_id: "uw-99".to_string(),
             title: "Rust Backend".to_string(),
@@ -468,7 +468,7 @@ mod tests {
             employment_type: Some("b2b".to_string()),
         };
         let job = Job {
-            id: None,
+            id: 0,
             platform: Platform::NoFluffJobs,
             external_id: "nf-88".to_string(),
             title: "Senior Rust".to_string(),

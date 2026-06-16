@@ -51,7 +51,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
             table.set_header(headers);
             for (i, job) in jobs.iter().enumerate() {
                 table.add_row(vec![
-                    Cell::new(job.id.unwrap_or(0)),
+                    Cell::new(job.id),
                     Cell::new(job.platform.to_string()),
                     Cell::new(fmt_relative(job.created_at)),
                     Cell::new(job.budget.as_deref().unwrap_or("?")),
@@ -89,7 +89,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                 };
                 let last_viewed = detail.last_viewed.map(fmt_relative).unwrap_or_default();
                 table.add_row(vec![
-                    Cell::new(job.id.unwrap_or(0)),
+                    Cell::new(job.id),
                     Cell::new(fmt_relative(job.created_at)),
                     Cell::new(job.budget.as_deref().unwrap_or("?")),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
@@ -114,7 +114,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
             table.set_header(headers);
             for (i, job) in jobs.iter().enumerate() {
                 table.add_row(vec![
-                    Cell::new(job.id.unwrap_or(0)),
+                    Cell::new(job.id),
                     Cell::new(fmt_relative(job.created_at)),
                     Cell::new(job.budget.as_deref().unwrap_or("?")),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
@@ -138,7 +138,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
             table.set_header(headers);
             for (i, job) in jobs.iter().enumerate() {
                 table.add_row(vec![
-                    Cell::new(job.id.unwrap_or(0)),
+                    Cell::new(job.id),
                     Cell::new(fmt_relative(job.created_at)),
                     Cell::new(job.budget.as_deref().unwrap_or("?")),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
@@ -166,7 +166,7 @@ pub fn render_job_detailed(job: &Job) -> String {
     let mut lines = Vec::new();
     lines.push(format!(
         "#{} [{}] {} | {} | {}",
-        job.id.unwrap_or(0),
+        job.id,
         job.platform,
         fmt_relative(job.created_at),
         job.budget.as_deref().unwrap_or("?"),

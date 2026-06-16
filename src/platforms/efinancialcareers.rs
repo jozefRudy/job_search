@@ -256,7 +256,7 @@ impl EfinancialcareersScraper {
             .or_else(|| Some(salary.clone()).filter(|b| !b.is_empty()));
 
         Job {
-            id: None,
+            id: 0,
             platform: Platform::Efinancialcareers,
             external_id: card.external_id.clone(),
             title: card.title.clone(),
@@ -525,7 +525,7 @@ impl PlatformClient for EfinancialcareersScraper {
                     .or_else(|| Some(salary.clone()).filter(|b| !b.is_empty()));
 
                 let job = Job {
-                    id: None,
+                    id: 0,
                     platform: Platform::Efinancialcareers,
                     external_id: item.external_id.clone(),
                     title: item.title.clone(),

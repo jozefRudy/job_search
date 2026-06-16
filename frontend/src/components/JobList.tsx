@@ -137,7 +137,6 @@ export function JobList() {
   }
 
   function handleRate(job: Job, rating: Rating) {
-    if (job.id == null) return;
     rateMutation.mutate({ id: job.id, data: { rating } });
   }
 
@@ -150,7 +149,7 @@ export function JobList() {
           <button
             type="button"
             class="link link-primary"
-            onClick={() => j.id != null && navigate(`/jobs/${j.id}`)}
+            onClick={() => navigate(`/jobs/${j.id}`)}
           >
             {j.id}
           </button>

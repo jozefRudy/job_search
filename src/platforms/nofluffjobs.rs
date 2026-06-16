@@ -544,7 +544,7 @@ impl NoFluffJobsScraper {
                             }
                         });
                         let job = Job {
-                            id: None,
+                            id: 0,
                             platform,
                             external_id: card.external_id.clone(),
                             title: card.title.clone(),
@@ -754,7 +754,7 @@ impl NoFluffJobsScraper {
                         let tags = item.offer.tags.clone();
 
                         let job = Job {
-                            id: None,
+                            id: 0,
                             platform: Platform::NoFluffJobs,
                             external_id: item.posting_id.clone(),
                             title: item.offer.title.clone(),

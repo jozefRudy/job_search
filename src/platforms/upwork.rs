@@ -424,7 +424,7 @@ impl PlatformClient for UpworkScraper {
                 match self.fetch_job_detail(browser, &job_url).await {
                     Ok(detail) => {
                         let job = Job {
-                            id: None,
+                            id: 0,
                             platform: Platform::Upwork,
                             external_id: v.external_id.clone(),
                             title: v.title.clone(),
@@ -551,7 +551,7 @@ impl PlatformClient for UpworkScraper {
                     Ok(detail) => {
                         let created_at = detail.posted_at;
                         let job = Job {
-                            id: None,
+                            id: 0,
                             platform: Platform::Upwork,
                             external_id: external_id.clone(),
                             title: item.title.clone(),

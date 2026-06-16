@@ -151,7 +151,7 @@ export function JobDetailContent(props: {
         onClose={() => setShowDelete(false)}
         onConfirm={() => {
           setShowDelete(false);
-          deleteMutation.mutate({ id: props.job.id ?? 0 });
+          deleteMutation.mutate({ id: props.job.id });
         }}
         title="Delete job?"
         message={`Delete "${props.job.title}"? This cannot be undone.`}

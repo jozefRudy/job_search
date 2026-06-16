@@ -250,7 +250,7 @@ pub struct ListQuery {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Job {
-    pub id: Option<i64>,
+    pub id: i64,
     pub platform: Platform,
     pub external_id: String,
     pub title: String,
@@ -778,7 +778,7 @@ mod tests {
     fn test_job_filter_rating() {
         fn job(id: i64, liked: Option<bool>) -> Job {
             Job {
-                id: Some(id),
+                id,
                 platform: Platform::Upwork,
                 external_id: format!("j{id}"),
                 title: format!("Job {id}"),
@@ -811,28 +811,28 @@ mod tests {
                 liked: Some(Rating::Liked),
                 ..Default::default()
             }),
-            vec![Some(1)]
+            vec![1]
         );
         assert_eq!(
             ids(JobFilter {
                 liked: Some(Rating::Disliked),
                 ..Default::default()
             }),
-            vec![Some(2)]
+            vec![2]
         );
         assert_eq!(
             ids(JobFilter {
                 liked: Some(Rating::Neutral),
                 ..Default::default()
             }),
-            vec![Some(3)]
+            vec![3]
         );
         assert_eq!(
             ids(JobFilter {
                 liked: None,
                 ..Default::default()
             }),
-            vec![Some(1), Some(2), Some(3)]
+            vec![1, 2, 3]
         );
     }
 
@@ -840,7 +840,7 @@ mod tests {
     fn test_job_filter_recency() {
         fn job(id: i64, created_at: DateTime<Utc>) -> Job {
             Job {
-                id: Some(id),
+                id,
                 platform: Platform::Upwork,
                 external_id: format!("j{id}"),
                 title: format!("Job {id}"),
@@ -877,21 +877,21 @@ mod tests {
                 recency: Some(Recency(1)),
                 ..Default::default()
             }),
-            vec![Some(1)]
+            vec![1]
         );
         assert_eq!(
             ids(JobFilter {
                 recency: Some(Recency(5)),
                 ..Default::default()
             }),
-            vec![Some(1), Some(2)]
+            vec![1, 2]
         );
         assert_eq!(
             ids(JobFilter {
                 recency: None,
                 ..Default::default()
             }),
-            vec![Some(1), Some(2), Some(3)]
+            vec![1, 2, 3]
         );
     }
 
@@ -899,7 +899,7 @@ mod tests {
     fn test_job_filter_applied() {
         fn job(id: i64, applied_at: Option<DateTime<Utc>>) -> Job {
             Job {
-                id: Some(id),
+                id,
                 platform: Platform::Upwork,
                 external_id: format!("j{id}"),
                 title: format!("Job {id}"),
@@ -936,21 +936,21 @@ mod tests {
                 applied: Some(true),
                 ..Default::default()
             }),
-            vec![Some(1), Some(3)]
+            vec![1, 3]
         );
         assert_eq!(
             ids(JobFilter {
                 applied: Some(false),
                 ..Default::default()
             }),
-            vec![Some(2)]
+            vec![2]
         );
         assert_eq!(
             ids(JobFilter {
                 applied: None,
                 ..Default::default()
             }),
-            vec![Some(1), Some(2), Some(3)]
+            vec![1, 2, 3]
         );
     }
 }
