@@ -22,6 +22,7 @@
 - [[hashmap-into-values-no-len]] - In Rust, `HashMap::into_values()` returns an iterator without `len()`. If length
 - [[integration-test-timeout-means-bug]] - When an ignored browser integration test times out or hangs, treat it as a bug, 
 - [[job-created-at-semantics]] - In this project, `Job::created_at` and the DB `jobs.created_at` column store the
+- [[job-id-non-optional]] - DB-assigned IDs should be non-optional in API models (`id: i64`, not `Option<i64
 - [[new-platform-checklist]] - For a new job board, start with a CLI-only spike: confirm search cards, paginati
 - [[nix-pnpm-hash-update]] - When frontend `pnpm` dependencies change in `frontend/package.json` or `frontend
 - [[nix-pnpm-oom-fix]] - When packaging pnpm frontend in Nix flake on macOS, `pnpm_11` + `fetcherVersion 
