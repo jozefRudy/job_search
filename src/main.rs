@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs};
@@ -213,9 +213,10 @@ async fn main() -> Result<()> {
             if let Some(parent) = to.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            let source = Db::open(&from).await?;
             let target = Db::open(&to).await?;
-            let synced = target.sync_likes_from(&source).await?;
+            let synced = target
+                .sync_likes(from.to_str().context("invalid source path")?)
+                .await?;
             println!(
                 "Synced {} like{}",
                 synced,

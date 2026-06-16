@@ -220,29 +220,34 @@ impl Db {
         Ok(())
     }
 
-    /// Copy non-null liked state from `source` into self, matching by
+    /// Copy non-null liked state from `source_path` into self, matching by
     /// (platform, external_id). Ignore rows missing in target.
-    pub async fn sync_likes_from(&self, source: &Db) -> Result<u64> {
-        let rows =
-            sqlx::query!("SELECT platform, external_id, liked FROM jobs WHERE liked IS NOT NULL")
-                .fetch_all(&source.pool)
-                .await?;
+    pub async fn sync_likes(&self, source_path: &str) -> Result<u64> {
+        let mut conn = self.pool.acquire().await?;
 
-        let mut synced = 0u64;
-        for row in rows {
-            let liked = row.liked.expect("filtered IS NOT NULL");
-            let result = sqlx::query!(
-                "UPDATE jobs SET liked = ?1 WHERE platform = ?2 AND external_id = ?3",
-                liked,
-                row.platform,
-                row.external_id
-            )
-            .execute(&self.pool)
+        sqlx::query("ATTACH DATABASE ? AS source")
+            .bind(source_path)
+            .execute(&mut *conn)
             .await?;
-            synced += result.rows_affected();
-        }
 
-        Ok(synced)
+        let result = sqlx::query(
+            r#"
+            UPDATE jobs
+            SET liked = s.liked
+            FROM source.jobs AS s
+            WHERE jobs.platform = s.platform
+              AND jobs.external_id = s.external_id
+              AND s.liked IS NOT NULL
+            "#,
+        )
+        .execute(&mut *conn)
+        .await;
+
+        let _ = sqlx::query("DETACH DATABASE source")
+            .execute(&mut *conn)
+            .await;
+
+        Ok(result?.rows_affected())
     }
 
     pub async fn update_raw(&self, id: i64, raw: &Data) -> Result<()> {
@@ -592,7 +597,14 @@ mod tests {
         target.upsert_job(&c).await?;
         target.set_liked(&[target_a, target_b], true).await?;
 
-        let synced = target.sync_likes_from(&source).await?;
+        let synced = target
+            .sync_likes(
+                source_tmp
+                    .path()
+                    .to_str()
+                    .ok_or(anyhow::anyhow!("invalid temp path"))?,
+            )
+            .await?;
         assert_eq!(synced, 2);
 
         let jobs = target.list_jobs(None, Sort::Created, 100).await?;
