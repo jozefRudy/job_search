@@ -220,7 +220,7 @@ impl Db {
         Ok(())
     }
 
-    /// Copy liked state from `source_path` into self, matching by
+    /// Copy non-null liked state from `source_path` into self, matching by
     /// (platform, external_id). Ignore rows missing in target.
     pub async fn sync_likes(&self, source_path: &str) -> Result<u64> {
         let mut conn = self.pool.acquire().await?;
@@ -237,6 +237,7 @@ impl Db {
             FROM source.jobs AS s
             WHERE jobs.platform = s.platform
               AND jobs.external_id = s.external_id
+              AND s.liked IS NOT NULL
             "#,
         )
         .execute(&mut *conn)
@@ -604,7 +605,7 @@ mod tests {
                     .ok_or(anyhow::anyhow!("invalid temp path"))?,
             )
             .await?;
-        assert_eq!(synced, 3);
+        assert_eq!(synced, 2);
 
         let jobs = target.list_jobs(None, Sort::Created, 100).await?;
         let find = |ext_id: &str| jobs.iter().find(|j| j.external_id == ext_id).unwrap();
