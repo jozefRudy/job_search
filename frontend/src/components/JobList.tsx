@@ -1,6 +1,7 @@
 import { useNavigate, useSearchParams } from "@solidjs/router";
 import { isNotNil, pickBy } from "es-toolkit";
 import { createMemo, Show } from "solid-js";
+import { match } from "ts-pattern";
 import { z } from "zod";
 import {
   type Job,
@@ -109,6 +110,18 @@ export function JobList() {
   const hasUpwork = createMemo(() =>
     jobs().some((j) => j.platform === "upwork"),
   );
+
+  const hasCompany = createMemo(() => {
+    const p = platform();
+    return p === "nofluffjobs" || p === "efinancialcareers";
+  });
+
+  function companyValue(j: Job): string {
+    return match(j.raw)
+      .with({ platform: "nofluffjobs" }, (r) => r.detail.company)
+      .with({ platform: "efinancialcareers" }, (r) => r.detail.company)
+      .otherwise(() => "");
+  }
 
   function setPlatformAndReset(p: Platform | null) {
     const supported = new Set(PLATFORM_SORTS[p ?? "all"].map((s) => s.value));
@@ -230,6 +243,15 @@ export function JobList() {
                 j.raw.platform === "upwork"
                   ? fmtRelative(j.raw.detail.last_viewed)
                   : "",
+            },
+          ]
+        : []),
+      ...(hasCompany()
+        ? [
+            {
+              key: "company",
+              header: "Company",
+              accessor: (j: Job) => companyValue(j),
             },
           ]
         : []),
