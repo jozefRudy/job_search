@@ -62,7 +62,11 @@ async fn serve_static(uri: axum::http::Uri) -> Response {
         .or_else(|| STATIC_DIR.get_file("index.html"));
 
     if let Some(file) = file {
-        let content_type = mime_guess::from_path(path)
+        let served_path = STATIC_DIR
+            .get_file(path)
+            .map(|_| path)
+            .unwrap_or("index.html");
+        let content_type = mime_guess::from_path(served_path)
             .first_raw()
             .unwrap_or("application/octet-stream");
         ([(header::CONTENT_TYPE, content_type)], file.contents()).into_response()
