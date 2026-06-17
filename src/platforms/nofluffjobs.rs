@@ -14,6 +14,7 @@ use serde_json::Value;
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 use tokio::time::{Duration, sleep};
+use url::Url;
 
 const SCRAPE_CARDS_JS: &str = include_str!("nofluffjobs/scrape_cards.js");
 const POSTING_LIST_ITEM_JS: &str = include_str!("nofluffjobs/posting_list_item.js");
@@ -30,6 +31,16 @@ pub struct NofluffJobCard {
     pub url: String,
     pub budget: Option<String>,
     pub tags: Vec<String>,
+}
+
+/// Extract job slug from a NoFluffJobs job URL.
+fn url_slug(url: &str) -> Option<String> {
+    let parsed = Url::parse(url).ok()?;
+    let mut segments: Vec<&str> = parsed.path_segments()?.collect();
+    while segments.last().is_some_and(|s| s.is_empty()) {
+        segments.pop();
+    }
+    segments.last().map(|s| s.to_string())
 }
 
 pub struct NoFluffJobsScraper {
@@ -741,19 +752,24 @@ impl NoFluffJobsScraper {
                 break;
             }
 
-            let job_id = if let Some(job_id) = db
-                .find_job_id(&Platform::NoFluffJobs, &item.posting_id)
-                .await?
+            let Some(slug) = url_slug(&item.offer.url) else {
+                eprintln!(
+                    "  Warning: application item missing job slug for {}",
+                    item.offer.title
+                );
+                continue;
+            };
+            let url = format!("https://nofluffjobs.com/job/{}", slug);
+            let external_id = slug.clone();
+
+            let job_id = if let Some(job_id) =
+                db.find_job_id(&Platform::NoFluffJobs, &external_id).await?
             {
                 Some(job_id)
             } else {
-                let slug = item.offer.url.trim_start_matches('/');
-                let slug = slug.strip_prefix("job/").unwrap_or(slug);
-                let url = format!("https://nofluffjobs.com/job/{}", slug);
-
                 sleep(Duration::from_millis(pause_ms)).await;
 
-                match self.fetch_detail(slug).await {
+                match self.fetch_detail(&slug).await {
                     Ok(mut detail) => {
                         detail.employment_type = item.offer.employment_type.clone();
 
@@ -772,7 +788,7 @@ impl NoFluffJobsScraper {
                         let job = Job {
                             id: 0,
                             platform: Platform::NoFluffJobs,
-                            external_id: item.posting_id.clone(),
+                            external_id,
                             title: item.offer.title.clone(),
                             description: Some(detail.description.clone()).filter(|d| !d.is_empty()),
                             url,
@@ -1046,6 +1062,28 @@ mod tests {
             item.applied_date,
             DateTime::from_timestamp_millis(1_777_628_094_466).unwrap()
         );
+    }
+
+    #[test]
+    fn test_url_slug_parses_variants() {
+        assert_eq!(
+            url_slug("https://nofluffjobs.com/job/foo-bar"),
+            Some("foo-bar".to_string())
+        );
+        assert_eq!(
+            url_slug("https://nofluffjobs.com/job/foo-bar?x=1"),
+            Some("foo-bar".to_string())
+        );
+        assert_eq!(
+            url_slug("https://nofluffjobs.com/job/foo-bar#section"),
+            Some("foo-bar".to_string())
+        );
+        assert_eq!(
+            url_slug("https://nofluffjobs.com/job/foo-bar/"),
+            Some("foo-bar".to_string())
+        );
+        assert_eq!(url_slug(""), None);
+        assert_eq!(url_slug("foo-bar"), None);
     }
 
     #[test]
