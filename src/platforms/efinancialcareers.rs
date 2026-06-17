@@ -6,8 +6,7 @@ use crate::term::CursorGuard;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
-use chrono::DateTime;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
@@ -18,7 +17,6 @@ const SEARCH_RESULTS_CONTAINER_JS: &str =
     include_str!("efinancialcareers/search_results_container.js");
 const CLICK_SHOW_MORE_JS: &str = include_str!("efinancialcareers/click_show_more.js");
 const SCRAPE_TOTAL_JS: &str = include_str!("efinancialcareers/scrape_total.js");
-const EXTRACT_DETAIL_JS: &str = include_str!("efinancialcareers/extract_detail.js");
 const FETCH_APPLICATIONS_JS: &str = include_str!("efinancialcareers/fetch_applications.js");
 const EXTRACT_AUTH_JS: &str = include_str!("efinancialcareers/extract_auth.js");
 
@@ -126,6 +124,45 @@ struct BatchResponse {
     data: Vec<BatchJob>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+struct FacadeJob {
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    salary: String,
+    #[serde(default)]
+    position_type: String,
+    #[serde(default)]
+    employment_type: String,
+    #[serde(default)]
+    posted_date: String,
+    #[serde(default)]
+    work_arrangement_type: String,
+    brand: Option<FacadeBrand>,
+    location: Option<FacadeLocation>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct FacadeBrand {
+    #[serde(default)]
+    name: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct FacadeLocation {
+    #[serde(default)]
+    city: String,
+    #[serde(default)]
+    state: String,
+    #[serde(default)]
+    country: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct FacadeResponse {
+    data: FacadeJob,
+}
+
 pub struct EfinancialcareersScraper {
     config: EfinancialcareersConfig,
 }
@@ -206,29 +243,61 @@ impl EfinancialcareersScraper {
         true
     }
 
-    /// Fetch job detail from a detail page.
+    /// Fetch job detail from the public job-branding-facade API.
     pub async fn fetch_detail(
         &self,
-        browser: &Browser,
-        url: &str,
+        http: &reqwest::Client,
+        job_id: &str,
     ) -> Result<EfinancialcareersJobDetail> {
-        let page = browser.new_tab(url).await?;
+        let url = format!(
+            "https://job-branding-facade.efinancialcareers.com/job/{}",
+            job_id
+        );
+        let res = http
+            .get(&url)
+            .header("Accept", "application/json")
+            .send()
+            .await?;
+        if !res.status().is_success() {
+            let body = res.text().await.unwrap_or_default();
+            bail!("job detail fetch failed: {}", body);
+        }
+        let facade: FacadeResponse = res.json().await?;
+        let job = facade.data;
 
-        let _ = wait_for_element(&page, &["efc-job-description"], None, None).await;
-
-        let extracted: ExtractedDetail = page.evaluate(EXTRACT_DETAIL_JS).await?.into_value()?;
-
-        page.close().await.ok();
+        let description = Self::html_to_text(&job.description).unwrap_or_default();
+        let posted_at = DateTime::parse_from_rfc3339(&job.posted_date)
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now());
+        let company = job.brand.map(|b| b.name).unwrap_or_default();
+        let location = job
+            .location
+            .map(|l| {
+                [l.city, l.state, l.country]
+                    .into_iter()
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .unwrap_or_default();
+        let remote = matches!(
+            job.work_arrangement_type.to_lowercase().as_str(),
+            "remote" | "temporarily_remote"
+        );
+        let employment_type = [job.position_type, job.employment_type]
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(" / ");
 
         Ok(EfinancialcareersJobDetail {
-            company: extracted.company,
-            location: extracted.location,
-            employment_type: extracted.employment_type,
-            salary: extracted.salary,
-            description: extracted.description,
-            posted_at: crate::models::parse_relative_time(&extracted.posted_at_text)
-                .unwrap_or_else(Utc::now),
-            remote: extracted.remote,
+            company,
+            location,
+            employment_type,
+            salary: job.salary,
+            description,
+            posted_at,
+            remote,
         })
     }
 
@@ -278,24 +347,6 @@ impl EfinancialcareersScraper {
             applied_at: None,
         }
     }
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-struct ExtractedDetail {
-    #[serde(default)]
-    description: String,
-    #[serde(default)]
-    company: String,
-    #[serde(default)]
-    location: String,
-    #[serde(default)]
-    salary: String,
-    #[serde(default)]
-    posted_at_text: String,
-    #[serde(default)]
-    remote: bool,
-    #[serde(default)]
-    employment_type: String,
 }
 
 #[async_trait]
@@ -373,7 +424,8 @@ impl PlatformClient for EfinancialcareersScraper {
 
                 sleep(Duration::from_millis(pause_ms)).await;
 
-                let detail = match self.fetch_detail(browser, &card.url).await {
+                let http = reqwest::Client::new();
+                let detail = match self.fetch_detail(&http, &card.external_id).await {
                     Ok(d) => d,
                     Err(e) => {
                         eprintln!(
@@ -520,7 +572,7 @@ impl PlatformClient for EfinancialcareersScraper {
             } else {
                 sleep(Duration::from_millis(pause_ms)).await;
 
-                let detail = match self.fetch_detail(browser, &item.url).await {
+                let detail = match self.fetch_detail(&http, &item.external_id).await {
                     Ok(d) => d,
                     Err(e) => {
                         eprintln!(

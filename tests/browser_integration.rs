@@ -417,8 +417,9 @@ async fn test_efinancialcareers_search_page_has_cards_and_details() {
             serde_json::to_string_pretty(first).expect("serialization should succeed")
         );
 
+        let http = reqwest::Client::new();
         let detail = scraper
-            .fetch_detail(&browser, &first.url)
+            .fetch_detail(&http, &first.external_id)
             .await
             .expect("fetch_detail should succeed");
         assert!(
