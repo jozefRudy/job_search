@@ -130,7 +130,7 @@ Use `use` for repeated paths. No fully-qualified repetition.
 
 ## Adding a New Job Provider
 
-1. Use browser/Playwright skill to inspect the site first: identify search criteria, job IDs, detail page structure, and applications page if applicable.
+1. Use browser/Playwright skill to inspect the site first: identify search criteria, job IDs, detail page structure, and applications page if applicable. **Job ID used as `external_id` must be stable and identical between search listings and applications sync** — otherwise duplicate rows appear because DB deduplicates on `(platform, external_id)`. If the site exposes IDs inconsistently, extract a single canonical ID from URLs at the boundary.
 2. Add enum variant to `Platform` and matching `UpdatePlatform`/`SyncPlatform` subcommands.
 3. Create `src/platforms/<provider>.rs` with `Raw*` structs + `TryFrom` normalization at the boundary.
 4. Implement `PlatformClient`. Keep provider-specific config/args in the scraper struct, not in the trait.

@@ -7,7 +7,7 @@
         const slug = href.split('/').pop() || '';
 
         return {
-            external_id: slug,
+            external_id: slug.toLowerCase(),
             title,
             url: href,
             budget: text(el, '[data-cy="salary ranges on the job offer listing"]'),

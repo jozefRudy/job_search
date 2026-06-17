@@ -61,6 +61,15 @@ Statuses: `new`, `viewed`, `saved`, `applied`, `rejected`, `hidden`
 ./target/release/jobsearch sync-applications efinancialcareers
 ```
 
+### Sync likes between databases
+
+Copies non-null liked/disliked state from source DB to target DB, matching by
+`(platform, external_id)`. Rows missing in target are ignored.
+
+```bash
+./target/release/jobsearch sync-likes /path/to/source.db /path/to/target.db
+```
+
 ### Stats
 
 ```bash
