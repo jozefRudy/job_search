@@ -55,24 +55,20 @@ pub fn app(db: Db) -> Router {
 
 async fn serve_static(uri: axum::http::Uri) -> Response {
     let path = uri.path().trim_start_matches('/');
-    let path = if path.is_empty() { "index.html" } else { path };
-
-    let file = STATIC_DIR
-        .get_file(path)
-        .or_else(|| STATIC_DIR.get_file("index.html"));
-
-    if let Some(file) = file {
-        let served_path = STATIC_DIR
-            .get_file(path)
-            .map(|_| path)
-            .unwrap_or("index.html");
-        let content_type = mime_guess::from_path(served_path)
-            .first_raw()
-            .unwrap_or("application/octet-stream");
-        ([(header::CONTENT_TYPE, content_type)], file.contents()).into_response()
+    let path = if !path.is_empty() { path } else { "index.html" };
+    let served_path = if STATIC_DIR.get_file(path).is_some() {
+        path
     } else {
-        StatusCode::NOT_FOUND.into_response()
-    }
+        "index.html"
+    };
+    let Some(file) = STATIC_DIR.get_file(served_path) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+
+    let content_type = mime_guess::from_path(served_path)
+        .first_raw()
+        .unwrap_or("application/octet-stream");
+    ([(header::CONTENT_TYPE, content_type)], file.contents()).into_response()
 }
 
 #[utoipa::path(
