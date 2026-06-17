@@ -19,7 +19,7 @@ import { Container } from "~/components/ui/layout/Container";
 import { Row } from "~/components/ui/layout/Row";
 import { Stack } from "~/components/ui/layout/Stack";
 import { Skeleton } from "~/components/ui/Skeleton";
-import { cn, fmtRelative, ratingClass, ratingEmoji } from "~/lib/utils";
+import { cn, ellip, fmtRelative, ratingClass, ratingEmoji } from "~/lib/utils";
 
 const PAGE_SIZE = 20;
 
@@ -185,7 +185,7 @@ export function JobList() {
       {
         key: "budget",
         header: "Budget",
-        accessor: (j: Job) => j.budget ?? "?",
+        accessor: (j: Job) => ellip(j.budget ?? "?", 40),
       },
       {
         key: "applied",
@@ -246,13 +246,17 @@ export function JobList() {
             },
           ]
         : []),
-      { key: "title", header: "Title", accessor: (j: Job) => j.title },
+      {
+        key: "title",
+        header: "Title",
+        accessor: (j: Job) => ellip(j.title, 40),
+      },
       ...(hasCompany()
         ? [
             {
               key: "company",
               header: "Company",
-              accessor: (j: Job) => companyValue(j),
+              accessor: (j: Job) => ellip(companyValue(j), 40),
             },
           ]
         : []),

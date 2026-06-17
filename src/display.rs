@@ -25,6 +25,15 @@ fn indent_md(text: &str) -> String {
     text.replace('\n', "\n    ")
 }
 
+fn ellip(s: &str, max: usize) -> String {
+    let chars = s.chars();
+    if chars.clone().count() <= max {
+        s.to_string()
+    } else {
+        chars.take(max).collect::<String>() + "…"
+    }
+}
+
 fn align_columns(table: &mut Table, headers: &[&str], align: &[(&str, CellAlignment)]) {
     for &(name, a) in align {
         let Some(idx) = headers.iter().position(|&h| h == name) else {
@@ -46,22 +55,24 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
     match platform {
         None => {
             let headers = [
-                "Id", "Platform", "Posted", "Budget", "Applied", "Rating", "Title", "#",
+                "Id", "Platform", "Posted", "Budget", "Applied", "Rating", "Company", "Title", "#",
             ];
             table.set_header(headers);
             for (i, job) in jobs.iter().enumerate() {
+                let company = company_name(job);
                 table.add_row(vec![
                     Cell::new(job.id),
                     Cell::new(job.platform.to_string()),
                     Cell::new(fmt_relative(job.created_at)),
-                    Cell::new(job.budget.as_deref().unwrap_or("?")),
+                    Cell::new(ellip(job.budget.as_deref().unwrap_or("?"), 40)),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
                     Cell::new(match job.liked {
                         Some(true) => "👍",
                         Some(false) => "👎",
                         None => "",
                     }),
-                    Cell::new(&job.title),
+                    Cell::new(ellip(company, 40)),
+                    Cell::new(ellip(&job.title, 40)),
                     Cell::new(i + 1),
                 ]);
             }
@@ -91,7 +102,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                 table.add_row(vec![
                     Cell::new(job.id),
                     Cell::new(fmt_relative(job.created_at)),
-                    Cell::new(job.budget.as_deref().unwrap_or("?")),
+                    Cell::new(ellip(job.budget.as_deref().unwrap_or("?"), 40)),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
                     Cell::new(match job.liked {
                         Some(true) => "👍",
@@ -99,7 +110,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                         None => "",
                     }),
                     Cell::new(last_viewed),
-                    Cell::new(&job.title),
+                    Cell::new(ellip(&job.title, 40)),
                     Cell::new(i + 1),
                 ]);
             }
@@ -110,20 +121,24 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
             );
         }
         Some(Platform::NoFluffJobs) => {
-            let headers = ["Id", "Posted", "Budget", "Applied", "Rating", "Title", "#"];
+            let headers = [
+                "Id", "Posted", "Budget", "Applied", "Rating", "Company", "Title", "#",
+            ];
             table.set_header(headers);
             for (i, job) in jobs.iter().enumerate() {
+                let company = company_name(job);
                 table.add_row(vec![
                     Cell::new(job.id),
                     Cell::new(fmt_relative(job.created_at)),
-                    Cell::new(job.budget.as_deref().unwrap_or("?")),
+                    Cell::new(ellip(job.budget.as_deref().unwrap_or("?"), 40)),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
                     Cell::new(match job.liked {
                         Some(true) => "👍",
                         Some(false) => "👎",
                         None => "",
                     }),
-                    Cell::new(&job.title),
+                    Cell::new(ellip(company, 40)),
+                    Cell::new(ellip(&job.title, 40)),
                     Cell::new(i + 1),
                 ]);
             }
@@ -134,20 +149,24 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
             );
         }
         Some(Platform::Efinancialcareers) => {
-            let headers = ["Id", "Posted", "Budget", "Applied", "Rating", "Title", "#"];
+            let headers = [
+                "Id", "Posted", "Budget", "Applied", "Rating", "Company", "Title", "#",
+            ];
             table.set_header(headers);
             for (i, job) in jobs.iter().enumerate() {
+                let company = company_name(job);
                 table.add_row(vec![
                     Cell::new(job.id),
                     Cell::new(fmt_relative(job.created_at)),
-                    Cell::new(job.budget.as_deref().unwrap_or("?")),
+                    Cell::new(ellip(job.budget.as_deref().unwrap_or("?"), 40)),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
                     Cell::new(match job.liked {
                         Some(true) => "👍",
                         Some(false) => "👎",
                         None => "",
                     }),
-                    Cell::new(&job.title),
+                    Cell::new(ellip(company, 40)),
+                    Cell::new(ellip(&job.title, 40)),
                     Cell::new(i + 1),
                 ]);
             }
@@ -160,6 +179,14 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
     }
 
     table.to_string()
+}
+
+fn company_name(job: &Job) -> &str {
+    match &job.raw {
+        Data::Nofluffjobs { detail } => &detail.company,
+        Data::Efinancialcareers { detail } => &detail.company,
+        Data::Upwork { .. } => "",
+    }
 }
 
 pub fn render_job_detailed(job: &Job) -> String {
@@ -310,6 +337,7 @@ pub fn render_job_detailed(job: &Job) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::NoFluffJobDetail;
     use chrono::{Duration, Utc};
 
     #[test]
@@ -339,5 +367,47 @@ mod tests {
     fn test_fmt_relative_weeks() {
         let dt = Utc::now() - Duration::days(21);
         assert_eq!(fmt_relative(dt), "3w ago");
+    }
+
+    #[test]
+    fn test_ellip_short_unchanged() {
+        assert_eq!(ellip("short", 40), "short");
+    }
+
+    #[test]
+    fn test_ellip_truncates_with_ellipsis() {
+        let s = "a".repeat(45);
+        assert_eq!(ellip(&s, 40).chars().count(), 41);
+        assert!(ellip(&s, 40).ends_with('…'));
+    }
+
+    #[test]
+    fn test_render_table_caps_long_title() {
+        let job = Job {
+            id: 1,
+            platform: Platform::NoFluffJobs,
+            external_id: "ext".into(),
+            title: "a".repeat(60),
+            description: None,
+            url: "https://e.com".into(),
+            budget: Some("a".repeat(50)),
+            tags: vec![],
+            raw: Data::Nofluffjobs {
+                detail: NoFluffJobDetail {
+                    company: "b".repeat(55),
+                    ..Default::default()
+                },
+            },
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            note: None,
+            liked: None,
+            applied_at: None,
+        };
+        let out = render_table(&[job], Some(Platform::NoFluffJobs));
+        assert!(out.contains("Budget"));
+        assert!(out.contains("Company"));
+        assert!(out.contains("a".repeat(40).as_str()));
+        assert!(!out.contains("a".repeat(41).as_str()));
     }
 }

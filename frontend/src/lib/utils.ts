@@ -64,3 +64,9 @@ export function ratingClass(liked: boolean | null | undefined): string {
     .with(false, () => "text-error")
     .otherwise(() => "text-base-content/40");
 }
+
+export function ellip(value: string | null | undefined, max: number): string {
+  const s = value ?? "";
+  if (s.length <= max) return s;
+  return `${s.slice(0, max)}…`;
+}
