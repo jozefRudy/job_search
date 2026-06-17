@@ -590,7 +590,7 @@ impl PlatformClient for EfinancialcareersScraper {
                             employment_type: item.employment_type.clone(),
                             salary: item.salary.clone(),
                             description,
-                            posted_at: Utc::now(),
+                            posted_at: item.applied_at,
                             remote: false,
                         }
                     }
