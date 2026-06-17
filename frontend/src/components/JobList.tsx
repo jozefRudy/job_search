@@ -183,16 +183,6 @@ export function JobList() {
         accessor: (j: Job) => fmtRelative(j.created_at),
       },
       {
-        key: "budget",
-        header: "Budget",
-        accessor: (j: Job) => ellip(j.budget ?? "?", 20),
-      },
-      {
-        key: "applied",
-        header: "Applied",
-        accessor: (j: Job) => fmtRelative(j.applied_at),
-      },
-      {
         key: "rating",
         header: "Rating",
         cell: (j: Job) => (
@@ -233,6 +223,16 @@ export function JobList() {
             </Button>
           </Row>
         ),
+      },
+      {
+        key: "budget",
+        header: "Budget",
+        accessor: (j: Job) => ellip(j.budget ?? "?", 20),
+      },
+      {
+        key: "applied",
+        header: "Applied",
+        accessor: (j: Job) => fmtRelative(j.applied_at),
       },
       ...(hasUpwork()
         ? [
