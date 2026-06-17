@@ -128,7 +128,7 @@ impl BrowserExt for Browser {
 
 const DEFAULT_WAIT_DELAY_MS: u64 = 500;
 const DEFAULT_WAIT_TRIES: u32 = 30;
-const CHALLENGE_GRACE_PERIOD_SECS: u64 = 10;
+const CHALLENGE_GRACE_PERIOD_SECS: u64 = 30;
 
 /// Poll `condition` up to `tries` times, sleeping `delay` between attempts.
 /// Returns `Ok(true)` as soon as the condition returns `Ok(true)`.
