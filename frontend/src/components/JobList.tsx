@@ -246,6 +246,7 @@ export function JobList() {
             },
           ]
         : []),
+      { key: "title", header: "Title", accessor: (j: Job) => j.title },
       ...(hasCompany()
         ? [
             {
@@ -255,7 +256,6 @@ export function JobList() {
             },
           ]
         : []),
-      { key: "title", header: "Title", accessor: (j: Job) => j.title },
     ];
     return base;
   };
