@@ -185,7 +185,7 @@ export function JobList() {
       {
         key: "budget",
         header: "Budget",
-        accessor: (j: Job) => ellip(j.budget ?? "?", 40),
+        accessor: (j: Job) => ellip(j.budget ?? "?", 20),
       },
       {
         key: "applied",
