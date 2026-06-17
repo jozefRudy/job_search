@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs};
@@ -207,11 +207,11 @@ async fn main() -> Result<()> {
             }
         },
         Commands::SyncLikes { from, to } => {
-            if let Some(parent) = from.parent() {
-                std::fs::create_dir_all(parent)?;
+            if !from.exists() {
+                bail!("source file does not exist: {}", from.display());
             }
-            if let Some(parent) = to.parent() {
-                std::fs::create_dir_all(parent)?;
+            if !to.exists() {
+                bail!("target file does not exist: {}", to.display());
             }
             let target = Db::open(&to).await?;
             let synced = target
