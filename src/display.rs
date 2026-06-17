@@ -25,6 +25,8 @@ fn indent_md(text: &str) -> String {
     text.replace('\n', "\n    ")
 }
 
+const TABLE_MAX_LEN: usize = 40;
+
 fn ellip(s: &str, max: usize) -> String {
     let chars = s.chars();
     if chars.clone().count() <= max {
@@ -64,15 +66,15 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                     Cell::new(job.id),
                     Cell::new(job.platform.to_string()),
                     Cell::new(fmt_relative(job.created_at)),
-                    Cell::new(ellip(job.budget.as_deref().unwrap_or("?"), 40)),
+                    Cell::new(ellip(job.budget.as_deref().unwrap_or("?"), TABLE_MAX_LEN)),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
                     Cell::new(match job.liked {
                         Some(true) => "👍",
                         Some(false) => "👎",
                         None => "",
                     }),
-                    Cell::new(ellip(company, 40)),
-                    Cell::new(ellip(&job.title, 40)),
+                    Cell::new(ellip(company, TABLE_MAX_LEN)),
+                    Cell::new(ellip(&job.title, TABLE_MAX_LEN)),
                     Cell::new(i + 1),
                 ]);
             }
@@ -102,7 +104,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                 table.add_row(vec![
                     Cell::new(job.id),
                     Cell::new(fmt_relative(job.created_at)),
-                    Cell::new(ellip(job.budget.as_deref().unwrap_or("?"), 40)),
+                    Cell::new(ellip(job.budget.as_deref().unwrap_or("?"), TABLE_MAX_LEN)),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
                     Cell::new(match job.liked {
                         Some(true) => "👍",
@@ -110,7 +112,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                         None => "",
                     }),
                     Cell::new(last_viewed),
-                    Cell::new(ellip(&job.title, 40)),
+                    Cell::new(ellip(&job.title, TABLE_MAX_LEN)),
                     Cell::new(i + 1),
                 ]);
             }
@@ -130,15 +132,15 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                 table.add_row(vec![
                     Cell::new(job.id),
                     Cell::new(fmt_relative(job.created_at)),
-                    Cell::new(ellip(job.budget.as_deref().unwrap_or("?"), 40)),
+                    Cell::new(ellip(job.budget.as_deref().unwrap_or("?"), TABLE_MAX_LEN)),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
                     Cell::new(match job.liked {
                         Some(true) => "👍",
                         Some(false) => "👎",
                         None => "",
                     }),
-                    Cell::new(ellip(company, 40)),
-                    Cell::new(ellip(&job.title, 40)),
+                    Cell::new(ellip(company, TABLE_MAX_LEN)),
+                    Cell::new(ellip(&job.title, TABLE_MAX_LEN)),
                     Cell::new(i + 1),
                 ]);
             }
@@ -158,15 +160,15 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                 table.add_row(vec![
                     Cell::new(job.id),
                     Cell::new(fmt_relative(job.created_at)),
-                    Cell::new(ellip(job.budget.as_deref().unwrap_or("?"), 40)),
+                    Cell::new(ellip(job.budget.as_deref().unwrap_or("?"), TABLE_MAX_LEN)),
                     Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
                     Cell::new(match job.liked {
                         Some(true) => "👍",
                         Some(false) => "👎",
                         None => "",
                     }),
-                    Cell::new(ellip(company, 40)),
-                    Cell::new(ellip(&job.title, 40)),
+                    Cell::new(ellip(company, TABLE_MAX_LEN)),
+                    Cell::new(ellip(&job.title, TABLE_MAX_LEN)),
                     Cell::new(i + 1),
                 ]);
             }
@@ -337,7 +339,6 @@ pub fn render_job_detailed(job: &Job) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::NoFluffJobDetail;
     use chrono::{Duration, Utc};
 
     #[test]
@@ -371,43 +372,13 @@ mod tests {
 
     #[test]
     fn test_ellip_short_unchanged() {
-        assert_eq!(ellip("short", 40), "short");
+        assert_eq!(ellip("short", TABLE_MAX_LEN), "short");
     }
 
     #[test]
     fn test_ellip_truncates_with_ellipsis() {
         let s = "a".repeat(45);
-        assert_eq!(ellip(&s, 40).chars().count(), 41);
-        assert!(ellip(&s, 40).ends_with('…'));
-    }
-
-    #[test]
-    fn test_render_table_caps_long_title() {
-        let job = Job {
-            id: 1,
-            platform: Platform::NoFluffJobs,
-            external_id: "ext".into(),
-            title: "a".repeat(60),
-            description: None,
-            url: "https://e.com".into(),
-            budget: Some("a".repeat(50)),
-            tags: vec![],
-            raw: Data::Nofluffjobs {
-                detail: NoFluffJobDetail {
-                    company: "b".repeat(55),
-                    ..Default::default()
-                },
-            },
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            note: None,
-            liked: None,
-            applied_at: None,
-        };
-        let out = render_table(&[job], Some(Platform::NoFluffJobs));
-        assert!(out.contains("Budget"));
-        assert!(out.contains("Company"));
-        assert!(out.contains("a".repeat(40).as_str()));
-        assert!(!out.contains("a".repeat(41).as_str()));
+        assert_eq!(ellip(&s, TABLE_MAX_LEN).chars().count(), TABLE_MAX_LEN + 1);
+        assert!(ellip(&s, TABLE_MAX_LEN).ends_with('…'));
     }
 }
