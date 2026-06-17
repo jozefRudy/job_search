@@ -237,17 +237,23 @@ pub async fn wait_for_with_challenge_recovery(
                     ),
                 );
                 eprintln!(
-                    "Bot check detected at {}. Waiting {}s for user to solve...",
+                    "Bot check detected at {}. Waiting up to {}s for user to solve...",
                     url,
                     grace.as_secs()
                 );
             }
-            sleep(grace).await;
-            if page.evaluate(js).await?.into_value()? {
-                bail!(
-                    "Bot check still present after {}s. Solve it in the browser and retry.",
-                    grace.as_secs()
-                );
+            let deadline = std::time::Instant::now() + grace;
+            loop {
+                sleep(delay).await;
+                if !page.evaluate(js).await?.into_value()? {
+                    break;
+                }
+                if std::time::Instant::now() >= deadline {
+                    bail!(
+                        "Bot check still present after {}s. Solve it in the browser and retry.",
+                        grace.as_secs()
+                    );
+                }
             }
             continue;
         }
