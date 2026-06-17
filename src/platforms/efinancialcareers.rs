@@ -223,7 +223,7 @@ impl EfinancialcareersScraper {
         Ok(EfinancialcareersJobDetail {
             company: extracted.company,
             location: extracted.location,
-            employment_type: String::new(),
+            employment_type: extracted.employment_type,
             salary: extracted.salary,
             description: extracted.description,
             posted_at: crate::models::parse_relative_time(&extracted.posted_at_text)
@@ -294,6 +294,8 @@ struct ExtractedDetail {
     posted_at_text: String,
     #[serde(default)]
     remote: bool,
+    #[serde(default)]
+    employment_type: String,
 }
 
 #[async_trait]
@@ -516,36 +518,47 @@ impl PlatformClient for EfinancialcareersScraper {
             {
                 id
             } else {
-                let description = descriptions
-                    .get(&item.internal_job_id)
-                    .cloned()
-                    .unwrap_or_default();
-                let salary = item.salary.clone();
-                let budget = Budget::parse(&salary, Some("year"))
+                sleep(Duration::from_millis(pause_ms)).await;
+
+                let detail = match self.fetch_detail(browser, &item.url).await {
+                    Ok(d) => d,
+                    Err(e) => {
+                        eprintln!(
+                            "    Warning: failed to fetch detail for {} (job may be expired): {}",
+                            item.external_id, e
+                        );
+                        let description = descriptions
+                            .get(&item.internal_job_id)
+                            .cloned()
+                            .unwrap_or_default();
+
+                        EfinancialcareersJobDetail {
+                            company: item.company.clone(),
+                            location: item.location.clone(),
+                            employment_type: item.employment_type.clone(),
+                            salary: item.salary.clone(),
+                            description,
+                            posted_at: Utc::now(),
+                            remote: false,
+                        }
+                    }
+                };
+
+                let budget = Budget::parse(&detail.salary, Some("year"))
                     .map(|b| b.to_string())
-                    .or_else(|| Some(salary.clone()).filter(|b| !b.is_empty()));
+                    .or_else(|| Some(detail.salary.clone()).filter(|b| !b.is_empty()));
 
                 let job = Job {
                     id: 0,
                     platform: Platform::Efinancialcareers,
                     external_id: item.external_id.clone(),
                     title: item.title.clone(),
-                    description: Some(description.clone()).filter(|d| !d.is_empty()),
+                    description: Some(detail.description.clone()).filter(|d| !d.is_empty()),
                     url: item.url.clone(),
                     budget,
                     tags: Vec::new(),
-                    raw: Data::Efinancialcareers {
-                        detail: EfinancialcareersJobDetail {
-                            company: item.company.clone(),
-                            location: item.location.clone(),
-                            employment_type: item.employment_type.clone(),
-                            salary: salary.clone(),
-                            description,
-                            posted_at: item.applied_at,
-                            remote: false,
-                        },
-                    },
-                    created_at: item.applied_at,
+                    created_at: detail.posted_at,
+                    raw: Data::Efinancialcareers { detail },
                     updated_at: Utc::now(),
                     liked: None,
                     note: None,

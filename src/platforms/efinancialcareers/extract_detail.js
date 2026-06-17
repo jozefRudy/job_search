@@ -9,6 +9,8 @@
   const salary = salaryMatch ? salaryMatch[0].trim() : '';
   const posted_at_text = postedMatch ? postedMatch[1].trim() : '';
   const remote = /\bremote\b/i.test(document.body.innerText);
+  const employmentMatch = postedLine.match(/\b(Permanent|Contract|Full[-\s]?time|Part[-\s]?time|Internship|Temporary)\b/i);
+  const employment_type = employmentMatch ? employmentMatch[1] : '';
   return {
     description: desc ? desc.innerText.trim() : '',
     company,
@@ -16,5 +18,6 @@
     salary,
     posted_at_text,
     remote,
+    employment_type,
   };
 })();
