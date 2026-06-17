@@ -755,9 +755,16 @@ impl NoFluffJobsScraper {
 
                 match self.fetch_detail(slug).await {
                     Ok(mut detail) => {
-                        detail.posted_at = item.offer.posted.unwrap_or(detail.posted_at);
                         detail.employment_type = item.offer.employment_type.clone();
-                        let created_at = item.offer.posted.unwrap_or(detail.posted_at);
+
+                        if let Some(posted) = item.offer.posted {
+                            detail.posted_at = posted;
+                        }
+                        let applied_at = applied_at_for(&item);
+                        let mut created_at = detail.posted_at;
+                        if created_at > applied_at {
+                            created_at = applied_at;
+                        }
 
                         let budget = item.offer.budget.clone();
                         let tags = item.offer.tags.clone();
