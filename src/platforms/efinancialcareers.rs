@@ -576,7 +576,7 @@ impl PlatformClient for EfinancialcareersScraper {
                     Ok(d) => d,
                     Err(e) => {
                         eprintln!(
-                            "    Warning: failed to fetch detail for {} (job may be expired): {}",
+                            "\r    Warning: failed to fetch detail for {} (job may be expired): {}",
                             item.external_id, e
                         );
                         let description = descriptions
