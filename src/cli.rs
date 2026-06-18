@@ -2,7 +2,7 @@ use crate::models::Recency;
 use crate::platforms::upwork::UpworkTier;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
-const VERSION: &str = match option_env!("GIT_HASH") {
+pub const VERSION: &str = match option_env!("GIT_HASH") {
     Some(v) => v,
     None => "dev",
 };

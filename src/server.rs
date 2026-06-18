@@ -1,3 +1,4 @@
+use crate::cli::VERSION;
 use crate::db::Db;
 use crate::models::{
     Data, Job, JobListResponse, ListQuery, NoFluffJobDetail, Platform, RateBody, Rating, Sort,
@@ -184,7 +185,7 @@ async fn delete_job(
 
 pub async fn serve(db: Db, port: u16) -> Result<()> {
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
-    eprintln!("Server listening on http://0.0.0.0:{}", port);
+    eprintln!("jobsearch ({VERSION}) listening on http://0.0.0.0:{port}");
     axum::serve(listener, app(db)).await?;
     Ok(())
 }
