@@ -17,6 +17,7 @@ const LayoutPage = lazy(() => import("./dev/design-pages/LayoutPage"));
 const SkeletonPage = lazy(() => import("./dev/design-pages/SkeletonPage"));
 const SidebarPage = lazy(() => import("./dev/design-pages/SidebarPage"));
 const ModalPage = lazy(() => import("./dev/design-pages/ModalPage"));
+const SwapPage = lazy(() => import("./dev/design-pages/SwapPage"));
 const JobDetailPage = lazy(() => import("./dev/app-pages/JobDetailPage"));
 
 const queryClient = new QueryClient();
@@ -57,6 +58,7 @@ export default function App() {
             <Route path="/dev/skeleton" component={SkeletonPage} />
             <Route path="/dev/sidebar" component={SidebarPage} />
             <Route path="/dev/modals" component={ModalPage} />
+            <Route path="/dev/swap" component={SwapPage} />
             <Route path="/dev/app/job-detail" component={JobDetailPage} />
           </>
         )}

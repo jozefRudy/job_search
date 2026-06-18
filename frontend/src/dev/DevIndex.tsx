@@ -11,6 +11,11 @@ const designPages = [
     desc: "All variants, sizes, states, icons",
   },
   {
+    path: "/dev/swap",
+    label: "Swap",
+    desc: "Toggle swap with on/off states",
+  },
+  {
     path: "/dev/cards",
     label: "Cards",
     desc: "Variants, sizes, hoverable, actions, pricing",
