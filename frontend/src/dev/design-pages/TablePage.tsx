@@ -1,7 +1,6 @@
 import { A } from "@solidjs/router";
-import { createSignal } from "solid-js";
 import { Button } from "~/components/ui/Button";
-import type { ColumnDef, TableLoadState } from "~/components/ui/data/Table";
+import type { ColumnDef } from "~/components/ui/data/Table";
 import { Table } from "~/components/ui/data/Table";
 import { Container } from "~/components/ui/layout/Container";
 import { Row } from "~/components/ui/layout/Row";
@@ -94,11 +93,6 @@ const actionColumns: ColumnDef<Post>[] = [
 ];
 
 export default function TablePage() {
-  const [loadState, setLoadState] = createSignal<TableLoadState>("normal");
-  const [empty, setEmpty] = createSignal(false);
-
-  const data = () => (empty() ? [] : posts);
-
   return (
     <DevLayout title="Table Kitchen Sink" backHref="/dev">
       <Stack gap="lg">
@@ -221,47 +215,42 @@ export default function TablePage() {
         </Stack>
 
         <Stack gap="md">
-          <h2 class="font-semibold text-xl">Load States</h2>
+          <h2 class="font-semibold text-xl">Pending</h2>
           <p class="text-base-content/60 text-sm">
-            Single loadState prop: normal | pending | fetching
+            Skeleton rows while loading.
           </p>
-          <Stack gap="md">
-            <Row class="flex-wrap" gap="sm">
-              <Button variant="ghost" onClick={() => setLoadState("normal")}>
-                Normal
-              </Button>
-              <Button variant="primary" onClick={() => setLoadState("pending")}>
-                Pending (no data)
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => setLoadState("fetching")}
-              >
-                Fetching (has stale)
-              </Button>
-            </Row>
-            <Table
-              columns={baseColumns}
-              data={loadState() === "pending" ? [] : posts}
-              loadState={loadState()}
-            />
-          </Stack>
+          <Table columns={baseColumns} data={[]} loadState="pending" />
         </Stack>
 
         <Stack gap="md">
-          <h2 class="font-semibold text-xl">Empty State</h2>
-          <Stack gap="md">
-            <Row gap="sm">
-              <Button variant="primary" onClick={() => setEmpty((v) => !v)}>
-                Toggle Empty
-              </Button>
-            </Row>
-            <Table
-              columns={baseColumns}
-              data={data()}
-              emptyMessage="No posts match your filters"
-            />
-          </Stack>
+          <h2 class="font-semibold text-xl">Fetching</h2>
+          <p class="text-base-content/60 text-sm">
+            Stale data with spinner overlay.
+          </p>
+          <Table columns={baseColumns} data={posts} loadState="fetching" />
+        </Stack>
+
+        <Stack gap="md">
+          <h2 class="font-semibold text-xl">Error</h2>
+          <p class="text-base-content/60 text-sm">Error replaces table body.</p>
+          <Table
+            columns={baseColumns}
+            data={[]}
+            loadState="error"
+            error="Failed to load posts. Please try again."
+          />
+        </Stack>
+
+        <Stack gap="md">
+          <h2 class="font-semibold text-xl">Empty</h2>
+          <p class="text-base-content/60 text-sm">
+            Custom message when no rows.
+          </p>
+          <Table
+            columns={baseColumns}
+            data={[]}
+            emptyMessage="No posts match your filters"
+          />
         </Stack>
       </Stack>
     </DevLayout>

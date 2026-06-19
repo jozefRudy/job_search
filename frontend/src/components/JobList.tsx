@@ -14,12 +14,11 @@ import {
 } from "~/api";
 import { Button } from "~/components/ui/Button";
 import { Pagination } from "~/components/ui/data/Pagination";
-import { Table } from "~/components/ui/data/Table";
+import { Table, type TableLoadState } from "~/components/ui/data/Table";
 import { ErrorAlert } from "~/components/ui/ErrorAlert";
 import { Container } from "~/components/ui/layout/Container";
 import { Row } from "~/components/ui/layout/Row";
 import { Stack } from "~/components/ui/layout/Stack";
-import { Skeleton } from "~/components/ui/Skeleton";
 import { cn, ellip, fmtRelative, ratingClass, ratingEmoji } from "~/lib/utils";
 
 const PAGE_SIZE = 20;
@@ -115,6 +114,13 @@ export function JobList() {
   const hasCompany = createMemo(() => {
     const p = platform();
     return p === "nofluffjobs" || p === "efinancialcareers";
+  });
+
+  const tableLoadState = createMemo((): TableLoadState => {
+    if (query.error && jobs().length === 0) return "error";
+    if (query.isLoading) return "pending";
+    if (query.isFetching) return "fetching";
+    return "normal";
   });
 
   function companyValue(j: Job): string {
@@ -334,22 +340,26 @@ export function JobList() {
           </Show>
         </Row>
 
-        <Show when={!query.isPending} fallback={<Skeleton class="h-64" />}>
-          <Show
-            when={!query.error}
-            fallback={
-              <ErrorAlert>
-                Error loading jobs: {query.error?.message}
-              </ErrorAlert>
+        <Stack gap="md">
+          <Show when={query.error && jobs().length > 0}>
+            <ErrorAlert>Error loading jobs: {query.error?.message}</ErrorAlert>
+          </Show>
+
+          <Table
+            columns={columns()}
+            data={jobs()}
+            zebra
+            hoverable
+            loadState={tableLoadState()}
+            error={
+              query.error
+                ? `Error loading jobs: ${query.error.message}`
+                : undefined
             }
-          >
-            <Table
-              columns={columns()}
-              data={jobs()}
-              zebra
-              hoverable
-              emptyMessage="No jobs match the current filter"
-            />
+            emptyMessage="No jobs match the current filter"
+          />
+
+          <Show when={total() > 0}>
             <Pagination
               currentPage={page()}
               totalItems={total()}
@@ -357,7 +367,7 @@ export function JobList() {
               onPageChange={setPageAndUpdate}
             />
           </Show>
-        </Show>
+        </Stack>
       </Stack>
     </Container>
   );

@@ -25,6 +25,7 @@ export function useListJobs(params: () => ListJobsParams) {
   return createQuery(() => ({
     queryKey: getListJobsQueryKey(params()),
     queryFn: () => listJobs(params()).then((res) => res.data),
+    retry: false,
     structuralSharing: false,
   }));
 }
@@ -34,6 +35,7 @@ export function useGetJob(id: () => number) {
     queryKey: getGetJobQueryKey(id()),
     queryFn: () => getJob(id()).then((res) => res.data),
     enabled: id() != null && !Number.isNaN(id()),
+    retry: false,
     structuralSharing: false,
   }));
 }

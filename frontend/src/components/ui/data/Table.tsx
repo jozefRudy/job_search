@@ -1,10 +1,11 @@
 import type { JSX } from "solid-js";
 import { For, mergeProps, Show } from "solid-js";
+import { ErrorAlert } from "~/components/ui/ErrorAlert";
 import { Skeleton } from "~/components/ui/Skeleton";
 import { cn } from "~/lib/utils";
 
 export type TableSize = "sm" | "md" | "lg";
-export type TableLoadState = "normal" | "pending" | "fetching";
+export type TableLoadState = "normal" | "pending" | "fetching" | "error";
 
 export interface ColumnDef<T> {
   key: string;
@@ -25,6 +26,7 @@ export interface TableProps<T> {
   pinCols?: boolean;
   loadState?: TableLoadState;
   emptyMessage?: string;
+  error?: JSX.Element;
   class?: string;
 }
 
@@ -91,51 +93,67 @@ export function Table<T>(props: TableProps<T>) {
           </tr>
         </thead>
         <tbody>
-          <Show
-            when={merged.data.length > 0 || merged.loadState === "pending"}
-            fallback={
-              <tr>
-                <td colSpan={colCount()} class="py-12 text-center">
-                  <div class="flex flex-col items-center gap-3 text-base-content/40">
-                    <svg
-                      class="h-8 w-8"
-                      fill="currentColor"
-                      aria-label="No data"
-                    >
-                      <use href="/assets/icons.svg#icon-info" />
-                    </svg>
-                    <span class="text-sm">{merged.emptyMessage}</span>
-                  </div>
-                </td>
-              </tr>
-            }
-          >
-            <Show when={merged.loadState === "pending"}>
-              {Array.from({ length: 5 }).map(() => (
+          <Show when={merged.loadState === "error"}>
+            <tr>
+              <td colSpan={colCount()} class="py-12 text-center">
+                <ErrorAlert>
+                  {merged.error ?? "Something went wrong"}
+                </ErrorAlert>
+              </td>
+            </tr>
+          </Show>
+
+          <Show when={merged.loadState !== "error"}>
+            <Show
+              when={merged.data.length > 0 || merged.loadState === "pending"}
+              fallback={
                 <tr>
-                  <For each={merged.columns}>
-                    {() => (
-                      <td>
-                        <Skeleton class="h-4" />
-                      </td>
+                  <td colSpan={colCount()} class="py-12 text-center">
+                    <div class="flex flex-col items-center gap-3 text-base-content/40">
+                      <svg
+                        class="h-8 w-8"
+                        fill="currentColor"
+                        aria-label="No data"
+                      >
+                        <use href="/assets/icons.svg#icon-info" />
+                      </svg>
+                      <span class="text-sm">{merged.emptyMessage}</span>
+                    </div>
+                  </td>
+                </tr>
+              }
+            >
+              <Show
+                when={merged.loadState === "pending"}
+                fallback={
+                  <For each={merged.data}>
+                    {(row) => (
+                      <tr class={merged.hoverable ? "row-hover" : undefined}>
+                        <For each={merged.columns}>
+                          {(col) => (
+                            <td class={cn("text-nowrap", col.class)}>
+                              {renderCell(col, row)}
+                            </td>
+                          )}
+                        </For>
+                      </tr>
                     )}
                   </For>
-                </tr>
-              ))}
+                }
+              >
+                {Array.from({ length: 5 }).map(() => (
+                  <tr>
+                    <For each={merged.columns}>
+                      {() => (
+                        <td>
+                          <Skeleton class="h-4" />
+                        </td>
+                      )}
+                    </For>
+                  </tr>
+                ))}
+              </Show>
             </Show>
-            <For each={merged.data}>
-              {(row) => (
-                <tr class={merged.hoverable ? "row-hover" : undefined}>
-                  <For each={merged.columns}>
-                    {(col) => (
-                      <td class={cn("text-nowrap", col.class)}>
-                        {renderCell(col, row)}
-                      </td>
-                    )}
-                  </For>
-                </tr>
-              )}
-            </For>
           </Show>
         </tbody>
       </table>
