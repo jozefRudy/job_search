@@ -152,7 +152,7 @@ export function JobDetailContent(props: { job: Job }) {
               }
               off={
                 <Row gap="sm" align="center">
-                  <Icon id="send" class="size-[1em] text-success" />
+                  <Icon id="send" class="size-[1em] text-primary" />
                   <span class="text-xs">Apply</span>
                 </Row>
               }
