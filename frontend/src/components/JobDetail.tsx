@@ -129,13 +129,13 @@ export function JobDetailContent(props: {
                     id="cancel_schedule_send"
                     class="size-[1em] text-error"
                   />
-                  <span>Un-apply</span>
+                  <span class="text-xs">Un-apply</span>
                 </Row>
               }
               off={
                 <Row gap="sm" align="center">
                   <Icon id="send" class="size-[1em] text-success" />
-                  <span>Apply</span>
+                  <span class="text-xs">Apply</span>
                 </Row>
               }
             />
