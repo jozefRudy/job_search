@@ -24,7 +24,7 @@ export type {
   Sort,
 } from "~/generated/orval/jobsearch.schemas";
 
-async function unwrap<T>(
+async function fetchOrThrow<T>(
   promise: Promise<{ data: T; status: number } | { status: number }>,
   message: string,
 ): Promise<T> {
@@ -35,7 +35,7 @@ async function unwrap<T>(
   return (res as { data: T; status: number }).data;
 }
 
-async function throwOnError<T extends { status: number }>(
+async function mutateOrThrow<T extends { status: number }>(
   promise: Promise<T>,
   message: string,
 ): Promise<T> {
@@ -49,7 +49,7 @@ async function throwOnError<T extends { status: number }>(
 export function useListJobs(params: () => ListJobsParams) {
   return createQuery(() => ({
     queryKey: getListJobsQueryKey(params()),
-    queryFn: () => unwrap(listJobs(params()), "Failed to fetch jobs"),
+    queryFn: () => fetchOrThrow(listJobs(params()), "Failed to fetch jobs"),
     structuralSharing: false,
   }));
 }
@@ -57,7 +57,7 @@ export function useListJobs(params: () => ListJobsParams) {
 export function useGetJob(id: () => number) {
   return createQuery(() => ({
     queryKey: getGetJobQueryKey(id()),
-    queryFn: () => unwrap(getJob(id()), "Failed to fetch job"),
+    queryFn: () => fetchOrThrow(getJob(id()), "Failed to fetch job"),
     enabled: id() != null && !Number.isNaN(id()),
     structuralSharing: false,
   }));
@@ -68,7 +68,7 @@ export function useRateJob() {
   return useRateJobGen<Error>({
     mutation: {
       mutationFn: (variables) =>
-        throwOnError(
+        mutateOrThrow(
           rateJob(variables.id, variables.data),
           "Failed to update rating",
         ),
@@ -85,7 +85,7 @@ export function useApplyJob() {
   return useApplyJobGen<Error>({
     mutation: {
       mutationFn: (variables) =>
-        throwOnError(
+        mutateOrThrow(
           applyJob(variables.id, variables.data),
           "Failed to update application",
         ),
@@ -103,7 +103,7 @@ export function useDeleteJob() {
   return useDeleteJobGen<Error>({
     mutation: {
       mutationFn: (variables) =>
-        throwOnError(deleteJob(variables.id), "Failed to delete job"),
+        mutateOrThrow(deleteJob(variables.id), "Failed to delete job"),
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListJobsQueryKey() });
         navigate(-1);
