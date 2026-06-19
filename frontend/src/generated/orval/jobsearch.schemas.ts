@@ -4,6 +4,10 @@
  * jobsearch
  * OpenAPI spec version: 0.1.0
  */
+export interface ApplyRequest {
+  applied: boolean;
+}
+
 /**
  * Full detail scraped from an individual Upwork job page.
  */
@@ -116,7 +120,7 @@ export const Rating = {
   neutral: 'neutral',
 } as const;
 
-export interface RateBody {
+export interface RateRequest {
   rating: Rating;
 }
 

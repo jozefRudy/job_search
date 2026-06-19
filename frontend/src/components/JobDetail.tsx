@@ -3,18 +3,21 @@ import { createSignal, For, type JSX, Show } from "solid-js";
 import {
   type Job,
   type Rating,
+  useApplyJob,
   useDeleteJob,
   useGetJob,
   useRateJob,
 } from "~/api";
 import { Button } from "~/components/ui/Button";
 import { Card } from "~/components/ui/Card";
+import { Icon } from "~/components/ui/Icon";
 import { Container } from "~/components/ui/layout/Container";
 import { Grid } from "~/components/ui/layout/Grid";
 import { Row } from "~/components/ui/layout/Row";
 import { Stack } from "~/components/ui/layout/Stack";
 import { ConfirmModal } from "~/components/ui/Modal";
 import { Skeleton } from "~/components/ui/Skeleton";
+import { Swap } from "~/components/ui/Swap";
 import { fmtRelative } from "~/lib/utils";
 
 export function JobDetail() {
@@ -54,6 +57,7 @@ export function JobDetailContent(props: {
   onRate: (r: Rating) => void;
 }) {
   const j = props.job;
+  const applyMutation = useApplyJob();
   const deleteMutation = useDeleteJob();
   const [showDelete, setShowDelete] = createSignal(false);
 
@@ -90,15 +94,7 @@ export function JobDetailContent(props: {
       <Card>
         <Card.Body>
           <Card.Title class="text-lg">Actions</Card.Title>
-          <p class="text-base-content/70 text-sm">
-            Current:{" "}
-            {j.liked === true
-              ? "👍 Liked"
-              : j.liked === false
-                ? "👎 Disliked"
-                : "↔️ Neutral"}
-          </p>
-          <Row gap="sm">
+          <Row gap="sm" align="center">
             <Button
               variant={j.liked === true ? "primary" : "ghost"}
               size="sm"
@@ -120,8 +116,30 @@ export function JobDetailContent(props: {
             >
               ↔️ Neutral
             </Button>
+            <div class="divider divider-horizontal mx-1" />
+            <Swap
+              checked={!!j.applied_at}
+              onChange={(applied) =>
+                applyMutation.mutate({ id: j.id, data: { applied } })
+              }
+              size="sm"
+              on={
+                <Row gap="sm" align="center">
+                  <Icon
+                    id="cancel_schedule_send"
+                    class="size-[1em] text-error"
+                  />
+                  <span>Un-apply</span>
+                </Row>
+              }
+              off={
+                <Row gap="sm" align="center">
+                  <Icon id="send" class="size-[1em] text-success" />
+                  <span>Apply</span>
+                </Row>
+              }
+            />
           </Row>
-          <hr class="border-base-300" />
           <div>
             <Button
               variant="danger"

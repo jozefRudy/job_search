@@ -25,10 +25,11 @@ import {
 } from 'solid-js';
 
 import type {
+  ApplyRequest,
   Job,
   JobListResponse,
   ListJobsParams,
-  RateBody
+  RateRequest
 } from './jobsearch.schemas';
 
 
@@ -336,6 +337,97 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
       return useMutation(() => getDeleteJobMutationOptions(options), queryClient);
     }
 
+export type applyJobResponse204 = {
+  data: void
+  status: 204
+}
+
+export type applyJobResponse500 = {
+  data: void
+  status: 500
+}
+
+export type applyJobResponseSuccess = (applyJobResponse204) & {
+  headers: Headers;
+};
+export type applyJobResponseError = (applyJobResponse500) & {
+  headers: Headers;
+};
+
+export type applyJobResponse = (applyJobResponseSuccess | applyJobResponseError)
+
+export const getApplyJobUrl = (id: number,) => {
+
+
+
+
+  return `/api/jobs/${id}/apply`
+}
+
+export const applyJob = async (id: number,
+    applyRequest: ApplyRequest, options?: RequestInit): Promise<applyJobResponse> => {
+
+  const res = await fetch(getApplyJobUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(applyRequest)
+  }
+)
+
+
+  const body = [204, 205, 304].includes(res.status) ? null : await res.text();
+
+  const data: applyJobResponse['data'] = body ? JSON.parse(body) : undefined
+  return { data, status: res.status, headers: res.headers } as applyJobResponse
+}
+
+
+
+
+export const getApplyJobMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:MutationOptions<Awaited<ReturnType<typeof applyJob>>, TError,{id: number;data: ApplyRequest}, TContext>, fetch?: RequestInit}
+): MutationOptions<Awaited<ReturnType<typeof applyJob>>, TError,{id: number;data: ApplyRequest}, TContext> => {
+
+const mutationKey = ['applyJob'];
+const {mutation: mutationOptions, fetch: fetchOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, fetch: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applyJob>>, {id: number;data: ApplyRequest}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  applyJob(id,data,fetchOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplyJobMutationResult = NonNullable<Awaited<ReturnType<typeof applyJob>>>
+    export type ApplyJobMutationBody = ApplyRequest
+    export type ApplyJobMutationError = void
+
+    export const useApplyJob = <TError = void,
+    TContext = unknown>(options?: { mutation?:MutationOptions<Awaited<ReturnType<typeof applyJob>>, TError,{id: number;data: ApplyRequest}, TContext>, fetch?: RequestInit}
+ , queryClient?: () => QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof applyJob>>,
+        TError,
+        {id: number;data: ApplyRequest},
+        TContext
+      > => {
+      return useMutation(() => getApplyJobMutationOptions(options), queryClient);
+    }
+
 export type rateJobResponse204 = {
   data: void
   status: 204
@@ -364,14 +456,14 @@ export const getRateJobUrl = (id: number,) => {
 }
 
 export const rateJob = async (id: number,
-    rateBody: RateBody, options?: RequestInit): Promise<rateJobResponse> => {
+    rateRequest: RateRequest, options?: RequestInit): Promise<rateJobResponse> => {
 
   const res = await fetch(getRateJobUrl(id),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(rateBody)
+    body: JSON.stringify(rateRequest)
   }
 )
 
@@ -386,8 +478,8 @@ export const rateJob = async (id: number,
 
 
 export const getRateJobMutationOptions = <TError = void,
-    TContext = unknown>(options?: { mutation?:MutationOptions<Awaited<ReturnType<typeof rateJob>>, TError,{id: number;data: RateBody}, TContext>, fetch?: RequestInit}
-): MutationOptions<Awaited<ReturnType<typeof rateJob>>, TError,{id: number;data: RateBody}, TContext> => {
+    TContext = unknown>(options?: { mutation?:MutationOptions<Awaited<ReturnType<typeof rateJob>>, TError,{id: number;data: RateRequest}, TContext>, fetch?: RequestInit}
+): MutationOptions<Awaited<ReturnType<typeof rateJob>>, TError,{id: number;data: RateRequest}, TContext> => {
 
 const mutationKey = ['rateJob'];
 const {mutation: mutationOptions, fetch: fetchOptions} = options ?
@@ -399,7 +491,7 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rateJob>>, {id: number;data: RateBody}> = (props) => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rateJob>>, {id: number;data: RateRequest}> = (props) => {
           const {id,data} = props ?? {};
 
           return  rateJob(id,data,fetchOptions)
@@ -413,15 +505,15 @@ const {mutation: mutationOptions, fetch: fetchOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type RateJobMutationResult = NonNullable<Awaited<ReturnType<typeof rateJob>>>
-    export type RateJobMutationBody = RateBody
+    export type RateJobMutationBody = RateRequest
     export type RateJobMutationError = void
 
     export const useRateJob = <TError = void,
-    TContext = unknown>(options?: { mutation?:MutationOptions<Awaited<ReturnType<typeof rateJob>>, TError,{id: number;data: RateBody}, TContext>, fetch?: RequestInit}
+    TContext = unknown>(options?: { mutation?:MutationOptions<Awaited<ReturnType<typeof rateJob>>, TError,{id: number;data: RateRequest}, TContext>, fetch?: RequestInit}
  , queryClient?: () => QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof rateJob>>,
         TError,
-        {id: number;data: RateBody},
+        {id: number;data: RateRequest},
         TContext
       > => {
       return useMutation(() => getRateJobMutationOptions(options), queryClient);

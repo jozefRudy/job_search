@@ -1,8 +1,8 @@
 use crate::cli::VERSION;
 use crate::db::Db;
 use crate::models::{
-    Data, Job, JobListResponse, ListQuery, NoFluffJobDetail, Platform, RateBody, Rating, Sort,
-    UpworkJobDetail,
+    ApplyRequest, Data, Job, JobListResponse, ListQuery, NoFluffJobDetail, Platform, RateRequest,
+    Rating, Sort, UpworkJobDetail,
 };
 use anyhow::Result;
 use axum::{
@@ -12,6 +12,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
+use chrono::Utc;
 use include_dir::{Dir, include_dir};
 use std::sync::Arc;
 use utoipa::OpenApi;
@@ -22,7 +23,8 @@ use utoipa_axum::routes;
 #[openapi(components(schemas(
     Job,
     JobListResponse,
-    RateBody,
+    RateRequest,
+    ApplyRequest,
     Data,
     UpworkJobDetail,
     NoFluffJobDetail,
@@ -45,6 +47,7 @@ pub fn app(db: Db) -> Router {
         .routes(routes!(list_jobs))
         .routes(routes!(get_job, delete_job))
         .routes(routes!(rate_job))
+        .routes(routes!(apply_job))
         .with_state(state.clone())
         .split_for_parts();
 
@@ -136,7 +139,7 @@ async fn get_job(
     post,
     path = "/api/jobs/{id}/rate",
     params(("id" = i64, Path, description = "Job ID")),
-    request_body = RateBody,
+    request_body = RateRequest,
     responses(
         (status = 204, description = "Rating updated"),
         (status = 500, description = "Internal server error")
@@ -145,7 +148,7 @@ async fn get_job(
 async fn rate_job(
     State(state): State<Arc<AppState>>,
     Path(id): Path<i64>,
-    Json(body): Json<RateBody>,
+    Json(body): Json<RateRequest>,
 ) -> Result<StatusCode, StatusCode> {
     match body.rating {
         Rating::Liked => state.db.set_liked(&[id], true).await,
@@ -181,6 +184,37 @@ async fn delete_job(
     } else {
         Err(StatusCode::NOT_FOUND)
     }
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/jobs/{id}/apply",
+    params(("id" = i64, Path, description = "Job ID")),
+    request_body = ApplyRequest,
+    responses(
+        (status = 204, description = "Application state updated"),
+        (status = 500, description = "Internal server error")
+    )
+)]
+async fn apply_job(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<i64>,
+    Json(body): Json<ApplyRequest>,
+) -> Result<StatusCode, StatusCode> {
+    if body.applied {
+        state
+            .db
+            .set_applied(id, Some(""), Utc::now())
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    } else {
+        state
+            .db
+            .unset_applied(id)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn serve(db: Db, port: u16) -> Result<()> {

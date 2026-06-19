@@ -5,15 +5,18 @@ import {
   getJob,
   getListJobsQueryKey,
   listJobs,
+  useApplyJob as useApplyJobGen,
   useDeleteJob as useDeleteJobGen,
   useRateJob as useRateJobGen,
 } from "~/generated/orval/jobsearch";
 import type { ListJobsParams } from "~/generated/orval/jobsearch.schemas";
 
 export type {
+  ApplyRequest,
   Job,
   ListJobsParams,
   Platform,
+  RateRequest,
   Rating,
   Sort,
 } from "~/generated/orval/jobsearch.schemas";
@@ -47,6 +50,18 @@ export function useGetJob(id: () => number) {
 export function useRateJob() {
   const qc = useQueryClient();
   return useRateJobGen({
+    mutation: {
+      onSuccess: (_data, variables) => {
+        qc.invalidateQueries({ queryKey: getListJobsQueryKey() });
+        qc.invalidateQueries({ queryKey: getGetJobQueryKey(variables.id) });
+      },
+    },
+  });
+}
+
+export function useApplyJob() {
+  const qc = useQueryClient();
+  return useApplyJobGen({
     mutation: {
       onSuccess: (_data, variables) => {
         qc.invalidateQueries({ queryKey: getListJobsQueryKey() });

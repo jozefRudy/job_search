@@ -197,6 +197,13 @@ impl Db {
         Ok(())
     }
 
+    pub async fn unset_applied(&self, job_id: i64) -> Result<()> {
+        sqlx::query!("DELETE FROM reactions WHERE job_id = ?1", job_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn set_liked(&self, ids: &[i64], liked: bool) -> Result<()> {
         let ids_json = serde_json::to_string(ids)?;
         sqlx::query!(

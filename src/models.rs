@@ -273,8 +273,13 @@ pub struct JobListResponse {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct RateBody {
+pub struct RateRequest {
     pub rating: Rating,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ApplyRequest {
+    pub applied: bool,
 }
 
 /// Parsed recency like "1d" or "4w". Stores days.
