@@ -10,6 +10,7 @@ import {
 } from "~/api";
 import { Button } from "~/components/ui/Button";
 import { Card } from "~/components/ui/Card";
+import { ErrorAlert } from "~/components/ui/ErrorAlert";
 import { Icon } from "~/components/ui/Icon";
 import { Container } from "~/components/ui/layout/Container";
 import { Grid } from "~/components/ui/layout/Grid";
@@ -40,11 +41,7 @@ export function JobDetail() {
         </Button>
 
         <Show when={jobQuery.error} keyed>
-          {(err) => (
-            <div class="rounded-box bg-error/10 p-4 text-error">
-              Error loading job: {err.message}
-            </div>
-          )}
+          {(err) => <ErrorAlert>Error loading job: {err.message}</ErrorAlert>}
         </Show>
         <Show when={!jobQuery.error}>
           <Show when={jobQuery.data} keyed fallback={<Skeleton class="h-96" />}>
@@ -83,11 +80,7 @@ export function JobDetailContent(props: { job: Job }) {
   return (
     <Stack gap="md">
       <Show when={mutationError()}>
-        {(msg) => (
-          <div class="rounded-box bg-error/10 p-3 text-error text-sm">
-            {msg()}
-          </div>
-        )}
+        {(msg) => <ErrorAlert>Error updating job: {msg()}</ErrorAlert>}
       </Show>
 
       <div class="card bg-base-200">

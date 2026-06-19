@@ -15,6 +15,7 @@ import {
 import { Button } from "~/components/ui/Button";
 import { Pagination } from "~/components/ui/data/Pagination";
 import { Table } from "~/components/ui/data/Table";
+import { ErrorAlert } from "~/components/ui/ErrorAlert";
 import { Container } from "~/components/ui/layout/Container";
 import { Row } from "~/components/ui/layout/Row";
 import { Stack } from "~/components/ui/layout/Stack";
@@ -337,7 +338,9 @@ export function JobList() {
           <Show
             when={!query.error}
             fallback={
-              <div class="text-error">Error: {query.error?.message}</div>
+              <ErrorAlert>
+                Error loading jobs: {query.error?.message}
+              </ErrorAlert>
             }
           >
             <Table

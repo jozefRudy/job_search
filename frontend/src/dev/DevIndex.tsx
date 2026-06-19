@@ -63,6 +63,11 @@ const appPages = [
     label: "JobDetail",
     desc: "Job detail view for Upwork and NoFluffJobs",
   },
+  {
+    path: "/dev/error-alert",
+    label: "ErrorAlert",
+    desc: "Error alert banner used in app screens",
+  },
 ];
 
 function PageGrid(props: { pages: typeof designPages }) {
