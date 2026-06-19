@@ -26,11 +26,6 @@ export function JobDetail() {
   const id = () => Number(params.id);
 
   const jobQuery = useGetJob(id);
-  const rateMutation = useRateJob();
-
-  function handleRate(rating: Rating) {
-    rateMutation.mutate({ id: id(), data: { rating } });
-  }
 
   return (
     <Container maxWidth="md" paddingX="sm" class="py-6">
@@ -44,25 +39,57 @@ export function JobDetail() {
           ← Back
         </Button>
 
-        <Show when={jobQuery.data} keyed fallback={<Skeleton class="h-96" />}>
-          {(j) => <JobDetailContent job={j} onRate={handleRate} />}
+        <Show when={jobQuery.error} keyed>
+          {(err) => (
+            <div class="rounded-box bg-error/10 p-4 text-error">
+              Error loading job: {err.message}
+            </div>
+          )}
+        </Show>
+        <Show when={!jobQuery.error}>
+          <Show when={jobQuery.data} keyed fallback={<Skeleton class="h-96" />}>
+            {(j) => <JobDetailContent job={j} />}
+          </Show>
         </Show>
       </Stack>
     </Container>
   );
 }
 
-export function JobDetailContent(props: {
-  job: Job;
-  onRate: (r: Rating) => void;
-}) {
+export function JobDetailContent(props: { job: Job }) {
   const j = props.job;
+  const rateMutation = useRateJob();
   const applyMutation = useApplyJob();
   const deleteMutation = useDeleteJob();
   const [showDelete, setShowDelete] = createSignal(false);
 
+  function handleRate(rating: Rating) {
+    rateMutation.mutate({ id: j.id, data: { rating } });
+  }
+
+  function handleApply(applied: boolean) {
+    applyMutation.mutate({ id: j.id, data: { applied } });
+  }
+
+  function handleDelete() {
+    deleteMutation.mutate({ id: j.id });
+  }
+
+  const mutationError = () =>
+    applyMutation.error?.message ??
+    deleteMutation.error?.message ??
+    rateMutation.error?.message;
+
   return (
     <Stack gap="md">
+      <Show when={mutationError()}>
+        {(msg) => (
+          <div class="rounded-box bg-error/10 p-3 text-error text-sm">
+            {msg()}
+          </div>
+        )}
+      </Show>
+
       <div class="card bg-base-200">
         <div class="card-body">
           <h2 class="card-title text-xl">
@@ -98,30 +125,28 @@ export function JobDetailContent(props: {
             <Button
               variant={j.liked === true ? "primary" : "ghost"}
               size="sm"
-              onClick={() => props.onRate("liked")}
+              onClick={() => handleRate("liked")}
             >
               👍 Like
             </Button>
             <Button
               variant={j.liked === false ? "danger" : "ghost"}
               size="sm"
-              onClick={() => props.onRate("disliked")}
+              onClick={() => handleRate("disliked")}
             >
               👎 Dislike
             </Button>
             <Button
               variant={j.liked === null ? "secondary" : "ghost"}
               size="sm"
-              onClick={() => props.onRate("neutral")}
+              onClick={() => handleRate("neutral")}
             >
               ↔️ Neutral
             </Button>
             <div class="divider divider-horizontal mx-1" />
             <Swap
               checked={!!j.applied_at}
-              onChange={(applied) =>
-                applyMutation.mutate({ id: j.id, data: { applied } })
-              }
+              onChange={(applied) => handleApply(applied)}
               size="sm"
               on={
                 <Row gap="sm" align="center">
@@ -169,7 +194,7 @@ export function JobDetailContent(props: {
         onClose={() => setShowDelete(false)}
         onConfirm={() => {
           setShowDelete(false);
-          deleteMutation.mutate({ id: props.job.id });
+          handleDelete();
         }}
         title="Delete job?"
         message={`Delete "${props.job.title}"? This cannot be undone.`}

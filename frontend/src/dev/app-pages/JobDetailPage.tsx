@@ -79,12 +79,12 @@ export default function JobDetailPage() {
       <Stack gap="lg">
         <Stack gap="md">
           <h2 class="font-semibold text-xl">Upwork — Liked</h2>
-          <JobDetailContent job={mockUpworkJob} onRate={() => {}} />
+          <JobDetailContent job={mockUpworkJob} />
         </Stack>
 
         <Stack gap="md">
           <h2 class="font-semibold text-xl">NoFluffJobs — Applied</h2>
-          <JobDetailContent job={mockNoFluffJob} onRate={() => {}} />
+          <JobDetailContent job={mockNoFluffJob} />
         </Stack>
       </Stack>
     </DevLayout>
