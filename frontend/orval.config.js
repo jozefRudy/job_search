@@ -6,6 +6,7 @@ module.exports = {
     output: {
       target: './src/generated/orval',
       client: 'solid-query',
+      httpClient: 'axios',
       mode: 'split',
     },
   },

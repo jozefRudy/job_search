@@ -1,13 +1,10 @@
 import { useNavigate } from "@solidjs/router";
 import { createQuery, useQueryClient } from "@tanstack/solid-query";
 import {
-  applyJob,
-  deleteJob,
   getGetJobQueryKey,
   getJob,
   getListJobsQueryKey,
   listJobs,
-  rateJob,
   useApplyJob as useApplyJobGen,
   useDeleteJob as useDeleteJobGen,
   useRateJob as useRateJobGen,
@@ -24,32 +21,10 @@ export type {
   Sort,
 } from "~/generated/orval/jobsearch.schemas";
 
-async function fetchOrThrow<T>(
-  promise: Promise<{ data: T; status: number } | { status: number }>,
-  message: string,
-): Promise<T> {
-  const res = await promise;
-  if (res.status < 200 || res.status >= 300) {
-    throw new Error(message);
-  }
-  return (res as { data: T; status: number }).data;
-}
-
-async function mutateOrThrow<T extends { status: number }>(
-  promise: Promise<T>,
-  message: string,
-): Promise<T> {
-  const res = await promise;
-  if (res.status < 200 || res.status >= 300) {
-    throw new Error(message);
-  }
-  return res;
-}
-
 export function useListJobs(params: () => ListJobsParams) {
   return createQuery(() => ({
     queryKey: getListJobsQueryKey(params()),
-    queryFn: () => fetchOrThrow(listJobs(params()), "Failed to fetch jobs"),
+    queryFn: () => listJobs(params()).then((res) => res.data),
     structuralSharing: false,
   }));
 }
@@ -57,7 +32,7 @@ export function useListJobs(params: () => ListJobsParams) {
 export function useGetJob(id: () => number) {
   return createQuery(() => ({
     queryKey: getGetJobQueryKey(id()),
-    queryFn: () => fetchOrThrow(getJob(id()), "Failed to fetch job"),
+    queryFn: () => getJob(id()).then((res) => res.data),
     enabled: id() != null && !Number.isNaN(id()),
     structuralSharing: false,
   }));
@@ -65,13 +40,8 @@ export function useGetJob(id: () => number) {
 
 export function useRateJob() {
   const qc = useQueryClient();
-  return useRateJobGen<Error>({
+  return useRateJobGen({
     mutation: {
-      mutationFn: (variables) =>
-        mutateOrThrow(
-          rateJob(variables.id, variables.data),
-          "Failed to update rating",
-        ),
       onSuccess: (_data, variables) => {
         qc.invalidateQueries({ queryKey: getListJobsQueryKey() });
         qc.invalidateQueries({ queryKey: getGetJobQueryKey(variables.id) });
@@ -82,13 +52,8 @@ export function useRateJob() {
 
 export function useApplyJob() {
   const qc = useQueryClient();
-  return useApplyJobGen<Error>({
+  return useApplyJobGen({
     mutation: {
-      mutationFn: (variables) =>
-        mutateOrThrow(
-          applyJob(variables.id, variables.data),
-          "Failed to update application",
-        ),
       onSuccess: (_data, variables) => {
         qc.invalidateQueries({ queryKey: getListJobsQueryKey() });
         qc.invalidateQueries({ queryKey: getGetJobQueryKey(variables.id) });
@@ -100,10 +65,8 @@ export function useApplyJob() {
 export function useDeleteJob() {
   const qc = useQueryClient();
   const navigate = useNavigate();
-  return useDeleteJobGen<Error>({
+  return useDeleteJobGen({
     mutation: {
-      mutationFn: (variables) =>
-        mutateOrThrow(deleteJob(variables.id), "Failed to delete job"),
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListJobsQueryKey() });
         navigate(-1);
