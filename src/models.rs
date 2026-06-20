@@ -16,6 +16,17 @@ pub enum Data {
     Upwork { detail: UpworkJobDetail },
     Nofluffjobs { detail: NoFluffJobDetail },
     Efinancialcareers { detail: EfinancialcareersJobDetail },
+    Hackernews { detail: HackerNewsJobDetail },
+}
+
+/// Full detail scraped from an individual Hacker News "Who is hiring?" comment.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct HackerNewsJobDetail {
+    pub author: String,
+    pub company: Option<String>,
+    pub role: Option<String>,
+    pub location: Option<String>,
+    pub remote: bool,
 }
 
 /// Full detail scraped from an individual eFinancialCareers job page.
@@ -162,6 +173,7 @@ impl Default for NoFluffJobDetail {
 #[serde(rename_all = "lowercase")]
 pub enum Platform {
     Efinancialcareers,
+    Hackernews,
     NoFluffJobs,
     Upwork,
 }
@@ -170,6 +182,7 @@ impl fmt::Display for Platform {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Platform::Efinancialcareers => write!(f, "efinancialcareers"),
+            Platform::Hackernews => write!(f, "hackernews"),
             Platform::NoFluffJobs => write!(f, "nofluffjobs"),
             Platform::Upwork => write!(f, "upwork"),
         }
@@ -182,6 +195,7 @@ impl FromStr for Platform {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "efinancialcareers" => Ok(Platform::Efinancialcareers),
+            "hackernews" => Ok(Platform::Hackernews),
             "nofluffjobs" => Ok(Platform::NoFluffJobs),
             "upwork" => Ok(Platform::Upwork),
             _ => anyhow::bail!("unknown platform: '{}'", s),
@@ -259,6 +273,7 @@ pub struct Job {
     pub budget: Option<String>,
     pub tags: Vec<String>,
     pub raw: Data,
+    pub company: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub note: Option<String>,
@@ -794,6 +809,7 @@ mod tests {
                 raw: Data::Upwork {
                     detail: UpworkJobDetail::default(),
                 },
+                company: None,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
                 liked,
@@ -856,6 +872,7 @@ mod tests {
                 raw: Data::Upwork {
                     detail: UpworkJobDetail::default(),
                 },
+                company: None,
                 created_at,
                 updated_at: Utc::now(),
                 liked: None,
@@ -915,6 +932,7 @@ mod tests {
                 raw: Data::Upwork {
                     detail: UpworkJobDetail::default(),
                 },
+                company: None,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
                 liked: None,

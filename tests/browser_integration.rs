@@ -45,6 +45,38 @@ where
     .expect("test should complete within timeout");
 }
 
+// --- Hacker News: fetch jobs via Algolia (no browser) ---
+
+#[tokio::test]
+#[ignore = "requires network access to Hacker News Algolia API"]
+async fn test_hackernews_fetch_jobs() {
+    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new();
+    let jobs = scraper
+        .fetch_jobs("rust")
+        .await
+        .expect("fetch_jobs should succeed");
+
+    assert!(!jobs.is_empty(), "should find at least one HN job post");
+
+    let first = &jobs[0];
+    assert_eq!(first.platform, jobsearch::models::Platform::Hackernews);
+    assert!(!first.external_id.is_empty(), "external_id required");
+    assert!(!first.title.is_empty(), "title required");
+    assert!(
+        first
+            .url
+            .starts_with("https://news.ycombinator.com/item?id="),
+        "url must be HN comment link: {}",
+        first.url
+    );
+
+    println!("found {} HN job posts, first:", jobs.len());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(first).expect("serialize job")
+    );
+}
+
 // --- Upwork: search page ---
 
 #[tokio::test]
@@ -76,7 +108,10 @@ async fn test_upwork_search_page_has_cards() {
             first.url
         );
         println!("found {} cards, first card:", jobs.len());
-        println!("{}", serde_json::to_string_pretty(first).unwrap());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(first).expect("serialize job")
+        );
 
         page.close().await.ok();
     })
@@ -131,7 +166,10 @@ async fn test_upwork_job_detail_fetch() {
         );
         assert!(!detail.tags.is_empty(), "detail should have tags");
         println!("detail struct:");
-        println!("{}", serde_json::to_string_pretty(&detail).unwrap());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&detail).expect("serialize detail")
+        );
     })
     .await;
 }
@@ -653,7 +691,10 @@ async fn test_nofluffjobs_sync_applications() {
             );
             assert!(job.budget.is_some(), "synced job should have budget");
             assert!(
-                jobsearch::models::Budget::parse(job.budget.as_ref().unwrap(), Some("mo"))
+                jobsearch::models::Budget::parse(
+                    job.budget.as_ref().expect("budget should be present"),
+                    Some("mo"),
+                )
                     .is_some(),
                 "synced job budget should parse: {:?}",
                 job.budget

@@ -61,6 +61,20 @@ export interface EfinancialcareersJobDetail {
 }
 
 /**
+ * Full detail scraped from an individual Hacker News "Who is hiring?" comment.
+ */
+export interface HackerNewsJobDetail {
+  author: string;
+  /** @nullable */
+  company?: string | null;
+  /** @nullable */
+  location?: string | null;
+  remote: boolean;
+  /** @nullable */
+  role?: string | null;
+}
+
+/**
  * Platform-specific scraped data stored on each job.
  */
 export type Data = {
@@ -72,6 +86,9 @@ export type Data = {
 } | {
   detail: EfinancialcareersJobDetail;
   platform: 'efinancialcareers';
+} | {
+  detail: HackerNewsJobDetail;
+  platform: 'hackernews';
 };
 
 export type Platform = typeof Platform[keyof typeof Platform];
@@ -79,6 +96,7 @@ export type Platform = typeof Platform[keyof typeof Platform];
 
 export const Platform = {
   efinancialcareers: 'efinancialcareers',
+  hackernews: 'hackernews',
   nofluffjobs: 'nofluffjobs',
   upwork: 'upwork',
 } as const;
@@ -88,6 +106,8 @@ export interface Job {
   applied_at?: string | null;
   /** @nullable */
   budget?: string | null;
+  /** @nullable */
+  company?: string | null;
   created_at: string;
   /** @nullable */
   description?: string | null;

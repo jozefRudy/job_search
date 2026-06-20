@@ -49,5 +49,6 @@ pub mod fetch_state;
 pub use fetch_state::FetchState;
 
 pub mod efinancialcareers;
+pub mod hackernews;
 pub mod nofluffjobs;
 pub mod upwork;

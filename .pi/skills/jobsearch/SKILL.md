@@ -16,6 +16,7 @@ Local CLI tool at `~/Documents/projects/job_search/target/release/jobsearch` (or
   ```
   Must be logged into Upwork in that Brave instance.
 - **eFinancialCareers**: requires Brave browser running with remote debugging, and an open `efinancialcareers.com` tab (logged in for applications sync). Start with the command above and open the site.
+- **Hacker News**: works out of the box via Algolia API (no browser). Fetches top-level job posts from the latest monthly "Ask HN: Who is hiring?" thread.
 
 ## Commands
 
@@ -27,6 +28,7 @@ All commands support `--json` for machine-readable output.
 ./target/release/jobsearch update nofluff --query "rust"
 ./target/release/jobsearch update upwork --query "rust"
 ./target/release/jobsearch update efinancialcareers --query "Rust,Developer"
+./target/release/jobsearch update hackernews --query "rust"
 ./target/release/jobsearch update --query "rust"          # all platforms
 ```
 
@@ -35,6 +37,7 @@ All commands support `--json` for machine-readable output.
 ```bash
 ./target/release/jobsearch list --status new --limit 20 --json
 ./target/release/jobsearch list --platform upwork --json
+./target/release/jobsearch list hackernews --json
 ```
 
 Statuses: `new`, `viewed`, `saved`, `applied`, `rejected`, `hidden`
@@ -82,7 +85,8 @@ Copies non-null liked/disliked state from source DB to target DB, matching by
 2. List `new` jobs with `--json`
 3. For interesting jobs, run `show <id>` to get full details
 4. Use `react <id> save` to bookmark, `hide` to filter out noise
-5. Periodically check `stats` for pipeline overview
+5. For Hacker News jobs, mark applied manually with `react <id> apply` (no application sync available)
+6. Periodically check `stats` for pipeline overview
 
 ## Database
 

@@ -61,7 +61,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
             ];
             table.set_header(headers);
             for (i, job) in jobs.iter().enumerate() {
-                let company = company_name(job);
+                let company = job.company.as_deref().unwrap_or("—");
                 table.add_row(vec![
                     Cell::new(job.id),
                     Cell::new(job.platform.to_string()),
@@ -91,6 +91,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                 "Budget",
                 "Applied",
                 "Rating",
+                "Company",
                 "Last viewed",
                 "Title",
                 "#",
@@ -100,6 +101,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                 let Data::Upwork { detail } = &job.raw else {
                     unreachable!("upwork table only renders upwork jobs");
                 };
+                let company = job.company.as_deref().unwrap_or("—");
                 let last_viewed = detail.last_viewed.map(fmt_relative).unwrap_or_default();
                 table.add_row(vec![
                     Cell::new(job.id),
@@ -111,6 +113,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
                         Some(false) => "👎",
                         None => "",
                     }),
+                    Cell::new(ellip(company, TABLE_MAX_LEN)),
                     Cell::new(last_viewed),
                     Cell::new(ellip(&job.title, TABLE_MAX_LEN)),
                     Cell::new(i + 1),
@@ -128,7 +131,7 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
             ];
             table.set_header(headers);
             for (i, job) in jobs.iter().enumerate() {
-                let company = company_name(job);
+                let company = job.company.as_deref().unwrap_or("—");
                 table.add_row(vec![
                     Cell::new(job.id),
                     Cell::new(fmt_relative(job.created_at)),
@@ -156,7 +159,35 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
             ];
             table.set_header(headers);
             for (i, job) in jobs.iter().enumerate() {
-                let company = company_name(job);
+                let company = job.company.as_deref().unwrap_or("—");
+                table.add_row(vec![
+                    Cell::new(job.id),
+                    Cell::new(fmt_relative(job.created_at)),
+                    Cell::new(ellip(job.budget.as_deref().unwrap_or("?"), TABLE_MAX_LEN)),
+                    Cell::new(job.applied_at.map_or(String::new(), fmt_relative)),
+                    Cell::new(match job.liked {
+                        Some(true) => "👍",
+                        Some(false) => "👎",
+                        None => "",
+                    }),
+                    Cell::new(ellip(company, TABLE_MAX_LEN)),
+                    Cell::new(ellip(&job.title, TABLE_MAX_LEN)),
+                    Cell::new(i + 1),
+                ]);
+            }
+            align_columns(
+                &mut table,
+                &headers,
+                &[("Id", CellAlignment::Right), ("#", CellAlignment::Right)],
+            );
+        }
+        Some(Platform::Hackernews) => {
+            let headers = [
+                "Id", "Posted", "Budget", "Applied", "Rating", "Company", "Title", "#",
+            ];
+            table.set_header(headers);
+            for (i, job) in jobs.iter().enumerate() {
+                let company = job.company.as_deref().unwrap_or("—");
                 table.add_row(vec![
                     Cell::new(job.id),
                     Cell::new(fmt_relative(job.created_at)),
@@ -181,14 +212,6 @@ pub fn render_table(jobs: &[Job], platform: Option<Platform>) -> String {
     }
 
     table.to_string()
-}
-
-fn company_name(job: &Job) -> &str {
-    match &job.raw {
-        Data::Nofluffjobs { detail } => &detail.company,
-        Data::Efinancialcareers { detail } => &detail.company,
-        Data::Upwork { .. } => "",
-    }
 }
 
 pub fn render_job_detailed(job: &Job) -> String {
@@ -301,11 +324,35 @@ pub fn render_job_detailed(job: &Job) -> String {
             if !detail.salary.is_empty() {
                 lines.push(format!("  Salary:         {}", detail.salary));
             }
+            if detail.remote {
+                lines.push("  Remote:         yes".to_string());
+            } else {
+                lines.push("  Remote:         no".to_string());
+            }
             if !detail.description.is_empty() {
                 lines.push(format!(
                     "  Description:\n    {}",
                     indent_md(&detail.description)
                 ));
+            }
+        }
+        Data::Hackernews { detail } => {
+            if !detail.author.is_empty() {
+                lines.push(format!("  Author:         {}", detail.author));
+            }
+            if let Some(company) = &detail.company {
+                lines.push(format!("  Company:        {}", company));
+            }
+            if let Some(role) = &detail.role {
+                lines.push(format!("  Role:           {}", role));
+            }
+            if let Some(location) = &detail.location {
+                lines.push(format!("  Location:       {}", location));
+            }
+            if detail.remote {
+                lines.push("  Remote:         yes".to_string());
+            } else {
+                lines.push("  Remote:         no".to_string());
             }
         }
     }

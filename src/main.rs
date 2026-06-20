@@ -12,6 +12,7 @@ use jobsearch::models::{JobFilter, Platform, Sort};
 use jobsearch::platforms::{
     PlatformClient,
     efinancialcareers::{EfinancialcareersConfig, EfinancialcareersScraper},
+    hackernews::HackerNewsScraper,
     nofluffjobs::NoFluffJobsScraper,
     upwork::UpworkScraper,
 };
@@ -98,6 +99,10 @@ async fn main() -> Result<()> {
                 let scraper = EfinancialcareersScraper::with_config(config);
                 fetch_and_store(&db, &browser, &scraper, &args.query, args.pause_ms).await?;
             }
+            UpdatePlatform::Hackernews(args) => {
+                let scraper = HackerNewsScraper::new();
+                fetch_and_store(&db, &browser, &scraper, &args.query, 0).await?;
+            }
         },
         Commands::List(cmd) => match cmd.target {
             ListTarget::All(args) => {
@@ -166,6 +171,26 @@ async fn main() -> Result<()> {
                 cmd_list(
                     &db,
                     Some(Platform::Efinancialcareers),
+                    filter,
+                    args.detailed,
+                    sort,
+                    cli.json,
+                )
+                .await?;
+            }
+            ListTarget::Hackernews(args) => {
+                let filter = JobFilter {
+                    recency: args.recency,
+                    applied: args.applied,
+                    liked: args.rating,
+                };
+                let sort = match args.sort {
+                    CommonSortBy::Created => Sort::Created,
+                    CommonSortBy::Applied => Sort::Applied,
+                };
+                cmd_list(
+                    &db,
+                    Some(Platform::Hackernews),
                     filter,
                     args.detailed,
                     sort,

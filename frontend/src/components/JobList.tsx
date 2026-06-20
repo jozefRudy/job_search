@@ -1,7 +1,6 @@
 import { useNavigate, useSearchParams } from "@solidjs/router";
 import { isNotNil, pickBy } from "es-toolkit";
 import { createMemo, Show } from "solid-js";
-import { match } from "ts-pattern";
 import { z } from "zod";
 import {
   type Job,
@@ -44,6 +43,10 @@ const PLATFORM_SORTS: Record<
     { value: "created", label: "Created" },
     { value: "applied", label: "Applied" },
   ],
+  hackernews: [
+    { value: "created", label: "Created" },
+    { value: "applied", label: "Applied" },
+  ],
 };
 
 export function JobList() {
@@ -56,6 +59,7 @@ export function JobList() {
         z.literal("upwork"),
         z.literal("nofluffjobs"),
         z.literal("efinancialcareers"),
+        z.literal("hackernews"),
       ])
       .nullable()
       .catch(null)
@@ -107,14 +111,8 @@ export function JobList() {
   const jobs = () => query.data?.jobs ?? [];
   const total = () => query.data?.total ?? 0;
 
-  const hasUpwork = createMemo(() =>
-    jobs().some((j) => j.platform === "upwork"),
-  );
-
-  const hasCompany = createMemo(() => {
-    const p = platform();
-    return p === "nofluffjobs" || p === "efinancialcareers";
-  });
+  const hasUpwork = createMemo(() => platform() === "upwork");
+  const hasCompany = createMemo(() => platform() !== "upwork");
 
   const tableLoadState = createMemo((): TableLoadState => {
     if (query.error && jobs().length === 0) return "error";
@@ -122,13 +120,6 @@ export function JobList() {
     if (query.isFetching) return "fetching";
     return "normal";
   });
-
-  function companyValue(j: Job): string {
-    return match(j.raw)
-      .with({ platform: "nofluffjobs" }, (r) => r.detail.company)
-      .with({ platform: "efinancialcareers" }, (r) => r.detail.company)
-      .otherwise(() => "");
-  }
 
   function setPlatformAndReset(p: Platform | null) {
     const supported = new Set(PLATFORM_SORTS[p ?? "all"].map((s) => s.value));
@@ -263,7 +254,7 @@ export function JobList() {
             {
               key: "company",
               header: "Company",
-              accessor: (j: Job) => ellip(companyValue(j), 40),
+              accessor: (j: Job) => ellip(j.company ?? "—", 40),
             },
           ]
         : []),
@@ -292,6 +283,7 @@ export function JobList() {
             <option value="upwork">Upwork</option>
             <option value="nofluffjobs">NoFluffJobs</option>
             <option value="efinancialcareers">eFinancialCareers</option>
+            <option value="hackernews">Hacker News</option>
           </select>
 
           <select

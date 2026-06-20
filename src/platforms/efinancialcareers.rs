@@ -340,6 +340,7 @@ impl EfinancialcareersScraper {
                     ..detail
                 },
             },
+            company: None,
             created_at,
             updated_at: Utc::now(),
             liked: None,
@@ -611,6 +612,7 @@ impl PlatformClient for EfinancialcareersScraper {
                     tags: Vec::new(),
                     created_at: detail.posted_at,
                     raw: Data::Efinancialcareers { detail },
+                    company: None,
                     updated_at: Utc::now(),
                     liked: None,
                     note: None,

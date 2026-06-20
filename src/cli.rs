@@ -71,6 +71,7 @@ pub enum ListTarget {
     Upwork(UpworkListArgs),
     Nofluff(CommonListArgs),
     Efinancialcareers(CommonListArgs),
+    Hackernews(CommonListArgs),
 }
 
 #[derive(Args)]
@@ -185,6 +186,9 @@ pub enum UpdatePlatform {
 
     /// Fetch eFinancialCareers jobs
     Efinancialcareers(EfinancialcareersArgs),
+
+    /// Fetch Hacker News "Who is hiring?" jobs
+    Hackernews(HackernewsArgs),
 }
 
 #[derive(Args)]
@@ -244,4 +248,11 @@ pub struct EfinancialcareersArgs {
     /// Pause between interactions in ms (default: 2000)
     #[arg(long, default_value = "2000")]
     pub pause_ms: u64,
+}
+
+#[derive(Args)]
+pub struct HackernewsArgs {
+    /// Keyword search passed to Algolia (default: empty = all job posts).
+    #[arg(short, long, default_value = "")]
+    pub query: String,
 }

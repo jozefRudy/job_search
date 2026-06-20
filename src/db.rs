@@ -66,7 +66,7 @@ impl Db {
             r#"
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
-                j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
+                j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
                 j.liked, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
@@ -125,7 +125,7 @@ impl Db {
             r#"
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
-                j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
+                j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
                 j.liked, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
@@ -162,7 +162,7 @@ impl Db {
             r#"
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
-                j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
+                j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
                 j.liked, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
@@ -282,6 +282,34 @@ impl Db {
         Ok(id)
     }
 
+    /// Check whether a Hacker News job post with the same company and role
+    /// already exists with a `created_at` later than `since`.
+    pub async fn has_similar_hackernews_post(
+        &self,
+        company: &str,
+        role: &str,
+        since: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool> {
+        let cutoff = since.naive_utc();
+        let company = Some(company);
+        let count: i64 = sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*)
+            FROM jobs
+            WHERE platform = 'hackernews'
+              AND company = ?1
+              AND json_extract(raw, '$.detail.role') = ?2
+              AND created_at > ?3
+            "#,
+            company,
+            role,
+            cutoff,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(count > 0)
+    }
+
     /// Fetch updated_at for a job by platform + external_id.
     pub async fn job_updated_at(
         &self,
@@ -339,6 +367,7 @@ struct JobRow {
     budget: Option<String>,
     tags: String,
     raw: String,
+    company: Option<String>,
     created_at: chrono::NaiveDateTime,
     updated_at: chrono::NaiveDateTime,
     liked: Option<bool>,
@@ -361,6 +390,7 @@ impl From<JobRow> for Job {
             budget: r.budget,
             tags: serde_json::from_str(&r.tags).unwrap_or_default(),
             raw,
+            company: r.company,
             created_at: r.created_at.and_utc(),
             updated_at: r.updated_at.and_utc(),
             note: r.note,
@@ -398,6 +428,9 @@ mod tests {
             Platform::Efinancialcareers => Data::Efinancialcareers {
                 detail: EfinancialcareersJobDetail::default(),
             },
+            Platform::Hackernews => Data::Hackernews {
+                detail: crate::models::HackerNewsJobDetail::default(),
+            },
         };
         Job {
             id: 0,
@@ -409,6 +442,7 @@ mod tests {
             budget: None,
             tags: vec![],
             raw,
+            company: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             liked: None,
@@ -465,6 +499,7 @@ mod tests {
             raw: Data::Upwork {
                 detail: detail.clone(),
             },
+            company: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             liked: None,
@@ -516,6 +551,7 @@ mod tests {
             raw: Data::Nofluffjobs {
                 detail: detail.clone(),
             },
+            company: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
             liked: None,
@@ -619,6 +655,62 @@ mod tests {
         assert_eq!(find("a").liked, Some(true));
         assert_eq!(find("b").liked, Some(false));
         assert_eq!(find("c").liked, None);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_has_similar_hackernews_post() -> Result<()> {
+        use crate::models::HackerNewsJobDetail;
+
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let job = |ext: &str, company: &str, role: &str, days_ago: i64| Job {
+            id: 0,
+            platform: Platform::Hackernews,
+            external_id: ext.to_string(),
+            title: format!("{} | {}", company, role),
+            description: None,
+            url: format!("https://news.ycombinator.com/item?id={}", ext),
+            budget: None,
+            tags: vec![],
+            raw: Data::Hackernews {
+                detail: HackerNewsJobDetail {
+                    author: "whoishiring".to_string(),
+                    company: Some(company.to_string()),
+                    role: Some(role.to_string()),
+                    location: None,
+                    remote: true,
+                },
+            },
+            company: None,
+            created_at: chrono::Utc::now() - chrono::Duration::days(days_ago),
+            updated_at: chrono::Utc::now(),
+            liked: None,
+            note: None,
+            applied_at: None,
+        };
+
+        db.upsert_job(&job("hn-1", "Acme", "Senior Rust Engineer", 70))
+            .await?;
+
+        let since = chrono::Utc::now() - chrono::Duration::days(90);
+        let similar = db
+            .has_similar_hackernews_post("Acme", "Senior Rust Engineer", since)
+            .await?;
+        assert!(similar, "should find similar post after cutoff");
+
+        let different_role = db
+            .has_similar_hackernews_post("Acme", "Frontend Engineer", since)
+            .await?;
+        assert!(!different_role, "different role is not a duplicate");
+
+        let outside_cutoff = chrono::Utc::now() - chrono::Duration::days(30);
+        let outside = db
+            .has_similar_hackernews_post("Acme", "Senior Rust Engineer", outside_cutoff)
+            .await?;
+        assert!(!outside, "post before cutoff is not a duplicate");
 
         Ok(())
     }
