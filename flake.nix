@@ -34,7 +34,7 @@
           fetcherVersion = 3;
           # When pnpm dependencies change, swap to pkgs.lib.fakeHash, run `nix build .#frontend`,
           # copy the "got:" hash from the error, then put it back here.
-          hash = "sha256-AHIke/4IH8cy8NmzO5MUyO+7Ymv08QJCrymhqpRcE0w=";
+          hash = "sha256-5Dc5RFYuoVDs6uOon260I/016CvFCfln8zGvkeBzVmo";
         };
 
         buildPhase = ''
