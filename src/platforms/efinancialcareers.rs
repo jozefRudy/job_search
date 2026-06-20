@@ -1,6 +1,6 @@
 use crate::browser::{BrowserExt, host_of, wait_for_element};
 use crate::db::Db;
-use crate::models::{Budget, Data, EfinancialcareersJobDetail, Job, Platform};
+use crate::models::{Data, EfinancialcareersJobDetail, Job, Platform};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
@@ -321,7 +321,7 @@ impl EfinancialcareersScraper {
         } else {
             detail.salary.clone()
         };
-        let budget = Budget::parse(&salary, Some("year"))
+        let budget = crate::extractors::budget::parse_efinancialcareers_budget(&salary)
             .map(|b| b.to_string())
             .or_else(|| Some(salary.clone()).filter(|b| !b.is_empty()));
 
@@ -597,9 +597,10 @@ impl PlatformClient for EfinancialcareersScraper {
                     }
                 };
 
-                let budget = Budget::parse(&detail.salary, Some("year"))
-                    .map(|b| b.to_string())
-                    .or_else(|| Some(detail.salary.clone()).filter(|b| !b.is_empty()));
+                let budget =
+                    crate::extractors::budget::parse_efinancialcareers_budget(&detail.salary)
+                        .map(|b| b.to_string())
+                        .or_else(|| Some(detail.salary.clone()).filter(|b| !b.is_empty()));
 
                 let job = Job {
                     id: 0,

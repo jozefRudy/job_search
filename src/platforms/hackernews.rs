@@ -1,5 +1,6 @@
 use crate::browser::BrowserManager;
 use crate::db::Db;
+use crate::extractors::pi::PiExtractor;
 use crate::models::{Budget, Data, HackerNewsJobDetail, Job, Platform};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
@@ -47,6 +48,7 @@ struct CommentSearchResponse {
 
 pub struct HackerNewsScraper {
     client: Client,
+    extractor: PiExtractor,
 }
 
 static JOB_KEYWORDS_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -75,6 +77,7 @@ impl HackerNewsScraper {
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
                 .build()
                 .unwrap_or_else(|_| Client::new()),
+            extractor: PiExtractor::from_env(),
         }
     }
 
@@ -211,56 +214,75 @@ impl HackerNewsScraper {
         Self::job_score(&first, &full) >= 3
     }
 
-    fn comment_to_job(hit: CommentHit) -> Result<Job> {
+    fn split_first_line(first: &str) -> (Option<String>, Option<String>, Option<String>) {
+        let parts: Vec<&str> = first.split('|').map(str::trim).collect();
+        if parts.len() >= 2 {
+            let company = if parts[0].is_empty() {
+                None
+            } else {
+                Some(parts[0].to_string())
+            };
+            let role = if parts[1].is_empty() {
+                None
+            } else {
+                Some(parts[1].to_string())
+            };
+            let location = parts.get(2).and_then(|s| {
+                let s = s.trim();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s.to_string())
+                }
+            });
+            (company, role, location)
+        } else {
+            (None, None, None)
+        }
+    }
+
+    async fn build_job(&self, hit: CommentHit) -> Result<Option<Job>> {
         let first = Self::first_line(&hit.comment_text);
         let full = Self::normalize_text(&hit.comment_text);
         let body = Self::html_to_text(&hit.comment_text);
 
-        let (company, role, location) = {
-            let parts: Vec<&str> = first.split('|').map(str::trim).collect();
-            if parts.len() >= 2 {
-                let company = if parts[0].is_empty() {
-                    None
-                } else {
-                    Some(parts[0].to_string())
-                };
-                let role = if parts[1].is_empty() {
-                    None
-                } else {
-                    Some(parts[1].to_string())
-                };
-                let location = parts.get(2).and_then(|s| {
-                    let s = s.trim();
-                    if s.is_empty() {
-                        None
-                    } else {
-                        Some(s.to_string())
-                    }
-                });
-                (company, role, location)
-            } else {
-                (None, None, None)
-            }
-        };
-
-        let budget = Budget::parse(&full, None).map(|b| b.to_string());
-
-        let mut tags = Vec::new();
-        if Self::is_remote(&full) {
-            tags.push("remote".to_string());
+        let fields = self.extractor.extract_hackernews_fields(&body).await?;
+        if fields.is_job_ad == Some(false) {
+            return Ok(None);
         }
-        if LOCATION_RE.is_match(&first) {
-            if first.to_lowercase().contains("onsite") {
-                tags.push("onsite".to_string());
-            }
-            if first.to_lowercase().contains("hybrid") {
-                tags.push("hybrid".to_string());
+
+        let (fallback_company, fallback_role, fallback_location) = Self::split_first_line(&first);
+        let company = fields
+            .company
+            .filter(|s| !s.is_empty())
+            .or(fallback_company);
+        let role = fields.role.filter(|s| !s.is_empty()).or(fallback_role);
+        let location = fields
+            .location
+            .filter(|s| !s.is_empty())
+            .or(fallback_location);
+
+        let remote = fields.remote.unwrap_or_else(|| Self::is_remote(&full));
+
+        let mut tags = fields.tags;
+        for tag in ["remote", "onsite", "hybrid"] {
+            let has = match tag {
+                "remote" => remote || first.to_lowercase().contains("remote"),
+                _ => first.to_lowercase().contains(tag),
+            };
+            if has && !tags.iter().any(|t| t.eq_ignore_ascii_case(tag)) {
+                tags.push(tag.to_string());
             }
         }
+
+        let budget = fields
+            .budget
+            .as_deref()
+            .and_then(|b| Budget::parse(b, None).map(|b| b.to_string()));
 
         let posted_at = DateTime::from_timestamp(hit.created_at_i, 0).unwrap_or_else(Utc::now);
 
-        Ok(Job {
+        Ok(Some(Job {
             id: 0,
             platform: Platform::Hackernews,
             external_id: hit.object_id.clone(),
@@ -275,7 +297,7 @@ impl HackerNewsScraper {
                     company,
                     role,
                     location,
-                    remote: Self::is_remote(&full),
+                    remote,
                 },
             },
             company: None,
@@ -284,7 +306,7 @@ impl HackerNewsScraper {
             liked: None,
             note: None,
             applied_at: None,
-        })
+        }))
     }
 
     pub async fn fetch_jobs(&self, query: &str) -> Result<Vec<Job>> {
@@ -301,8 +323,9 @@ impl HackerNewsScraper {
             if !Self::is_job_post(&hit) {
                 continue;
             }
-            match Self::comment_to_job(hit) {
-                Ok(job) => jobs.push(job),
+            match self.build_job(hit).await {
+                Ok(Some(job)) => jobs.push(job),
+                Ok(None) => {}
                 Err(e) => eprintln!("Warning: failed to parse HN comment: {}", e),
             }
         }

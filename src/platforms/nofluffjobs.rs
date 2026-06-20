@@ -1,6 +1,6 @@
 use crate::browser::{BrowserExt, host_of, wait_for, wait_for_element};
 use crate::db::Db;
-use crate::models::{Budget, Data, Job, NoFluffJobDetail, Platform};
+use crate::models::{Data, Job, NoFluffJobDetail, Platform};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
@@ -190,7 +190,7 @@ impl TryFrom<RawOfferSummary> for OfferSummary {
 
         let budget = raw.salary.map(|s| {
             let text = format!("{} - {} {}", s.from, s.to, s.currency);
-            Budget::parse(&text, Some("mo"))
+            crate::extractors::budget::parse_nofluff_budget(&text)
                 .map(|b| b.to_string())
                 .unwrap_or(text)
         });
@@ -536,12 +536,13 @@ impl NoFluffJobsScraper {
                             if normalized.trim() == "Salary Match" {
                                 self.config.min_salary_eur.map(|min| {
                                     let text = format!("{} {}", min, self.config.salary_currency);
-                                    Budget::parse(&text, Some("mo"))
+                                    crate::extractors::budget::parse_nofluff_budget(&text)
                                         .map(|b| b.to_string())
                                         .unwrap_or(text)
                                 })
                             } else {
-                                Budget::parse(b, Some("mo")).map(|b| b.to_string())
+                                crate::extractors::budget::parse_nofluff_budget(b)
+                                    .map(|b| b.to_string())
                             }
                         });
                         let job = Job {
