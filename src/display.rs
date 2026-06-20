@@ -354,6 +354,11 @@ pub fn render_job_detailed(job: &Job) -> String {
             } else {
                 lines.push("  Remote:         no".to_string());
             }
+            if let Some(desc) = &job.description
+                && !desc.is_empty()
+            {
+                lines.push(format!("  Description:\n    {}", indent_md(desc)));
+            }
         }
     }
 

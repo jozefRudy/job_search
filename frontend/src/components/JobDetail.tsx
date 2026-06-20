@@ -180,6 +180,9 @@ export function JobDetailContent(props: { job: Job }) {
       <Show when={j.platform === "efinancialcareers"}>
         <EfinancialcareersDetail job={j} />
       </Show>
+      <Show when={j.platform === "hackernews"}>
+        <HackerNewsDetail job={j} />
+      </Show>
 
       <ApplicationCard appliedAt={j.applied_at} note={j.note} />
 
@@ -280,6 +283,31 @@ export function NoFluffDetail(props: { job: Job }) {
   );
 }
 
+export function HackerNewsDetail(props: { job: Job }) {
+  const raw = props.job.raw;
+  if (raw.platform !== "hackernews") return null;
+  const d = raw.detail;
+  return (
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h3 class="card-title text-lg">Details</h3>
+        <Stack gap="sm">
+          <DetailList>
+            <DetailRow label="Author" value={d.author} />
+            <DetailRow label="Company" value={d.company ?? props.job.company} />
+            <DetailRow label="Role" value={d.role} />
+            <DetailRow label="Location" value={d.location} />
+            <DetailRow label="Remote" value={d.remote ? "yes" : "no"} />
+          </DetailList>
+          <Show when={props.job.description} keyed>
+            {(text) => <MarkdownDescription label="Description" text={text} />}
+          </Show>
+        </Stack>
+      </div>
+    </div>
+  );
+}
+
 export function EfinancialcareersDetail(props: { job: Job }) {
   const raw = props.job.raw;
   if (raw.platform !== "efinancialcareers") return null;
@@ -344,7 +372,7 @@ function DetailList(props: { children: JSX.Element }) {
   );
 }
 
-function DetailRow(props: { label: string; value: string | undefined }) {
+function DetailRow(props: { label: string; value: string | null | undefined }) {
   if (!props.value) return null;
   return (
     <>

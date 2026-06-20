@@ -695,7 +695,7 @@ async fn test_nofluffjobs_sync_applications() {
                     job.budget.as_ref().expect("budget should be present"),
                     Some("mo"),
                 )
-                    .is_some(),
+                .is_some(),
                 "synced job budget should parse: {:?}",
                 job.budget
             );

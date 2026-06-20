@@ -327,8 +327,7 @@ impl HackerNewsScraper {
                         },
                 } => {
                     let since = chrono::Utc::now() - chrono::Duration::days(60);
-                    db.has_similar_hackernews_post(c, r, since)
-                        .await?
+                    db.has_similar_hackernews_post(c, r, since).await?
                 }
                 _ => false,
             };

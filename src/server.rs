@@ -1,8 +1,8 @@
 use crate::cli::VERSION;
 use crate::db::Db;
 use crate::models::{
-    ApplyRequest, Data, Job, JobListResponse, ListQuery, NoFluffJobDetail, Platform, RateRequest,
-    Rating, Sort, UpworkJobDetail,
+    ApplyRequest, Data, HackerNewsJobDetail, Job, JobListResponse, ListQuery, NoFluffJobDetail,
+    Platform, RateRequest, Rating, Sort, UpworkJobDetail,
 };
 use anyhow::Result;
 use axum::{
@@ -28,6 +28,7 @@ use utoipa_axum::routes;
     Data,
     UpworkJobDetail,
     NoFluffJobDetail,
+    HackerNewsJobDetail,
     Platform,
     Rating,
     Sort

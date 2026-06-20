@@ -3,6 +3,14 @@ import { marked } from "marked";
 import type { Size } from "~/components/ui/layout/layout";
 import { cn } from "~/lib/utils";
 
+DOMPurify.setConfig({ ADD_ATTR: ["target", "rel"] });
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.tagName === "A") {
+    node.setAttribute("target", "_blank");
+    node.setAttribute("rel", "noopener noreferrer");
+  }
+});
+
 export interface MarkdownProps {
   text: string;
   size?: Size;
