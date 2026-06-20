@@ -4,3 +4,4 @@
     business --default,
     corporate;
 }
+@plugin "@tailwindcss/typography";

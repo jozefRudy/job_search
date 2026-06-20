@@ -55,6 +55,11 @@ const designPages = [
     label: "Modals",
     desc: "Modal, ConfirmModal, sizes, variants",
   },
+  {
+    path: "/dev/markdown",
+    label: "Markdown",
+    desc: "Markdown rendering in sm, md, lg sizes",
+  },
 ];
 
 const appPages = [

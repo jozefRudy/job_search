@@ -16,7 +16,9 @@
     "@tanstack/solid-query": "^5.101.0",
     "axios": "^1.18.0",
     "clsx": "^2.1.1",
+    "dompurify": "^3.4.11",
     "es-toolkit": "^1.47.0",
+    "marked": "^18.0.5",
     "solid-js": "^1.9.9",
     "tailwind-merge": "^3.5.0",
     "ts-pattern": "^5.7.0",
@@ -25,6 +27,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.4.14",
     "@solidjs/testing-library": "^0.8.10",
+    "@tailwindcss/typography": "^0.5.20",
     "@tailwindcss/vite": "^4.1.13",
     "@testing-library/jest-dom": "^6.9.1",
     "daisyui": "^5.5.19",

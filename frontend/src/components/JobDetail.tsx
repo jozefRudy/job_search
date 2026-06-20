@@ -16,6 +16,7 @@ import { Container } from "~/components/ui/layout/Container";
 import { Grid } from "~/components/ui/layout/Grid";
 import { Row } from "~/components/ui/layout/Row";
 import { Stack } from "~/components/ui/layout/Stack";
+import { Markdown } from "~/components/ui/Markdown";
 import { ConfirmModal } from "~/components/ui/Modal";
 import { Skeleton } from "~/components/ui/Skeleton";
 import { Swap } from "~/components/ui/Swap";
@@ -224,10 +225,7 @@ export function UpworkDetail(props: { job: Job }) {
             <DetailRow label="Unanswered" value={d.unanswered_invites} />
           </DetailList>
           <Show when={d.description}>
-            <div>
-              <span class="font-semibold">Description:</span>
-              <p class="mt-1 whitespace-pre-line">{d.description}</p>
-            </div>
+            <MarkdownDescription label="Description" text={d.description} />
           </Show>
         </Stack>
       </div>
@@ -268,22 +266,13 @@ export function NoFluffDetail(props: { job: Job }) {
             </Show>
           </DetailList>
           <Show when={d.requirements}>
-            <div>
-              <span class="font-semibold">Requirements:</span>
-              <p class="mt-1 whitespace-pre-line">{d.requirements}</p>
-            </div>
+            <MarkdownDescription label="Requirements" text={d.requirements} />
           </Show>
           <Show when={d.nice_to_have}>
-            <div>
-              <span class="font-semibold">Nice to have:</span>
-              <p class="mt-1 whitespace-pre-line">{d.nice_to_have}</p>
-            </div>
+            <MarkdownDescription label="Nice to have" text={d.nice_to_have} />
           </Show>
           <Show when={d.description}>
-            <div>
-              <span class="font-semibold">Description:</span>
-              <p class="mt-1 whitespace-pre-line">{d.description}</p>
-            </div>
+            <MarkdownDescription label="Description" text={d.description} />
           </Show>
         </Stack>
       </div>
@@ -308,13 +297,19 @@ export function EfinancialcareersDetail(props: { job: Job }) {
             <DetailRow label="Posted" value={fmtRelative(d.posted_at)} />
           </DetailList>
           <Show when={d.description}>
-            <div>
-              <span class="font-semibold">Description:</span>
-              <p class="mt-1 whitespace-pre-line">{d.description}</p>
-            </div>
+            <MarkdownDescription label="Description" text={d.description} />
           </Show>
         </Stack>
       </div>
+    </div>
+  );
+}
+
+function MarkdownDescription(props: { label: string; text: string }) {
+  return (
+    <div>
+      <span class="font-semibold">{props.label}:</span>
+      <Markdown class="mt-1" text={props.text} />
     </div>
   );
 }
@@ -334,7 +329,7 @@ function ApplicationCard(props: {
           {(d) => <p class="text-success">Applied {fmtRelative(d())}</p>}
         </Show>
         <Show when={props.note}>
-          {(n) => <p class="whitespace-pre-line text-base-content/70">{n()}</p>}
+          {(n) => <Markdown class="text-base-content/70" text={n()} />}
         </Show>
       </Card.Body>
     </Card>
