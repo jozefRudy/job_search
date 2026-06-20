@@ -254,7 +254,7 @@ export function JobList() {
             {
               key: "company",
               header: "Company",
-              accessor: (j: Job) => ellip(j.company ?? "—", 40),
+              accessor: (j: Job) => ellip(j.company, 40),
             },
           ]
         : []),
