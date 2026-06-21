@@ -9,17 +9,47 @@ use tokio::time::timeout;
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_TEXT_LEN: usize = 2000;
 
+macro_rules! define_prompts {
+    ($(($variant:ident, $struct:ident, $path:literal)),* $(,)?) => {
+        #[derive(Copy, Clone, Debug)]
+        pub enum PromptKind {
+            $($variant,)*
+        }
+
+        $(
+            #[derive(::askama::Template)]
+            #[template(path = $path, ext = "md")]
+            struct $struct<'a> {
+                schema: &'a str,
+                text: &'a str,
+            }
+
+            impl<'a> $struct<'a> {
+                fn render_prompt(schema: &'a str, text: &'a str) -> ::anyhow::Result<String> {
+                    use ::askama::Template;
+                    Self { schema, text }.render().map_err(Into::into)
+                }
+            }
+        )*
+
+        impl PromptKind {
+            pub(crate) fn render_prompt(self, schema: &str, text: &str) -> ::anyhow::Result<String> {
+                match self {
+                    $(Self::$variant => $struct::render_prompt(schema, text),)*
+                }
+            }
+        }
+    };
+}
+
+define_prompts! {
+    (HackerNews, HackerNewsPrompt, "hackernews_fields.md"),
+}
+
 /// A type that can be extracted from LLM output.
 pub trait Extractable: JsonSchema + for<'de> Deserialize<'de> {
-    /// Prompt template with `{schema}` and `{text}` placeholders.
-    const PROMPT_TEMPLATE: &'static str;
-
-    /// Render the prompt for this extraction target, given the JSON schema and source text.
-    fn render_prompt(schema: &str, text: &str) -> String {
-        Self::PROMPT_TEMPLATE
-            .replace("{schema}", schema)
-            .replace("{text}", text)
-    }
+    /// Which prompt template to use for this extraction target.
+    const PROMPT: PromptKind;
 }
 
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
@@ -50,7 +80,7 @@ pub struct HackerNewsFields {
 }
 
 impl Extractable for HackerNewsFields {
-    const PROMPT_TEMPLATE: &'static str = include_str!("prompts/hackernews_fields.md");
+    const PROMPT: PromptKind = PromptKind::HackerNews;
 }
 
 /// Generic LLM extractor that calls a local CLI.
@@ -70,7 +100,7 @@ impl<T: Extractable> LlmExtractor<T> {
     pub async fn extract(&self, text: &str) -> Result<T> {
         let schema = serde_json::to_string_pretty(&schema_for!(T))?;
         let truncated = Self::truncate(text);
-        let rendered = T::render_prompt(&schema, &truncated);
+        let rendered = T::PROMPT.render_prompt(&schema, &truncated)?;
         self.run_and_parse::<T>(&rendered).await
     }
 
@@ -155,7 +185,9 @@ mod tests {
 
     #[test]
     fn test_hackernews_prompt_renders_placeholders() {
-        let prompt = HackerNewsFields::render_prompt("{}", "world");
+        let prompt = PromptKind::HackerNews
+            .render_prompt("{}", "world")
+            .expect("missing template variables");
         assert!(prompt.contains("JSON schema:\n{}"));
         assert!(prompt.contains("Post:\nworld"));
     }
