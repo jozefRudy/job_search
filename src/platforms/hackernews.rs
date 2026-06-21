@@ -1,7 +1,7 @@
 use crate::browser::BrowserManager;
 use crate::db::Db;
-use crate::extractors::pi::PiExtractor;
-use crate::models::{Budget, Data, HackerNewsJobDetail, Job, Platform};
+use crate::extractors::llm::{HackerNewsFields, LlmExtractor};
+use crate::models::{Data, HackerNewsJobDetail, Job, Platform};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::Result;
@@ -48,7 +48,7 @@ struct CommentSearchResponse {
 
 pub struct HackerNewsScraper {
     client: Client,
-    extractor: PiExtractor,
+    extractor: LlmExtractor<HackerNewsFields>,
 }
 
 static JOB_KEYWORDS_RE: LazyLock<Regex> = LazyLock::new(|| {
@@ -77,7 +77,7 @@ impl HackerNewsScraper {
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
                 .build()
                 .unwrap_or_else(|_| Client::new()),
-            extractor: PiExtractor::from_env(),
+            extractor: LlmExtractor::<HackerNewsFields>::from_env(),
         }
     }
 
@@ -169,6 +169,7 @@ impl HackerNewsScraper {
         }
     }
 
+    #[cfg(test)]
     fn is_remote(text: &str) -> bool {
         let lower = text.to_lowercase();
         lower.contains("remote")
@@ -243,11 +244,10 @@ impl HackerNewsScraper {
 
     async fn build_job(&self, hit: CommentHit) -> Result<Option<Job>> {
         let first = Self::first_line(&hit.comment_text);
-        let full = Self::normalize_text(&hit.comment_text);
         let body = Self::html_to_text(&hit.comment_text);
 
-        let fields = self.extractor.extract_hackernews_fields(&body).await?;
-        if fields.is_job_ad == Some(false) {
+        let fields = self.extractor.extract(&body).await?;
+        if !fields.is_job_ad {
             return Ok(None);
         }
 
@@ -262,23 +262,9 @@ impl HackerNewsScraper {
             .filter(|s| !s.is_empty())
             .or(fallback_location);
 
-        let remote = fields.remote.unwrap_or_else(|| Self::is_remote(&full));
-
-        let mut tags = fields.tags;
-        for tag in ["remote", "onsite", "hybrid"] {
-            let has = match tag {
-                "remote" => remote || first.to_lowercase().contains("remote"),
-                _ => first.to_lowercase().contains(tag),
-            };
-            if has && !tags.iter().any(|t| t.eq_ignore_ascii_case(tag)) {
-                tags.push(tag.to_string());
-            }
-        }
-
-        let budget = fields
-            .budget
-            .as_deref()
-            .and_then(|b| Budget::parse(b, None).map(|b| b.to_string()));
+        let remote = fields.remote.unwrap_or(false);
+        let tags = fields.tags;
+        let budget = fields.budget;
 
         let posted_at = DateTime::from_timestamp(hit.created_at_i, 0).unwrap_or_else(Utc::now);
 
