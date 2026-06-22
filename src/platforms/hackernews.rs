@@ -187,26 +187,22 @@ impl HackerNewsScraper {
         let thread_id_num: i64 = thread_id.parse()?;
         let max = limit.unwrap_or(usize::MAX);
         let mut top = Vec::new();
-        let mut page = 0;
 
-        'pages: loop {
+        for page in 0usize.. {
             let comments = self.fetch_comments_page(&thread_id, query, page).await?;
             let count = comments.len();
             if count == 0 {
                 break;
             }
-            for hit in comments {
-                if hit.parent_id == thread_id_num {
-                    top.push(hit);
-                    if top.len() >= max {
-                        break 'pages;
-                    }
-                }
-            }
-            if count < 1000 {
+            top.extend(
+                comments
+                    .into_iter()
+                    .filter(|h| h.parent_id == thread_id_num),
+            );
+            if top.len() >= max || count < 1000 {
+                top.truncate(max);
                 break;
             }
-            page += 1;
         }
 
         Ok(top)
