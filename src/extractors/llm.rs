@@ -108,7 +108,7 @@ impl<T: Extractable> LlmExtractor<T> {
             .map(|s| shell_words::split(&s).unwrap_or_default())
             .unwrap_or_else(|_| {
                 shell_words::split(
-                    "pi --print --no-session --no-tools --mode text --thinking off --model kimi-coding --k2p7",
+                    "pi --print --no-session --no-tools --mode text --thinking off --model kimi-coding/k2p7",
                 )
                 .unwrap_or_default()
             });
@@ -191,5 +191,20 @@ mod tests {
         let t = LlmExtractor::<HackerNewsFields>::truncate(&s);
         assert!(t.len() <= MAX_TEXT_LEN);
         assert!(t.is_char_boundary(t.len()));
+    }
+
+    #[tokio::test]
+    #[ignore = "requires LLM CLI reachable via JOBSEARCH_LLM"]
+    async fn test_extract_hackernews_job_from_fixture() {
+        let text = include_str!("llm/fixtures/hackernews_job.md");
+        let fields = LlmExtractor::<HackerNewsFields>::from_env()
+            .extract(text)
+            .await
+            .expect("llm extraction failed");
+        assert!(fields.is_job_ad, "expected job ad");
+        assert_eq!(fields.company.as_deref(), Some("Stripe"));
+        assert_eq!(fields.role.as_deref(), Some("Senior Backend Engineer"));
+        assert!(fields.remote.unwrap_or(false), "expected remote");
+        assert!(fields.budget.is_some(), "expected budget");
     }
 }
