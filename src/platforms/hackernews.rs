@@ -55,19 +55,21 @@ static JOB_KEYWORDS_RE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?i)\b(engineer|engineers|developer|developers|manager|managers|designer|designers|scientist|scientists|analyst|analysts|founder|founders|lead|leads|architect|architects|researcher|researchers|writer|writers|coordinator|coordinators|specialist|specialists|intern|interns|head of|vp of|director|directors|fullstack|full-stack|full stack|frontend|backend|devops|sre|ml|ai|data|product|security|support|sales|marketing|legal|operations)\b",
     )
-    .unwrap()
+    .expect("invalid regex")
 });
 
 static LOCATION_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)\b(remote|onsite|hybrid|distributed|worldwide|global)\b").unwrap()
+    Regex::new(r"(?i)\b(remote|onsite|hybrid|distributed|worldwide|global)\b")
+        .expect("invalid regex")
 });
 
 static SALARY_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)[\$€£]|\b(usd|eur|gbp|cad|aud)\b|\d+\s*[kKmM]\b|\bequity\b").unwrap()
+    Regex::new(r"(?i)[\$€£]|\b(usd|eur|gbp|cad|aud)\b|\d+\s*[kKmM]\b|\bequity\b")
+        .expect("invalid regex")
 });
 
 static URL_RE: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)https?://|apply\s*[:\-]?|jobs\.|careers\.|lever\.co|ashbyhq\.com|greenhouse\.io|workday|breezy\.hr|tally\.so|forms\.gle|wellfound\.com").unwrap()
+    Regex::new(r"(?i)https?://|apply\s*[:\-]?|jobs\.|careers\.|lever\.co|ashbyhq\.com|greenhouse\.io|workday|breezy\.hr|tally\.so|forms\.gle|wellfound\.com").expect("invalid regex")
 });
 
 impl HackerNewsScraper {
@@ -145,7 +147,7 @@ impl HackerNewsScraper {
     fn normalize_text(html: &str) -> String {
         let text = Self::html_to_text(html);
         regex::Regex::new(r"\s+")
-            .unwrap()
+            .expect("invalid regex")
             .replace_all(&text, " ")
             .trim()
             .to_string()
