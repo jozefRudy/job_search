@@ -86,9 +86,8 @@ impl Extractable for HackerNewsFields {
 /// Generic LLM extractor that calls a local CLI.
 ///
 /// Configure via env:
-/// - `JOBSEARCH_LLM_BIN` binary name or path (default `pi`)
-/// - `JOBSEARCH_LLM_ARGS` space-separated CLI args appended before the prompt
-///   (default: `--print --no-session --no-tools --mode text`)
+/// - `JOBSEARCH_LLM` full command string: binary plus args (default `pi --print --no-session
+///   --no-tools --mode text --thinking off --model kimi-coding --k2p7`)
 #[derive(Debug, Clone)]
 pub struct LlmExtractor<T: Extractable> {
     bin: String,
@@ -105,26 +104,20 @@ impl<T: Extractable> LlmExtractor<T> {
     }
 
     pub fn from_env() -> Self {
-        let mut args = std::env::var("JOBSEARCH_LLM_ARGS")
+        let tokens = std::env::var("JOBSEARCH_LLM")
             .map(|s| shell_words::split(&s).unwrap_or_default())
             .unwrap_or_else(|_| {
-                vec![
-                    "--print".to_string(),
-                    "--no-session".to_string(),
-                    "--no-tools".to_string(),
-                    "--mode".to_string(),
-                    "text".to_string(),
-                    "--thinking".to_string(),
-                    "off".to_string(),
-                ]
+                shell_words::split(
+                    "pi --print --no-session --no-tools --mode text --thinking off --model kimi-coding --k2p7",
+                )
+                .unwrap_or_default()
             });
-        if !args.iter().any(|a| a == "--model")
-            && let Ok(model) = std::env::var("JOBSEARCH_LLM_MODEL")
-        {
-            args.extend(["--model".to_string(), model]);
-        }
+        let (bin, args) = tokens
+            .split_first()
+            .map(|(h, t)| (h.clone(), t.to_vec()))
+            .unwrap_or_default();
         Self {
-            bin: std::env::var("JOBSEARCH_LLM_BIN").unwrap_or_else(|_| "pi".to_string()),
+            bin,
             args,
             _phantom: PhantomData,
         }
