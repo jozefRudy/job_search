@@ -83,48 +83,27 @@ impl HackerNewsScraper {
             .ok_or_else(|| anyhow::anyhow!("no Hacker News hiring thread found"))
     }
 
-    async fn fetch_comments(
+    async fn fetch_comments_page(
         &self,
         thread_id: &str,
         query: &str,
-        limit: Option<usize>,
+        page: usize,
     ) -> Result<Vec<CommentHit>> {
-        let max = limit.unwrap_or(usize::MAX);
-        let mut all = Vec::new();
-        let mut page = 0;
-
-        loop {
-            let url = format!("{}/search_by_date", ALGOLIA_BASE);
-            let response: CommentSearchResponse = self
-                .client
-                .get(&url)
-                .query(&[
-                    ("query", query),
-                    ("tags", &format!("comment,story_{}", thread_id)),
-                    ("hitsPerPage", "1000"),
-                    ("page", &page.to_string()),
-                ])
-                .send()
-                .await?
-                .json()
-                .await?;
-
-            let got = response.hits.len();
-            if got == 0 {
-                break;
-            }
-            all.extend(response.hits);
-            if all.len() >= max {
-                all.truncate(max);
-                break;
-            }
-            if got < 1000 {
-                break;
-            }
-            page += 1;
-        }
-
-        Ok(all)
+        let url = format!("{}/search_by_date", ALGOLIA_BASE);
+        let response: CommentSearchResponse = self
+            .client
+            .get(&url)
+            .query(&[
+                ("query", query),
+                ("tags", &format!("comment,story_{}", thread_id)),
+                ("hitsPerPage", "1000"),
+                ("page", &page.to_string()),
+            ])
+            .send()
+            .await?
+            .json()
+            .await?;
+        Ok(response.hits)
     }
 
     fn html_to_text(html: &str) -> String {
@@ -206,11 +185,31 @@ impl HackerNewsScraper {
     ) -> Result<Vec<CommentHit>> {
         let thread_id = self.latest_thread_id().await?;
         let thread_id_num: i64 = thread_id.parse()?;
-        let comments = self.fetch_comments(&thread_id, query, limit).await?;
-        Ok(comments
-            .into_iter()
-            .filter(|h| h.parent_id == thread_id_num)
-            .collect())
+        let max = limit.unwrap_or(usize::MAX);
+        let mut top = Vec::new();
+        let mut page = 0;
+
+        'pages: loop {
+            let comments = self.fetch_comments_page(&thread_id, query, page).await?;
+            let count = comments.len();
+            if count == 0 {
+                break;
+            }
+            for hit in comments {
+                if hit.parent_id == thread_id_num {
+                    top.push(hit);
+                    if top.len() >= max {
+                        break 'pages;
+                    }
+                }
+            }
+            if count < 1000 {
+                break;
+            }
+            page += 1;
+        }
+
+        Ok(top)
     }
 
     pub async fn fetch_jobs(&self, query: &str) -> Result<Vec<Job>> {
