@@ -55,7 +55,7 @@ pub trait Extractable: JsonSchema + for<'de> Deserialize<'de> {
     /// Sample text used to verify the LLM produces valid structured output.
     const HEALTHCHECK_TEXT: &'static str;
     /// Validate that a healthcheck extraction succeeded.
-    fn healthcheck(&self) -> Result<()>;
+    fn verify(&self) -> Result<()>;
 }
 
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
@@ -89,7 +89,7 @@ impl Extractable for HackerNewsFields {
     const PROMPT: PromptKind = PromptKind::HackerNews;
     const HEALTHCHECK_TEXT: &'static str = include_str!("llm/fixtures/hackernews_healthcheck.md");
 
-    fn healthcheck(&self) -> Result<()> {
+    fn verify(&self) -> Result<()> {
         anyhow::ensure!(
             self.is_job_ad,
             "healthcheck text must be classified as a job ad"
@@ -132,10 +132,8 @@ impl<T: Extractable> LlmExtractor<T> {
         self.run_and_parse::<T>(&rendered).await
     }
 
-    /// Verify the configured LLM CLI can parse the extractor's healthcheck sample.
-    pub async fn healthcheck(&self) -> Result<()> {
-        let value = self.extract(T::HEALTHCHECK_TEXT).await?;
-        value.healthcheck()
+    pub async fn verify(&self) -> Result<()> {
+        self.extract(T::HEALTHCHECK_TEXT).await?.verify()
     }
 
     pub fn from_cli(llm_cli: Option<String>) -> Self {

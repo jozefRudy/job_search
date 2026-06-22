@@ -208,7 +208,7 @@ impl HackerNewsScraper {
     }
 
     async fn fetch_jobs(&self, db: &Db, query: &str) -> Result<Vec<Job>> {
-        self.extractor.healthcheck().await?;
+        self.extractor.verify().await?;
 
         let comments = self.fetch_top_level_comments(query, None).await?;
         let mut jobs = Vec::new();
