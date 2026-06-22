@@ -18,6 +18,7 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
 comfy-table = "7"
 directories = "6"
+async-stream = "0.3"
 futures = "0.3"
 html2text = "0.14"
 include_dir = "0.7"

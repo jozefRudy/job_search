@@ -4,11 +4,14 @@ use crate::models::{Data, HackerNewsJobDetail, Job, Platform};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::Result;
+use async_stream::try_stream;
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
 use chrono::{DateTime, Utc};
+use futures::stream::{Stream, StreamExt};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::pin::pin;
 
 const ALGOLIA_BASE: &str = "https://hn.algolia.com/api/v1";
 const THREAD_QUERY: &str = "Ask HN: Who is hiring";
@@ -143,6 +146,10 @@ impl HackerNewsScraper {
         let role = fields.role.filter(|s| !s.is_empty());
         let location = fields.location.filter(|s| !s.is_empty());
 
+        let title = role
+            .clone()
+            .unwrap_or_else(|| Self::title_from_html(&hit.comment_text));
+
         let remote = fields.remote.unwrap_or(false);
         let tags = fields.tags;
         let budget = fields.budget;
@@ -153,7 +160,7 @@ impl HackerNewsScraper {
             id: 0,
             platform: Platform::Hackernews,
             external_id: hit.object_id.clone(),
-            title: Self::title_from_html(&hit.comment_text),
+            title,
             description: Some(body).filter(|d| !d.is_empty()),
             url: format!("https://news.ycombinator.com/item?id={}", hit.object_id),
             budget,
@@ -207,37 +214,45 @@ impl HackerNewsScraper {
         Ok(top)
     }
 
-    async fn fetch_jobs(&self, db: &Db, query: &str) -> Result<Vec<Job>> {
-        self.extractor.verify().await?;
+    fn fetch_jobs<'a>(
+        &'a self,
+        db: &'a Db,
+        query: &'a str,
+    ) -> impl Stream<Item = Result<Job>> + Send + 'a {
+        try_stream! {
+            self.extractor.verify().await?;
 
-        let comments = self.fetch_top_level_comments(query, None).await?;
-        let mut jobs = Vec::new();
+            let comments = self.fetch_top_level_comments(query, None).await?;
 
-        for hit in comments {
-            if db
-                .find_job_id(&Platform::Hackernews, &hit.object_id)
-                .await?
-                .is_some()
-            {
-                continue;
-            }
+            for hit in comments {
+                if db
+                    .find_job_id(&Platform::Hackernews, &hit.object_id)
+                    .await?
+                    .is_some()
+                {
+                    continue;
+                }
 
-            match self.build_job(hit).await {
-                Ok(Some(job)) => jobs.push(job),
-                Ok(None) => {}
-                Err(e) => eprintln!("Warning: failed to parse HN comment: {}", e),
+                match self.build_job(hit).await {
+                    Ok(Some(job)) => yield job,
+                    Ok(None) => {}
+                    Err(e) => eprintln!("Warning: failed to parse HN comment: {}", e),
+                }
             }
         }
-
-        Ok(jobs)
     }
 
-    async fn store_jobs(&self, db: &Db, jobs: Vec<Job>) -> Result<FetchState> {
+    async fn store_jobs(
+        &self,
+        db: &Db,
+        jobs: impl Stream<Item = Result<Job>>,
+    ) -> Result<FetchState> {
         let mut state = FetchState::new();
-        let total = jobs.len();
         let _guard = CursorGuard::new();
+        let mut jobs = pin!(jobs);
 
-        for job in jobs {
+        while let Some(job) = jobs.next().await {
+            let job = job?;
             let should_skip = match &job.raw {
                 Data::Hackernews {
                     detail:
@@ -259,13 +274,13 @@ impl HackerNewsScraper {
 
             if should_skip || exists {
                 state.inc_existing();
-                eprint!("{}", state.progress_line(Some(total), &job.title));
+                eprint!("{}", state.progress_line(None, &job.title));
                 continue;
             }
 
             db.upsert_job(&job).await?;
             state.inc_new();
-            eprint!("{}", state.progress_line(Some(total), &job.title));
+            eprint!("{}", state.progress_line(None, &job.title));
         }
 
         Ok(state)
@@ -291,7 +306,7 @@ impl PlatformClient for HackerNewsScraper {
         query: &str,
         _pause_ms: u64,
     ) -> Result<FetchState> {
-        let jobs = self.fetch_jobs(db, query).await?;
+        let jobs = self.fetch_jobs(db, query);
         self.store_jobs(db, jobs).await
     }
 }
