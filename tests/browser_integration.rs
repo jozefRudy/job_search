@@ -49,35 +49,24 @@ where
 
 #[tokio::test]
 #[ignore = "requires network access to Hacker News Algolia API"]
-async fn test_hackernews_fetch_jobs() {
-    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new();
-    let jobs = scraper
-        .fetch_jobs("rust")
+async fn test_hackernews_fetch_comments() {
+    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(None);
+    let comments = scraper
+        .fetch_top_level_comments("rust", Some(5))
         .await
-        .expect("fetch_jobs should succeed");
+        .expect("fetch_top_level_comments should succeed");
 
-    assert!(!jobs.is_empty(), "should find at least one HN job post");
+    assert!(!comments.is_empty(), "should find at least one HN comment");
 
-    let first = &jobs[0];
-    assert_eq!(first.platform, jobsearch::models::Platform::Hackernews);
-    assert!(!first.external_id.is_empty(), "external_id required");
-    assert!(!first.title.is_empty(), "title required");
-    assert!(
-        first
-            .url
-            .starts_with("https://news.ycombinator.com/item?id="),
-        "url must be HN comment link: {}",
-        first.url
-    );
+    let first = &comments[0];
+    assert!(!first.comment_text.is_empty(), "comment_text required");
 
-    println!("found {} HN job posts, first:", jobs.len());
     println!(
-        "{}",
-        serde_json::to_string_pretty(first).expect("serialize job")
+        "found {} HN comments, first text length: {}",
+        comments.len(),
+        first.comment_text.len()
     );
 }
-
-// --- Upwork: search page ---
 
 #[tokio::test]
 #[ignore = "requires Brave browser installed and upwork.com logged in"]

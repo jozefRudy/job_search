@@ -100,7 +100,7 @@ async fn main() -> Result<()> {
                 fetch_and_store(&db, &browser, &scraper, &args.query, args.pause_ms).await?;
             }
             UpdatePlatform::Hackernews(args) => {
-                let scraper = HackerNewsScraper::new();
+                let scraper = HackerNewsScraper::new(Some(args.llm_cli));
                 fetch_and_store(&db, &browser, &scraper, &args.query, 0).await?;
             }
         },

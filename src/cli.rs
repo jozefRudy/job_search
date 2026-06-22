@@ -1,3 +1,4 @@
+use crate::extractors::llm::DEFAULT_LLM_CLI;
 use crate::models::Recency;
 use crate::platforms::upwork::UpworkTier;
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -255,4 +256,8 @@ pub struct HackernewsArgs {
     /// Keyword search passed to Algolia (default: empty = all job posts).
     #[arg(short, long, default_value = "")]
     pub query: String,
+
+    /// LLM CLI command used to extract structured fields from HN comments.
+    #[arg(long, default_value = DEFAULT_LLM_CLI)]
+    pub llm_cli: String,
 }

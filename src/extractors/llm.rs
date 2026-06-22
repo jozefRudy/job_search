@@ -6,6 +6,8 @@ use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
 
+pub const DEFAULT_LLM_CLI: &str = "pi --print --no-session --no-tools --mode text --thinking off --model deepseek/deepseek-v4-flash";
+
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_TEXT_LEN: usize = 2000;
 
@@ -50,6 +52,10 @@ define_prompts! {
 pub trait Extractable: JsonSchema + for<'de> Deserialize<'de> {
     /// Which prompt template to use for this extraction target.
     const PROMPT: PromptKind;
+    /// Sample text used to verify the LLM produces valid structured output.
+    const HEALTHCHECK_TEXT: &'static str;
+    /// Validate that a healthcheck extraction succeeded.
+    fn healthcheck(&self) -> Result<()>;
 }
 
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
@@ -81,13 +87,36 @@ pub struct HackerNewsFields {
 
 impl Extractable for HackerNewsFields {
     const PROMPT: PromptKind = PromptKind::HackerNews;
+    const HEALTHCHECK_TEXT: &'static str = include_str!("llm/fixtures/hackernews_healthcheck.md");
+
+    fn healthcheck(&self) -> Result<()> {
+        anyhow::ensure!(
+            self.is_job_ad,
+            "healthcheck text must be classified as a job ad"
+        );
+        let company = self.company.as_deref().unwrap_or_default();
+        anyhow::ensure!(
+            company.to_lowercase().contains("acme"),
+            "healthcheck company extraction failed: {company:?}"
+        );
+        let role = self.role.as_deref().unwrap_or_default();
+        anyhow::ensure!(
+            role.to_lowercase().contains("rust"),
+            "healthcheck role extraction failed: {role:?}"
+        );
+        anyhow::ensure!(
+            self.remote == Some(true),
+            "healthcheck remote extraction failed: {:?}",
+            self.remote
+        );
+        Ok(())
+    }
 }
 
 /// Generic LLM extractor that calls a local CLI.
 ///
-/// Configure via env:
-/// - `JOBSEARCH_LLM` full command string: binary plus args (default `pi --print --no-session
-///   --no-tools --mode text --thinking off --model kimi-coding --k2p7`)
+/// Configure by passing a command string to `from_cli`. When omitted,
+/// [`DEFAULT_LLM_CLI`] is used.
 #[derive(Debug, Clone)]
 pub struct LlmExtractor<T: Extractable> {
     bin: String,
@@ -103,15 +132,17 @@ impl<T: Extractable> LlmExtractor<T> {
         self.run_and_parse::<T>(&rendered).await
     }
 
-    pub fn from_env() -> Self {
-        let tokens = std::env::var("JOBSEARCH_LLM")
-            .map(|s| shell_words::split(&s).unwrap_or_default())
-            .unwrap_or_else(|_| {
-                shell_words::split(
-                    "pi --print --no-session --no-tools --mode text --thinking off --model deepseek/deepseek-v4-flash",
-                )
-                .unwrap_or_default()
-            });
+    /// Verify the configured LLM CLI can parse the extractor's healthcheck sample.
+    pub async fn healthcheck(&self) -> Result<()> {
+        let value = self.extract(T::HEALTHCHECK_TEXT).await?;
+        value.healthcheck()
+    }
+
+    pub fn from_cli(llm_cli: Option<String>) -> Self {
+        let command = llm_cli
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| DEFAULT_LLM_CLI.to_string());
+        let tokens = shell_words::split(&command).unwrap_or_default();
         let (bin, args) = tokens
             .split_first()
             .map(|(h, t)| (h.clone(), t.to_vec()))
@@ -194,10 +225,10 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires LLM CLI reachable via JOBSEARCH_LLM"]
+    #[ignore = "requires LLM CLI reachable via --llm-cli or DEFAULT_LLM_CLI"]
     async fn test_extract_hackernews_job_from_fixture() {
         let text = include_str!("llm/fixtures/hackernews_job.md");
-        let fields = LlmExtractor::<HackerNewsFields>::from_env()
+        let fields = LlmExtractor::<HackerNewsFields>::from_cli(None)
             .extract(text)
             .await
             .expect("llm extraction failed");
