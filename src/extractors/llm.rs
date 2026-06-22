@@ -108,7 +108,7 @@ impl<T: Extractable> LlmExtractor<T> {
             .map(|s| shell_words::split(&s).unwrap_or_default())
             .unwrap_or_else(|_| {
                 shell_words::split(
-                    "pi --print --no-session --no-tools --mode text --thinking off --model kimi-coding/k2p7",
+                    "pi --print --no-session --no-tools --mode text --thinking off --model deepseek/deepseek-v4-flash",
                 )
                 .unwrap_or_default()
             });
