@@ -1,4 +1,3 @@
-use crate::browser::BrowserManager;
 use crate::db::Db;
 use crate::extractors::llm::{HackerNewsFields, LlmExtractor};
 use crate::models::{Data, HackerNewsJobDetail, Job, Platform};
@@ -208,11 +207,21 @@ impl HackerNewsScraper {
         Ok(top)
     }
 
-    pub async fn fetch_jobs(&self, query: &str) -> Result<Vec<Job>> {
+    async fn fetch_jobs(&self, db: &Db, query: &str) -> Result<Vec<Job>> {
+        self.extractor.healthcheck().await?;
+
         let comments = self.fetch_top_level_comments(query, None).await?;
         let mut jobs = Vec::new();
 
         for hit in comments {
+            if db
+                .find_job_id(&Platform::Hackernews, &hit.object_id)
+                .await?
+                .is_some()
+            {
+                continue;
+            }
+
             match self.build_job(hit).await {
                 Ok(Some(job)) => jobs.push(job),
                 Ok(None) => {}
@@ -223,9 +232,7 @@ impl HackerNewsScraper {
         Ok(jobs)
     }
 
-    async fn run_fetch(&self, db: &Db, query: &str) -> Result<FetchState> {
-        self.extractor.healthcheck().await?;
-        let jobs = self.fetch_jobs(query).await?;
+    async fn store_jobs(&self, db: &Db, jobs: Vec<Job>) -> Result<FetchState> {
         let mut state = FetchState::new();
         let total = jobs.len();
         let _guard = CursorGuard::new();
@@ -284,17 +291,8 @@ impl PlatformClient for HackerNewsScraper {
         query: &str,
         _pause_ms: u64,
     ) -> Result<FetchState> {
-        self.run_fetch(db, query).await
-    }
-
-    async fn fetch_with_manager(
-        &self,
-        _manager: &BrowserManager,
-        db: &Db,
-        query: &str,
-        _pause_ms: u64,
-    ) -> Result<FetchState> {
-        self.run_fetch(db, query).await
+        let jobs = self.fetch_jobs(db, query).await?;
+        self.store_jobs(db, jobs).await
     }
 }
 
