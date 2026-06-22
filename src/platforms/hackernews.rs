@@ -248,14 +248,17 @@ impl HackerNewsScraper {
     }
 
     async fn build_job(&self, hit: CommentHit) -> Result<Option<Job>> {
-        let first = Self::first_line(&hit.comment_text);
-        let body = Self::html_to_text(&hit.comment_text);
+        if !Self::is_job_post(&hit) {
+            return Ok(None);
+        }
 
+        let body = Self::html_to_text(&hit.comment_text);
         let fields = self.extractor.extract(&body).await?;
         if !fields.is_job_ad || Self::is_flagged(&hit) {
             return Ok(None);
         }
 
+        let first = Self::first_line(&hit.comment_text);
         let (fallback_company, fallback_role, fallback_location) = Self::split_first_line(&first);
         let company = fields
             .company
@@ -308,12 +311,11 @@ impl HackerNewsScraper {
         let mut jobs = Vec::new();
 
         for hit in comments {
+            //top level comment only
             if hit.parent_id != thread_id_num {
                 continue;
             }
-            if !Self::is_job_post(&hit) {
-                continue;
-            }
+
             match self.build_job(hit).await {
                 Ok(Some(job)) => jobs.push(job),
                 Ok(None) => {}
