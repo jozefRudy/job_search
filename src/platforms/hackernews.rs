@@ -206,9 +206,12 @@ impl HackerNewsScraper {
         score
     }
 
+    fn is_flagged(hit: &CommentHit) -> bool {
+        hit.comment_text.contains("[flagged]") || hit.comment_text.contains("[dead]")
+    }
+
     fn is_job_post(hit: &CommentHit) -> bool {
-        let text = hit.comment_text.trim();
-        if text.contains("[flagged]") || text.contains("[dead]") {
+        if Self::is_flagged(hit) {
             return false;
         }
 
@@ -249,7 +252,7 @@ impl HackerNewsScraper {
         let body = Self::html_to_text(&hit.comment_text);
 
         let fields = self.extractor.extract(&body).await?;
-        if !fields.is_job_ad {
+        if !fields.is_job_ad || Self::is_flagged(&hit) {
             return Ok(None);
         }
 
