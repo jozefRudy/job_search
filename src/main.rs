@@ -69,7 +69,7 @@ async fn main() -> Result<()> {
     let browser = BrowserManager::new();
 
     match cli.command {
-        Commands::Init {} => {
+        Commands::Init => {
             cmd_init(&browser, DEFAULT_INIT_URLS).await?;
         }
         Commands::Update(update_cmd) => match update_cmd.platform {

@@ -21,41 +21,24 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Initialize browser session (opens Brave with required tabs)
-    Init {},
-
-    /// Fetch fresh jobs from platforms
+    Init,
     Update(UpdateCmd),
-
     List(ListCmd),
-
     Show {
         id: i64,
     },
-
-    /// Delete one or more jobs by ID
     Delete {
         ids: Vec<i64>,
     },
-
     React(ReactCmd),
-
     Serve {
         #[arg(short, long, default_value = "8080")]
         port: u16,
     },
-
-    /// Show diagnostic info (DB path, job count, env)
     Diagnose,
-
-    /// Sync your sent applications from platforms
     SyncApplications(SyncApplicationsCmd),
-
-    /// Sync liked/disliked state from one database into another
     SyncLikes {
-        /// Source database path
         from: std::path::PathBuf,
-        /// Target database path
         to: std::path::PathBuf,
     },
 }
@@ -194,7 +177,7 @@ pub enum UpdatePlatform {
 
 #[derive(Args)]
 pub struct UpworkArgs {
-    #[arg(short, long, default_value = "rust")]
+    #[arg(short, long, default_value = "")]
     pub query: String,
 
     /// Tier filter: expert, intermediate, both-upper (default: all tiers)
