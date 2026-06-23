@@ -66,7 +66,7 @@ pub struct HackerNewsFields {
     #[schemars(description = "company or organization name")]
     pub company: Option<String>,
     #[schemars(
-        description = "job title or role; if multiple roles are listed, join them with '+'"
+        description = "job title or role; if multiple roles are listed, join up to 3 with '+'"
     )]
     pub role: Option<String>,
     #[schemars(description = "location mentioned in the post")]
@@ -264,7 +264,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires LLM CLI reachable via --llm-cli or DEFAULT_LLM_CLI"]
-    async fn test_extract_hackernews_multiple_roles_joins_with_plus() {
+    async fn test_extract_hackernews_multiple_roles_joins_up_to_three() {
         let text = include_str!("llm/fixtures/hackernews_multiple_roles.md");
         let fields = LlmExtractor::<HackerNewsFields>::from_cli(None)
             .extract(text)
@@ -278,8 +278,8 @@ mod tests {
             "expected backend in joined roles, got {role:?}"
         );
         assert!(
-            role.contains('+'),
-            "expected multiple roles joined with '+', got {role:?}"
+            role.chars().filter(|c| *c == '+').count() == 2,
+            "expected at most 3 roles joined, got {role:?}"
         );
         assert!(fields.remote.unwrap_or(false), "expected remote");
     }

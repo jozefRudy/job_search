@@ -119,11 +119,14 @@ impl HackerNewsScraper {
             .find(|l| !l.trim().is_empty())
             .map(|l| l.trim())
             .unwrap_or_default();
-        const MAX_TITLE_LEN: usize = 200;
-        if line.chars().count() <= MAX_TITLE_LEN {
-            line.to_string()
+        Self::truncate_with_ellipsis(line, 200)
+    }
+
+    fn truncate_with_ellipsis(text: &str, max_len: usize) -> String {
+        if text.chars().count() <= max_len {
+            text.to_string()
         } else {
-            line.chars().take(MAX_TITLE_LEN).collect::<String>() + "…"
+            text.chars().take(max_len).collect::<String>() + "…"
         }
     }
 
@@ -146,8 +149,10 @@ impl HackerNewsScraper {
         let role = fields.role.filter(|s| !s.is_empty());
         let location = fields.location.filter(|s| !s.is_empty());
 
+        const MAX_TITLE_LEN: usize = 200;
         let title = role
             .clone()
+            .map(|r| Self::truncate_with_ellipsis(&r, MAX_TITLE_LEN))
             .unwrap_or_else(|| Self::title_from_html(&hit.comment_text));
 
         let remote = fields.remote.unwrap_or(false);
