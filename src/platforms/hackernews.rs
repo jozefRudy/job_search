@@ -12,6 +12,7 @@ use chrono::{DateTime, Utc};
 use futures::stream::{Stream, StreamExt};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::pin::pin;
 
 const ALGOLIA_BASE: &str = "https://hn.algolia.com/api/v1";
@@ -88,7 +89,7 @@ impl HackerNewsScraper {
 
     async fn fetch_comments_page(
         &self,
-        thread_id: &str,
+        thread_id: i64,
         query: &str,
         page: usize,
     ) -> Result<Vec<CommentHit>> {
@@ -135,10 +136,6 @@ impl HackerNewsScraper {
     }
 
     async fn build_job(&self, hit: CommentHit) -> Result<Option<Job>> {
-        if Self::is_flagged(&hit) {
-            return Ok(None);
-        }
-
         let body = Self::html_to_text(&hit.comment_text);
         let fields = self.extractor.extract(&body).await?;
         if !fields.is_job_ad {
@@ -195,22 +192,17 @@ impl HackerNewsScraper {
         query: &str,
         limit: Option<usize>,
     ) -> Result<Vec<CommentHit>> {
-        let thread_id = self.latest_thread_id().await?;
-        let thread_id_num: i64 = thread_id.parse()?;
+        let thread_id: i64 = self.latest_thread_id().await?.parse()?;
         let max = limit.unwrap_or(usize::MAX);
         let mut top = Vec::new();
 
         for page in 0usize.. {
-            let comments = self.fetch_comments_page(&thread_id, query, page).await?;
+            let comments = self.fetch_comments_page(thread_id, query, page).await?;
             let count = comments.len();
             if count == 0 {
                 break;
             }
-            top.extend(
-                comments
-                    .into_iter()
-                    .filter(|h| h.parent_id == thread_id_num),
-            );
+            top.extend(comments.into_iter().filter(|h| h.parent_id == thread_id));
             if top.len() >= max || count < 1000 {
                 top.truncate(max);
                 break;
@@ -226,24 +218,48 @@ impl HackerNewsScraper {
         query: &'a str,
     ) -> impl Stream<Item = Result<Job>> + Send + 'a {
         try_stream! {
-            self.extractor.verify().await?;
+            const PENDING_CHUNK: usize = 1000;
 
             let comments = self.fetch_top_level_comments(query, None).await?;
             eprintln!("    Fetched {} top-level HN comments", comments.len());
 
-            for hit in comments {
-                if db
-                    .find_job_id(&Platform::Hackernews, &hit.object_id)
-                    .await?
-                    .is_some()
-                {
+            let ids: Vec<String> = comments.iter().map(|h| h.object_id.clone()).collect();
+            let mut new_ids = HashSet::new();
+            for chunk in ids.chunks(PENDING_CHUNK) {
+                new_ids.extend(db.filter_new(&Platform::Hackernews, chunk).await?);
+            }
+
+            eprintln!("    {} comments need classification", new_ids.len());
+
+            let new_comments: Vec<_> = comments
+                .into_iter()
+                .filter(|h| new_ids.contains(&h.object_id))
+                .collect();
+            if new_comments.is_empty() {
+                return;
+            }
+
+            self.extractor.verify().await?;
+
+            for hit in new_comments {
+                let object_id = hit.object_id.clone();
+
+                if Self::is_flagged(&hit) {
+                    db.mark_rejected(&Platform::Hackernews, &object_id, "flagged").await?;
                     continue;
                 }
 
                 match self.build_job(hit).await {
                     Ok(Some(job)) => yield job,
-                    Ok(None) => {}
-                    Err(e) => eprintln!("    Warning: failed to parse HN comment: {}", e),
+                    Ok(None) => {
+                        db.mark_rejected(&Platform::Hackernews, &object_id, "not_job_ad")
+                            .await?;
+                    }
+                    Err(e) => {
+                        eprintln!("    Warning: failed to parse HN comment: {}", e);
+                        db.mark_rejected(&Platform::Hackernews, &object_id, "parse_failed")
+                            .await?;
+                    }
                 }
             }
         }
@@ -274,12 +290,15 @@ impl HackerNewsScraper {
                 }
                 _ => false,
             };
-            let exists = db
-                .find_job_id(&Platform::Hackernews, &job.external_id)
-                .await?
-                .is_some();
 
-            if should_skip || exists {
+            if should_skip {
+                db.mark_rejected(
+                    &Platform::Hackernews,
+                    &job.external_id,
+                    "similar_recent_job_exists",
+                )
+                .await?;
+
                 state.inc_existing();
                 eprint!("{}", state.progress_line(None, &job.title));
                 continue;

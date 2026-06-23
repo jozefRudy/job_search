@@ -282,6 +282,47 @@ impl Db {
         Ok(id)
     }
 
+    pub async fn filter_new(&self, platform: &Platform, ids: &[String]) -> Result<Vec<String>> {
+        let ids_json = serde_json::to_string(ids)?;
+        let platform = platform.to_string();
+        let pending: Vec<String> = sqlx::query_scalar(
+            r#"
+            SELECT value
+            FROM json_each(?1)
+            WHERE value NOT IN (SELECT external_id FROM jobs WHERE platform = ?2)
+              AND value NOT IN (SELECT external_id FROM rejected_jobs WHERE platform = ?2)
+            "#,
+        )
+        .bind(&ids_json)
+        .bind(&platform)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(pending)
+    }
+
+    pub async fn mark_rejected(
+        &self,
+        platform: &Platform,
+        external_id: &str,
+        reason: &str,
+    ) -> Result<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO rejected_jobs (platform, external_id, reason)
+            VALUES (?1, ?2, ?3)
+            ON CONFLICT(platform, external_id) DO UPDATE SET
+                reason = excluded.reason,
+                rejected_at = CURRENT_TIMESTAMP
+            "#,
+            platform,
+            external_id,
+            reason,
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     /// Check whether a Hacker News job post with the same company and role
     /// already exists with a `created_at` later than `since`.
     pub async fn has_similar_hackernews_post(

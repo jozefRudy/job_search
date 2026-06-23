@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO rejected_jobs (platform, external_id, reason)\n            VALUES (?1, ?2, ?3)\n            ON CONFLICT(platform, external_id) DO UPDATE SET\n                reason = excluded.reason,\n                rejected_at = CURRENT_TIMESTAMP\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "a3c121cbdb1c6aa680e1e42f22856601e253cd2237b1ec673c7c2750b0ebded9"
+}
