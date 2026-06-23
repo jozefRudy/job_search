@@ -6,7 +6,7 @@ use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
 
-pub const DEFAULT_LLM_CLI: &str = "pi --print --no-session --no-tools --mode text --thinking off --model deepseek/deepseek-v4-flash";
+pub const DEFAULT_LLM_CLI: &str = "pi --print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-v4-flash";
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_TEXT_LEN: usize = 4000;
