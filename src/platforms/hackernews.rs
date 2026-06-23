@@ -216,7 +216,7 @@ impl HackerNewsScraper {
         Ok(top)
     }
 
-    fn fetch_jobs<'a>(
+    fn fetch_new_jobs<'a>(
         &'a self,
         db: &'a Db,
         query: &'a str,
@@ -336,7 +336,7 @@ impl PlatformClient for HackerNewsScraper {
         query: &str,
         _pause_ms: u64,
     ) -> Result<FetchState> {
-        let jobs = self.fetch_jobs(db, query);
+        let jobs = self.fetch_new_jobs(db, query);
         self.store_jobs(db, jobs).await
     }
 }
