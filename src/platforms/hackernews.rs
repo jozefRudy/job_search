@@ -229,6 +229,7 @@ impl HackerNewsScraper {
             self.extractor.verify().await?;
 
             let comments = self.fetch_top_level_comments(query, None).await?;
+            eprintln!("    Fetched {} top-level HN comments", comments.len());
 
             for hit in comments {
                 if db
@@ -242,7 +243,7 @@ impl HackerNewsScraper {
                 match self.build_job(hit).await {
                     Ok(Some(job)) => yield job,
                     Ok(None) => {}
-                    Err(e) => eprintln!("Warning: failed to parse HN comment: {}", e),
+                    Err(e) => eprintln!("    Warning: failed to parse HN comment: {}", e),
                 }
             }
         }

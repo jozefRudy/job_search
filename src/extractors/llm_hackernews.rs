@@ -11,10 +11,10 @@ pub struct Fields {
     #[schemars(description = "company or organization name")]
     pub company: Option<String>,
     #[schemars(
-        description = "job title or role; if multiple roles are listed, join them with '+'"
+        description = "job title or role; if multiple roles are listed, join them with ' + '"
     )]
     pub role: Option<String>,
-    #[schemars(description = "location mentioned in the post, if multiple, join them with '+'")]
+    #[schemars(description = "location mentioned in the post, if multiple, join them with ' + '")]
     pub location: Option<String>,
     #[schemars(
         description = "true if the post explicitly mentions remote, distributed, worldwide, or global work"

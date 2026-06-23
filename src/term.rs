@@ -18,6 +18,7 @@ impl Default for CursorGuard {
 impl Drop for CursorGuard {
     fn drop(&mut self) {
         show_cursor();
+        new_line();
     }
 }
 
@@ -29,4 +30,9 @@ fn hide_cursor() {
 /// Show terminal cursor (ANSI escape).
 fn show_cursor() {
     eprint!("\x1B[?25h");
+}
+
+/// Move to next line.
+fn new_line() {
+    eprintln!();
 }

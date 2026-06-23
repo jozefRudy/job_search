@@ -264,7 +264,6 @@ async fn sync_apps(
     eprintln!("Syncing applications from {}...", client.name());
     match client.sync_applications(&browser, db, pause_ms, None).await {
         Ok(state) => {
-            eprintln!();
             eprintln!("    {}", state.summary());
         }
         Err(e) => {
@@ -292,11 +291,9 @@ async fn fetch_and_store(
         .await
     {
         Ok(state) => {
-            eprintln!();
             eprintln!("    {}", state.summary());
         }
         Err(e) => {
-            eprintln!();
             eprintln!("    Error from {}: {}", client.name(), e);
         }
     }

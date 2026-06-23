@@ -459,7 +459,6 @@ impl PlatformClient for UpworkScraper {
             }
             sleep(Duration::from_millis(pause_ms)).await;
         }
-
         page.close().await.ok();
         Ok(state)
     }
