@@ -41,12 +41,12 @@ impl FetchState {
     pub fn progress_line(&self, total: Option<usize>, item_name: &str) -> String {
         match total {
             Some(t) => format!(
-                "\r    Progress: {:>5}/{:<5} {:.40}",
+                "\r    Progress: {:>5}/{:<5} {:<40.40}",
                 self.checked(),
                 t,
                 item_name
             ),
-            None => format!("\r    Progress: {:>5} {:.40}", self.checked(), item_name),
+            None => format!("\r    Progress: {:>5} {:<40.40}", self.checked(), item_name),
         }
     }
 }
