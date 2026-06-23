@@ -1,5 +1,6 @@
 use crate::db::Db;
-use crate::extractors::llm::{HackerNewsFields, LlmExtractor};
+use crate::extractors::llm::LlmExtractor;
+use crate::extractors::llm_hackernews;
 use crate::models::{Data, HackerNewsJobDetail, Job, Platform};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
@@ -48,7 +49,7 @@ struct CommentSearchResponse {
 
 pub struct HackerNewsScraper {
     client: Client,
-    extractor: LlmExtractor<HackerNewsFields>,
+    extractor: LlmExtractor<llm_hackernews::Fields>,
 }
 
 impl HackerNewsScraper {
@@ -58,7 +59,7 @@ impl HackerNewsScraper {
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
                 .build()
                 .unwrap_or_else(|_| Client::new()),
-            extractor: LlmExtractor::<HackerNewsFields>::from_cli(llm_cli),
+            extractor: LlmExtractor::<llm_hackernews::Fields>::from_cli(llm_cli),
         }
     }
 
@@ -114,12 +115,11 @@ impl HackerNewsScraper {
 
     fn title_from_html(html: &str) -> String {
         let text = Self::html_to_text(html);
-        let line = text
-            .lines()
+        text.lines()
             .find(|l| !l.trim().is_empty())
             .map(|l| l.trim())
-            .unwrap_or_default();
-        Self::truncate_with_ellipsis(line, 200)
+            .unwrap_or_default()
+            .to_string()
     }
 
     fn truncate_with_ellipsis(text: &str, max_len: usize) -> String {
@@ -150,10 +150,11 @@ impl HackerNewsScraper {
         let location = fields.location.filter(|s| !s.is_empty());
 
         const MAX_TITLE_LEN: usize = 200;
+
         let title = role
             .clone()
-            .map(|r| Self::truncate_with_ellipsis(&r, MAX_TITLE_LEN))
             .unwrap_or_else(|| Self::title_from_html(&hit.comment_text));
+        let title = Self::truncate_with_ellipsis(&title, MAX_TITLE_LEN);
 
         let remote = fields.remote.unwrap_or(false);
         let tags = fields.tags;
@@ -336,13 +337,5 @@ mod tests {
             HackerNewsScraper::title_from_html(html),
             "Acme Inc | Rust Engineer | Remote"
         );
-    }
-
-    #[test]
-    fn test_title_truncates_long_lines() {
-        let html = "a".repeat(300);
-        let title = HackerNewsScraper::title_from_html(&html);
-        assert_eq!(title.chars().count(), 201);
-        assert!(title.ends_with('…'));
     }
 }

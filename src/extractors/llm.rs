@@ -9,7 +9,7 @@ use tokio::time::timeout;
 pub const DEFAULT_LLM_CLI: &str = "pi --print --no-session --no-tools --mode text --thinking off --model deepseek/deepseek-v4-flash";
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
-const MAX_TEXT_LEN: usize = 2000;
+const MAX_TEXT_LEN: usize = 4000;
 
 macro_rules! define_prompts {
     ($(($variant:ident, $struct:ident, $path:literal)),* $(,)?) => {
@@ -56,61 +56,6 @@ pub trait Extractable: JsonSchema + for<'de> Deserialize<'de> {
     const HEALTHCHECK_TEXT: &'static str;
     /// Validate that a healthcheck extraction succeeded.
     fn verify(&self) -> Result<()>;
-}
-
-#[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
-pub struct HackerNewsFields {
-    #[schemars(description = "true only if the comment is an actual job advertisement")]
-    #[serde(default)]
-    pub is_job_ad: bool,
-    #[schemars(description = "company or organization name")]
-    pub company: Option<String>,
-    #[schemars(
-        description = "job title or role; if multiple roles are listed, join up to 3 with '+'"
-    )]
-    pub role: Option<String>,
-    #[schemars(description = "location mentioned in the post")]
-    pub location: Option<String>,
-    #[schemars(
-        description = "true if the post explicitly mentions remote, distributed, worldwide, or global work"
-    )]
-    #[serde(default)]
-    pub remote: Option<bool>,
-    #[schemars(description = "raw compensation snippet (e.g. '$150k-$175k' or 'EUR 80k-100k')")]
-    pub budget: Option<String>,
-    #[serde(default)]
-    #[schemars(
-        description = "include 'remote', 'onsite', or 'hybrid' when mentioned, plus tech/stack keywords"
-    )]
-    pub tags: Vec<String>,
-}
-
-impl Extractable for HackerNewsFields {
-    const PROMPT: PromptKind = PromptKind::HackerNews;
-    const HEALTHCHECK_TEXT: &'static str = include_str!("llm/fixtures/hackernews_healthcheck.md");
-
-    fn verify(&self) -> Result<()> {
-        anyhow::ensure!(
-            self.is_job_ad,
-            "healthcheck text must be classified as a job ad"
-        );
-        let company = self.company.as_deref().unwrap_or_default();
-        anyhow::ensure!(
-            company.to_lowercase().contains("acme"),
-            "healthcheck company extraction failed: {company:?}"
-        );
-        let role = self.role.as_deref().unwrap_or_default();
-        anyhow::ensure!(
-            role.to_lowercase().contains("rust"),
-            "healthcheck role extraction failed: {role:?}"
-        );
-        anyhow::ensure!(
-            self.remote == Some(true),
-            "healthcheck remote extraction failed: {:?}",
-            self.remote
-        );
-        Ok(())
-    }
 }
 
 /// Generic LLM extractor that calls a local CLI.
@@ -217,6 +162,7 @@ fn strip_json_fences(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::extractors::llm_hackernews;
 
     #[test]
     fn test_hackernews_prompt_renders_placeholders() {
@@ -230,7 +176,7 @@ mod tests {
     #[test]
     fn test_truncate_respects_char_boundaries() {
         let s = "αβγδ".repeat(1000);
-        let t = LlmExtractor::<HackerNewsFields>::truncate(&s);
+        let t = LlmExtractor::<llm_hackernews::Fields>::truncate(&s);
         assert!(t.len() <= MAX_TEXT_LEN);
         assert!(t.is_char_boundary(t.len()));
     }
@@ -245,42 +191,5 @@ mod tests {
     fn test_strip_json_fences_leaves_plain_json() {
         let raw = "{\"is_job_ad\": true}";
         assert_eq!(strip_json_fences(raw), "{\"is_job_ad\": true}");
-    }
-
-    #[tokio::test]
-    #[ignore = "requires LLM CLI reachable via --llm-cli or DEFAULT_LLM_CLI"]
-    async fn test_extract_hackernews_job_from_fixture() {
-        let text = include_str!("llm/fixtures/hackernews_job.md");
-        let fields = LlmExtractor::<HackerNewsFields>::from_cli(None)
-            .extract(text)
-            .await
-            .expect("llm extraction failed");
-        assert!(fields.is_job_ad, "expected job ad");
-        assert_eq!(fields.company.as_deref(), Some("Stripe"));
-        assert_eq!(fields.role.as_deref(), Some("Senior Backend Engineer"));
-        assert!(fields.remote.unwrap_or(false), "expected remote");
-        assert!(fields.budget.is_some(), "expected budget");
-    }
-
-    #[tokio::test]
-    #[ignore = "requires LLM CLI reachable via --llm-cli or DEFAULT_LLM_CLI"]
-    async fn test_extract_hackernews_multiple_roles_joins_up_to_three() {
-        let text = include_str!("llm/fixtures/hackernews_multiple_roles.md");
-        let fields = LlmExtractor::<HackerNewsFields>::from_cli(None)
-            .extract(text)
-            .await
-            .expect("llm extraction failed");
-        assert!(fields.is_job_ad, "expected job ad");
-        assert_eq!(fields.company.as_deref(), Some("Close"));
-        let role = fields.role.as_deref().unwrap_or_default();
-        assert!(
-            role.to_lowercase().contains("backend"),
-            "expected backend in joined roles, got {role:?}"
-        );
-        assert!(
-            role.chars().filter(|c| *c == '+').count() == 2,
-            "expected at most 3 roles joined, got {role:?}"
-        );
-        assert!(fields.remote.unwrap_or(false), "expected remote");
     }
 }
