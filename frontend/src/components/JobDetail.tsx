@@ -293,7 +293,19 @@ export function HackerNewsDetail(props: { job: Job }) {
         <h3 class="card-title text-lg">Details</h3>
         <Stack gap="sm">
           <DetailList>
-            <DetailRow label="Author" value={d.author} />
+            <DetailRow
+              label="Author"
+              value={
+                <a
+                  class="link link-primary"
+                  href={d.author_threads_url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {d.author}
+                </a>
+              }
+            />
             <DetailRow label="Company" value={d.company ?? props.job.company} />
             <DetailRow label="Role" value={d.role} />
             <DetailRow label="Location" value={d.location} />
@@ -372,7 +384,10 @@ function DetailList(props: { children: JSX.Element }) {
   );
 }
 
-function DetailRow(props: { label: string; value: string | null | undefined }) {
+function DetailRow(props: {
+  label: string;
+  value: JSX.Element | null | undefined;
+}) {
   if (!props.value) return null;
   return (
     <>

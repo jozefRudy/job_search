@@ -23,6 +23,7 @@ pub enum Data {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
 pub struct HackerNewsJobDetail {
     pub author: String,
+    pub author_threads_url: String,
     pub company: Option<String>,
     pub role: Option<String>,
     pub location: Option<String>,

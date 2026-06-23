@@ -719,6 +719,7 @@ mod tests {
             raw: Data::Hackernews {
                 detail: HackerNewsJobDetail {
                     author: "whoishiring".to_string(),
+                    author_threads_url: "https://news.ycombinator.com/threads?id=whoishiring".to_string(),
                     company: Some(company.to_string()),
                     role: Some(role.to_string()),
                     location: None,

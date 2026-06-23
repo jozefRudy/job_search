@@ -170,7 +170,11 @@ impl HackerNewsScraper {
             tags,
             raw: Data::Hackernews {
                 detail: HackerNewsJobDetail {
-                    author: hit.author,
+                    author: hit.author.clone(),
+                    author_threads_url: format!(
+                        "https://news.ycombinator.com/threads?id={}",
+                        urlencoding::encode(&hit.author)
+                    ),
                     company,
                     role,
                     location,

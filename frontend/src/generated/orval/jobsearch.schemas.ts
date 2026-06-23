@@ -65,6 +65,7 @@ export interface EfinancialcareersJobDetail {
  */
 export interface HackerNewsJobDetail {
   author: string;
+  author_threads_url: string;
   /** @nullable */
   company?: string | null;
   /** @nullable */
