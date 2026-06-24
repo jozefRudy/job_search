@@ -1,4 +1,4 @@
-use crate::models::{Data, Job, Paginated, Platform, Rating, Sort};
+use crate::models::{Data, Job, JobFilter, Paginated, Platform, Rating, Sort};
 use anyhow::Result;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use std::str::FromStr;
@@ -87,15 +87,13 @@ impl Db {
 
     pub async fn list_jobs_filtered(
         &self,
-        platform: Option<Platform>,
-        liked: Option<Rating>,
-        applied: Option<bool>,
+        filter: &JobFilter,
         sort: Sort,
         limit: i64,
         offset: i64,
     ) -> Result<Paginated<Job>> {
         let order_by = sort.order_by_sql();
-        let liked_str = liked.as_ref().map(|r| match r {
+        let liked_str = filter.liked.as_ref().map(|r| match r {
             Rating::Liked => "liked",
             Rating::Disliked => "disliked",
             Rating::Neutral => "neutral",
@@ -116,10 +114,12 @@ impl Db {
                 (?3 = 1 AND r.applied_at IS NOT NULL) OR
                 (?3 = 0 AND r.applied_at IS NULL)
               ))
+              AND (?4 IS NULL OR j.remote = ?4)
             "#,
-            platform,
+            filter.platform,
             liked_str,
-            applied,
+            filter.applied,
+            filter.remote,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -141,14 +141,16 @@ impl Db {
                 (?3 = 1 AND r.applied_at IS NOT NULL) OR
                 (?3 = 0 AND r.applied_at IS NULL)
               ))
-            ORDER BY {} LIMIT ?4 OFFSET ?5
+              AND (?4 IS NULL OR j.remote = ?4)
+            ORDER BY {} LIMIT ?5 OFFSET ?6
             "#,
             order_by
         );
         let rows = sqlx::query_as::<_, JobRow>(&sql)
-            .bind(platform)
+            .bind(filter.platform)
             .bind(liked_str)
-            .bind(applied)
+            .bind(filter.applied)
+            .bind(filter.remote)
             .bind(limit)
             .bind(offset)
             .fetch_all(&self.pool)
@@ -779,9 +781,11 @@ mod tests {
 
         let applied = db
             .list_jobs_filtered(
-                Some(Platform::Upwork),
-                None,
-                Some(true),
+                &JobFilter {
+                    platform: Some(Platform::Upwork),
+                    applied: Some(true),
+                    ..Default::default()
+                },
                 Sort::Created,
                 10,
                 0,
@@ -792,9 +796,11 @@ mod tests {
 
         let not_applied = db
             .list_jobs_filtered(
-                Some(Platform::Upwork),
-                None,
-                Some(false),
+                &JobFilter {
+                    platform: Some(Platform::Upwork),
+                    applied: Some(false),
+                    ..Default::default()
+                },
                 Sort::Created,
                 10,
                 0,
@@ -804,7 +810,74 @@ mod tests {
         assert_eq!(not_applied.items[0].title, "Not applied");
 
         let all = db
-            .list_jobs_filtered(Some(Platform::Upwork), None, None, Sort::Created, 10, 0)
+            .list_jobs_filtered(
+                &JobFilter {
+                    platform: Some(Platform::Upwork),
+                    ..Default::default()
+                },
+                Sort::Created,
+                10,
+                0,
+            )
+            .await?;
+        assert_eq!(all.items.len(), 2);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_jobs_filtered_remote() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let mut remote_job = test_job(Platform::Upwork, "remote-1", "Remote job");
+        remote_job.remote = true;
+        let mut onsite_job = test_job(Platform::Upwork, "onsite-1", "Onsite job");
+        onsite_job.remote = false;
+
+        db.upsert_job(&remote_job).await?;
+        db.upsert_job(&onsite_job).await?;
+
+        let remote = db
+            .list_jobs_filtered(
+                &JobFilter {
+                    platform: Some(Platform::Upwork),
+                    remote: Some(true),
+                    ..Default::default()
+                },
+                Sort::Created,
+                10,
+                0,
+            )
+            .await?;
+        assert_eq!(remote.items.len(), 1);
+        assert!(remote.items[0].remote);
+
+        let onsite = db
+            .list_jobs_filtered(
+                &JobFilter {
+                    platform: Some(Platform::Upwork),
+                    remote: Some(false),
+                    ..Default::default()
+                },
+                Sort::Created,
+                10,
+                0,
+            )
+            .await?;
+        assert_eq!(onsite.items.len(), 1);
+        assert!(!onsite.items[0].remote);
+
+        let all = db
+            .list_jobs_filtered(
+                &JobFilter {
+                    platform: Some(Platform::Upwork),
+                    ..Default::default()
+                },
+                Sort::Created,
+                10,
+                0,
+            )
             .await?;
         assert_eq!(all.items.len(), 2);
 

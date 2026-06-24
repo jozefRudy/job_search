@@ -254,6 +254,7 @@ pub struct ListQuery {
     pub platform: Option<Platform>,
     pub rating: Option<Rating>,
     pub applied: Option<bool>,
+    pub remote: Option<bool>,
     #[serde(default)]
     pub sort_by: Sort,
     #[serde(default = "default_page")]
@@ -326,19 +327,15 @@ impl std::str::FromStr for Recency {
 /// Filter criteria for job lists.
 #[derive(Debug, Clone, Default)]
 pub struct JobFilter {
-    pub recency: Option<Recency>,
+    pub platform: Option<Platform>,
     pub applied: Option<bool>,
     pub liked: Option<Rating>,
+    pub remote: Option<bool>,
 }
 
 impl JobFilter {
     pub fn apply(&self, jobs: Vec<Job>) -> Vec<Job> {
         let mut jobs = jobs;
-
-        if let Some(Recency(days)) = &self.recency {
-            let cutoff = Utc::now() - chrono::Duration::days(*days);
-            jobs.retain(|j| j.created_at >= cutoff);
-        }
 
         match self.applied {
             Some(true) => jobs.retain(|j| j.applied_at.is_some()),
@@ -351,6 +348,10 @@ impl JobFilter {
             Some(Rating::Disliked) => jobs.retain(|j| j.liked == Some(false)),
             Some(Rating::Neutral) => jobs.retain(|j| j.liked.is_none()),
             None => {}
+        }
+
+        if let Some(remote) = self.remote {
+            jobs.retain(|j| j.remote == remote);
         }
 
         jobs
@@ -853,67 +854,6 @@ mod tests {
         assert_eq!(
             ids(JobFilter {
                 liked: None,
-                ..Default::default()
-            }),
-            vec![1, 2, 3]
-        );
-    }
-
-    #[test]
-    fn test_job_filter_recency() {
-        fn job(id: i64, created_at: DateTime<Utc>) -> Job {
-            Job {
-                id,
-                platform: Platform::Upwork,
-                external_id: format!("j{id}"),
-                title: format!("Job {id}"),
-                description: None,
-                url: "https://e.com".into(),
-                budget: None,
-                tags: vec![],
-                raw: Data::Upwork {
-                    detail: UpworkJobDetail::default(),
-                },
-                company: None,
-                created_at,
-                updated_at: Utc::now(),
-                liked: None,
-                note: None,
-                applied_at: None,
-                remote: true,
-            }
-        }
-
-        let jobs = vec![
-            job(1, Utc::now() - chrono::Duration::hours(1)),
-            job(2, Utc::now() - chrono::Duration::days(2)),
-            job(3, Utc::now() - chrono::Duration::days(10)),
-        ];
-
-        let ids = |f: JobFilter| {
-            f.apply(jobs.clone())
-                .into_iter()
-                .map(|j| j.id)
-                .collect::<Vec<_>>()
-        };
-
-        assert_eq!(
-            ids(JobFilter {
-                recency: Some(Recency(1)),
-                ..Default::default()
-            }),
-            vec![1]
-        );
-        assert_eq!(
-            ids(JobFilter {
-                recency: Some(Recency(5)),
-                ..Default::default()
-            }),
-            vec![1, 2]
-        );
-        assert_eq!(
-            ids(JobFilter {
-                recency: None,
                 ..Default::default()
             }),
             vec![1, 2, 3]

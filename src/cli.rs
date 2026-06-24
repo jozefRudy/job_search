@@ -1,5 +1,4 @@
 use crate::extractors::llm::DEFAULT_LLM_CLI;
-use crate::models::Recency;
 use crate::platforms::upwork::UpworkTier;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
@@ -51,11 +50,31 @@ pub struct ListCmd {
 
 #[derive(Subcommand)]
 pub enum ListTarget {
-    All(CommonListArgs),
+    All(AllListArgs),
     Upwork(UpworkListArgs),
-    Nofluff(CommonListArgs),
-    Efinancialcareers(CommonListArgs),
-    Hackernews(CommonListArgs),
+    Nofluff(PlatformListArgs),
+    Efinancialcareers(PlatformListArgs),
+    Hackernews(PlatformListArgs),
+}
+
+#[derive(Args)]
+pub struct AllListArgs {
+    #[command(flatten)]
+    pub common: CommonListArgs,
+
+    /// Sort order: created, applied
+    #[arg(long, value_enum, default_value = "created")]
+    pub sort: CommonSortBy,
+}
+
+#[derive(Args)]
+pub struct PlatformListArgs {
+    #[command(flatten)]
+    pub common: CommonListArgs,
+
+    /// Sort order: created, applied
+    #[arg(long, value_enum, default_value = "created")]
+    pub sort: CommonSortBy,
 }
 
 #[derive(Args)]
@@ -63,10 +82,6 @@ pub struct CommonListArgs {
     /// Show platform-specific details below each row
     #[arg(long)]
     pub detailed: bool,
-
-    /// Filter by recency, e.g. 1d, 4w
-    #[arg(long)]
-    pub recency: Option<Recency>,
 
     /// Filter by applied status: true/false. Omit for all.
     #[arg(long)]
@@ -76,9 +91,9 @@ pub struct CommonListArgs {
     #[arg(long)]
     pub rating: Option<crate::models::Rating>,
 
-    /// Sort order: created, applied
-    #[arg(long, value_enum, default_value = "created")]
-    pub sort: CommonSortBy,
+    /// Filter by remote status: true/false. Omit for all.
+    #[arg(long)]
+    pub remote: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]

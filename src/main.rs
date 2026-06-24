@@ -107,96 +107,69 @@ async fn main() -> Result<()> {
         Commands::List(cmd) => match cmd.target {
             ListTarget::All(args) => {
                 let filter = JobFilter {
-                    recency: args.recency,
-                    applied: args.applied,
-                    liked: args.rating,
+                    platform: None,
+                    applied: args.common.applied,
+                    liked: args.common.rating,
+                    remote: args.common.remote,
                 };
                 let sort = match args.sort {
                     CommonSortBy::Created => Sort::Created,
                     CommonSortBy::Applied => Sort::Applied,
                 };
-                cmd_list(&db, None, filter, args.detailed, sort, cli.json).await?;
+                cmd_list(&db, filter, args.common.detailed, sort, cli.json).await?;
             }
             ListTarget::Upwork(args) => {
                 let filter = JobFilter {
-                    recency: args.common.recency,
+                    platform: Some(Platform::Upwork),
                     applied: args.common.applied,
                     liked: args.common.rating,
+                    remote: args.common.remote,
                 };
                 let sort = match args.sort {
                     UpworkSortBy::Created => Sort::Created,
                     UpworkSortBy::UpworkViewed => Sort::UpworkViewed,
                     UpworkSortBy::Applied => Sort::Applied,
                 };
-                cmd_list(
-                    &db,
-                    Some(Platform::Upwork),
-                    filter,
-                    args.common.detailed,
-                    sort,
-                    cli.json,
-                )
-                .await?;
+                cmd_list(&db, filter, args.common.detailed, sort, cli.json).await?;
             }
             ListTarget::Nofluff(args) => {
                 let filter = JobFilter {
-                    recency: args.recency,
-                    applied: args.applied,
-                    liked: args.rating,
+                    platform: Some(Platform::NoFluffJobs),
+                    applied: args.common.applied,
+                    liked: args.common.rating,
+                    remote: args.common.remote,
                 };
                 let sort = match args.sort {
                     CommonSortBy::Created => Sort::Created,
                     CommonSortBy::Applied => Sort::Applied,
                 };
-                cmd_list(
-                    &db,
-                    Some(Platform::NoFluffJobs),
-                    filter,
-                    args.detailed,
-                    sort,
-                    cli.json,
-                )
-                .await?;
+                cmd_list(&db, filter, args.common.detailed, sort, cli.json).await?;
             }
             ListTarget::Efinancialcareers(args) => {
                 let filter = JobFilter {
-                    recency: args.recency,
-                    applied: args.applied,
-                    liked: args.rating,
+                    platform: Some(Platform::Efinancialcareers),
+                    applied: args.common.applied,
+                    liked: args.common.rating,
+                    remote: args.common.remote,
                 };
                 let sort = match args.sort {
                     CommonSortBy::Created => Sort::Created,
                     CommonSortBy::Applied => Sort::Applied,
                 };
-                cmd_list(
-                    &db,
-                    Some(Platform::Efinancialcareers),
-                    filter,
-                    args.detailed,
-                    sort,
-                    cli.json,
-                )
-                .await?;
+                cmd_list(&db, filter, args.common.detailed, sort, cli.json).await?;
             }
             ListTarget::Hackernews(args) => {
                 let filter = JobFilter {
-                    recency: args.recency,
-                    applied: args.applied,
-                    liked: args.rating,
+                    platform: Some(Platform::Hackernews),
+                    applied: args.common.applied,
+                    liked: args.common.rating,
+                    remote: args.common.remote,
                 };
                 let sort = match args.sort {
                     CommonSortBy::Created => Sort::Created,
                     CommonSortBy::Applied => Sort::Applied,
                 };
-                cmd_list(
-                    &db,
-                    Some(Platform::Hackernews),
-                    filter,
-                    args.detailed,
-                    sort,
-                    cli.json,
-                )
-                .await?;
+                cmd_list(&db, filter, args.common.detailed, sort, cli.json).await?;
             }
         },
         Commands::Show { id } => {
@@ -302,14 +275,14 @@ async fn fetch_and_store(
 
 async fn cmd_list(
     db: &Db,
-    platform: Option<Platform>,
     filter: JobFilter,
     detailed: bool,
     sort: Sort,
     json: bool,
 ) -> Result<()> {
-    let jobs = db.list_jobs(platform, sort, i64::MAX).await?;
-    let jobs = filter.apply(jobs);
+    let jobs = db.list_jobs_filtered(&filter, sort, i64::MAX, 0).await?;
+    let jobs = jobs.items;
+    let platform = filter.platform;
 
     if json {
         println!("{}", serde_json::to_string_pretty(&jobs)?);

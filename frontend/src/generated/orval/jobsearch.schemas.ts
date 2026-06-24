@@ -164,6 +164,7 @@ export type ListJobsParams = {
 platform?: Platform;
 rating?: Rating;
 applied?: boolean;
+remote?: boolean;
 sort_by?: Sort;
 /**
  * @minimum 0

@@ -1,8 +1,8 @@
 use crate::cli::VERSION;
 use crate::db::Db;
 use crate::models::{
-    ApplyRequest, Data, HackerNewsJobDetail, Job, JobListResponse, ListQuery, NoFluffJobDetail,
-    Platform, RateRequest, Rating, Sort, UpworkJobDetail,
+    ApplyRequest, Data, HackerNewsJobDetail, Job, JobFilter, JobListResponse, ListQuery,
+    NoFluffJobDetail, Platform, RateRequest, Rating, Sort, UpworkJobDetail,
 };
 use anyhow::Result;
 use axum::{
@@ -94,16 +94,15 @@ async fn list_jobs(
     let offset = ((page - 1) * page_size) as i64;
     let limit = page_size as i64;
 
+    let filter = JobFilter {
+        platform: query.platform,
+        liked: query.rating,
+        applied: query.applied,
+        remote: query.remote,
+    };
     let paginated = state
         .db
-        .list_jobs_filtered(
-            query.platform,
-            query.rating,
-            query.applied,
-            query.sort_by,
-            limit,
-            offset,
-        )
+        .list_jobs_filtered(&filter, query.sort_by, limit, offset)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
