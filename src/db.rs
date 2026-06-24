@@ -108,7 +108,7 @@ impl Db {
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
               AND (?2 IS NULL OR j.liked IS ?2)
-              AND (?3 IS NULL OR (r.applied_at IS NOT NULL) = ?3)
+              AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
               AND (?5 IS NULL OR j.is_english = ?5)
             "#,
@@ -130,7 +130,7 @@ impl Db {
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
               AND (?2 IS NULL OR j.liked IS ?2)
-              AND (?3 IS NULL OR (r.applied_at IS NOT NULL) = ?3)
+              AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
               AND (?5 IS NULL OR j.is_english = ?5)
             ORDER BY {} LIMIT ?6 OFFSET ?7
