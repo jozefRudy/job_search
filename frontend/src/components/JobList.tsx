@@ -56,12 +56,19 @@ export function JobList() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   onMount(() => {
+    const platform = (searchParams.platform as string | undefined) ?? "any";
+
+    const sortBy =
+      (searchParams.sort_by as string | undefined) ??
+      PLATFORM_SORTS[platform as Platform | "any"][0].value;
+
     const next: Record<string, string | boolean> = {
-      platform: (searchParams.platform as string | undefined) ?? "any",
+      platform: platform,
       rating: (searchParams.rating as string | undefined) ?? "any",
       applied: (searchParams.applied as string | undefined) ?? "any",
       remote: (searchParams.remote as string | undefined) ?? "any",
       is_english: (searchParams.is_english as string | undefined) ?? "any",
+      sort_by: sortBy,
     };
     setSearchParams(next, { replace: true });
   });
