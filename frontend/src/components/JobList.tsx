@@ -73,46 +73,33 @@ export function JobList() {
     setSearchParams(next, { replace: true });
   });
 
+  function enumFilter<T extends string>(
+    value: unknown,
+    values: readonly T[],
+  ): T | "any" {
+    return z
+      .union([...values.map((v) => z.literal(v)), z.literal("any")])
+      .catch("any")
+      .parse(value) as T | "any";
+  }
+
   const platform = (): Platform | "any" =>
-    z
-      .union([
-        z.literal("upwork"),
-        z.literal("nofluffjobs"),
-        z.literal("efinancialcareers"),
-        z.literal("hackernews"),
-        z.literal("any"),
-      ])
-      .catch("any")
-      .parse(searchParams.platform);
+    enumFilter(searchParams.platform, [
+      "upwork",
+      "nofluffjobs",
+      "efinancialcareers",
+      "hackernews",
+    ]);
 
-  const ratingFilter = (): Rating | "any" =>
-    z
-      .union([
-        z.literal("liked"),
-        z.literal("neutral"),
-        z.literal("disliked"),
-        z.literal("any"),
-      ])
-      .catch("any")
-      .parse(searchParams.rating);
+  const rating = (): Rating | "any" =>
+    enumFilter(searchParams.rating, ["liked", "neutral", "disliked"]);
 
-  const appliedFilter = (): BoolFilter =>
-    z
-      .union([z.literal("true"), z.literal("false"), z.literal("any")])
-      .catch("any")
-      .parse(searchParams.applied);
-
-  const remoteFilter = (): BoolFilter =>
-    z
-      .union([z.literal("true"), z.literal("false"), z.literal("any")])
-      .catch("any")
-      .parse(searchParams.remote);
-
-  const englishFilter = (): BoolFilter =>
-    z
-      .union([z.literal("true"), z.literal("false"), z.literal("any")])
-      .catch("any")
-      .parse(searchParams.is_english);
+  const applied = (): BoolFilter =>
+    enumFilter(searchParams.applied, ["true", "false"]);
+  const remote = (): BoolFilter =>
+    enumFilter(searchParams.remote, ["true", "false"]);
+  const english = (): BoolFilter =>
+    enumFilter(searchParams.is_english, ["true", "false"]);
 
   const sortBy = (): Sort => {
     const key: Platform | "any" = platform();
@@ -131,11 +118,10 @@ export function JobList() {
         page: page(),
         page_size: PAGE_SIZE,
         platform: platform() === "any" ? null : platform(),
-        rating: ratingFilter() === "any" ? null : ratingFilter(),
-        applied: appliedFilter() === "any" ? null : appliedFilter() === "true",
-        remote: remoteFilter() === "any" ? null : remoteFilter() === "true",
-        is_english:
-          englishFilter() === "any" ? null : englishFilter() === "true",
+        rating: rating() === "any" ? null : rating(),
+        applied: applied() === "any" ? null : applied() === "true",
+        remote: remote() === "any" ? null : remote() === "true",
+        is_english: english() === "any" ? null : english() === "true",
       },
       isNotNil,
     ) as ListJobsParams;
@@ -328,7 +314,7 @@ export function JobList() {
 
           <select
             class="select select-sm"
-            value={ratingFilter()}
+            value={rating()}
             onChange={(e) =>
               setRatingAndReset(e.currentTarget.value as Rating | "any")
             }
@@ -341,7 +327,7 @@ export function JobList() {
 
           <select
             class="select select-sm"
-            value={appliedFilter()}
+            value={applied()}
             onChange={(e) =>
               setAppliedAndReset(e.currentTarget.value as BoolFilter)
             }
@@ -353,7 +339,7 @@ export function JobList() {
 
           <select
             class="select select-sm"
-            value={remoteFilter()}
+            value={remote()}
             onChange={(e) =>
               setRemoteAndReset(e.currentTarget.value as BoolFilter)
             }
@@ -365,7 +351,7 @@ export function JobList() {
 
           <select
             class="select select-sm"
-            value={englishFilter()}
+            value={english()}
             onChange={(e) =>
               setEnglishAndReset(e.currentTarget.value as BoolFilter)
             }
