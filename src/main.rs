@@ -7,7 +7,6 @@ use jobsearch::cli::{
     UpworkSortBy,
 };
 use jobsearch::db::Db;
-use jobsearch::display;
 use jobsearch::models::{JobFilter, Platform, Sort};
 use jobsearch::platforms::{
     PlatformClient,
@@ -116,7 +115,7 @@ async fn main() -> Result<()> {
                     CommonSortBy::Created => Sort::Created,
                     CommonSortBy::Applied => Sort::Applied,
                 };
-                cmd_list(&db, filter, args.common.detailed, sort, cli.json).await?;
+                cmd_list(&db, filter, sort).await?;
             }
             ListTarget::Upwork(args) => {
                 let filter = JobFilter {
@@ -130,7 +129,7 @@ async fn main() -> Result<()> {
                     UpworkSortBy::UpworkViewed => Sort::UpworkViewed,
                     UpworkSortBy::Applied => Sort::Applied,
                 };
-                cmd_list(&db, filter, args.common.detailed, sort, cli.json).await?;
+                cmd_list(&db, filter, sort).await?;
             }
             ListTarget::Nofluff(args) => {
                 let filter = JobFilter {
@@ -143,7 +142,7 @@ async fn main() -> Result<()> {
                     CommonSortBy::Created => Sort::Created,
                     CommonSortBy::Applied => Sort::Applied,
                 };
-                cmd_list(&db, filter, args.common.detailed, sort, cli.json).await?;
+                cmd_list(&db, filter, sort).await?;
             }
             ListTarget::Efinancialcareers(args) => {
                 let filter = JobFilter {
@@ -156,7 +155,7 @@ async fn main() -> Result<()> {
                     CommonSortBy::Created => Sort::Created,
                     CommonSortBy::Applied => Sort::Applied,
                 };
-                cmd_list(&db, filter, args.common.detailed, sort, cli.json).await?;
+                cmd_list(&db, filter, sort).await?;
             }
             ListTarget::Hackernews(args) => {
                 let filter = JobFilter {
@@ -169,11 +168,11 @@ async fn main() -> Result<()> {
                     CommonSortBy::Created => Sort::Created,
                     CommonSortBy::Applied => Sort::Applied,
                 };
-                cmd_list(&db, filter, args.common.detailed, sort, cli.json).await?;
+                cmd_list(&db, filter, sort).await?;
             }
         },
         Commands::Show { id } => {
-            cmd_show(&db, id, cli.json).await?;
+            cmd_show(&db, id).await?;
         }
         Commands::Delete { ids } => {
             cmd_delete(&db, ids).await?;
@@ -273,47 +272,18 @@ async fn fetch_and_store(
     Ok(())
 }
 
-async fn cmd_list(
-    db: &Db,
-    filter: JobFilter,
-    detailed: bool,
-    sort: Sort,
-    json: bool,
-) -> Result<()> {
+async fn cmd_list(db: &Db, filter: JobFilter, sort: Sort) -> Result<()> {
     let jobs = db.list_jobs_filtered(&filter, sort, i64::MAX, 0).await?;
-    let jobs = jobs.items;
-    let platform = filter.platform;
-
-    if json {
-        println!("{}", serde_json::to_string_pretty(&jobs)?);
-        return Ok(());
-    }
-
-    if detailed {
-        for job in &jobs {
-            println!("{}", display::render_job_detailed(job));
-        }
-        println!("\nTotal: {} jobs", jobs.len());
-    } else {
-        println!("{}", display::render_table(&jobs, platform));
-        println!("\nTotal: {} jobs", jobs.len());
-    }
-
+    println!("{}", serde_json::to_string_pretty(&jobs.items)?);
     Ok(())
 }
 
-async fn cmd_show(db: &Db, id: i64, json: bool) -> Result<()> {
+async fn cmd_show(db: &Db, id: i64) -> Result<()> {
     let job = db
         .get_job(id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("Job {} not found", id))?;
-
-    if json {
-        println!("{}", serde_json::to_string_pretty(&job)?);
-    } else {
-        println!("{}", display::render_job_detailed(&job));
-    }
-
+    println!("{}", serde_json::to_string_pretty(&job)?);
     Ok(())
 }
 

@@ -11,9 +11,6 @@ pub const VERSION: &str = match option_env!("GIT_HASH") {
 #[command(name = "jobsearch", version = VERSION)]
 #[command(about = "Unified job search CLI")]
 pub struct Cli {
-    #[arg(long, global = true)]
-    pub json: bool,
-
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -79,10 +76,6 @@ pub struct PlatformListArgs {
 
 #[derive(Args)]
 pub struct CommonListArgs {
-    /// Show platform-specific details below each row
-    #[arg(long)]
-    pub detailed: bool,
-
     /// Filter by applied status: true/false. Omit for all.
     #[arg(long)]
     pub applied: Option<bool>,
