@@ -92,6 +92,16 @@ export function JobList() {
       .catch(null)
       .parse(searchParams.remote);
 
+  const englishFilter = (): boolean | null =>
+    z
+      .union([
+        z.literal("true").transform(() => true),
+        z.literal("false").transform(() => false),
+        z.null(),
+      ])
+      .catch(null)
+      .parse(searchParams.is_english);
+
   const sortBy = (): Sort => {
     const supported = PLATFORM_SORTS[platform() ?? "all"].map((s) => s.value);
     const schema = z.enum(supported as [Sort, ...Sort[]]).catch(supported[0]);
@@ -111,6 +121,7 @@ export function JobList() {
         rating: ratingFilter(),
         applied: appliedFilter(),
         remote: remoteFilter(),
+        is_english: englishFilter(),
       },
       isNotNil,
     ) as ListJobsParams;
@@ -151,6 +162,10 @@ export function JobList() {
 
   function setRemoteAndReset(r: boolean | null) {
     setSearchParams({ remote: r, page: "" }, { replace: true });
+  }
+
+  function setEnglishAndReset(e: boolean | null) {
+    setSearchParams({ is_english: e, page: "" }, { replace: true });
   }
 
   function setSortByAndReset(s: Sort) {
@@ -348,6 +363,22 @@ export function JobList() {
             <option value="all">Remote: any</option>
             <option value="true">Remote</option>
             <option value="false">Not remote</option>
+          </select>
+
+          <select
+            class="select select-sm"
+            value={String(englishFilter() ?? "all")}
+            onChange={(e) =>
+              setEnglishAndReset(
+                e.currentTarget.value === "all"
+                  ? null
+                  : e.currentTarget.value === "true",
+              )
+            }
+          >
+            <option value="all">Language: any</option>
+            <option value="true">Language: English</option>
+            <option value="false">Language: non-English</option>
           </select>
 
           <Show when={PLATFORM_SORTS[platform() ?? "all"].length > 1}>
