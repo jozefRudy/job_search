@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from "@solidjs/router";
 import { isNotNil, pickBy } from "es-toolkit";
-import { createMemo, Show } from "solid-js";
+import { createMemo, onMount, Show } from "solid-js";
 import { z } from "zod";
 import {
   type Job,
@@ -22,11 +22,13 @@ import { cn, ellip, fmtRelative, ratingClass, ratingEmoji } from "~/lib/utils";
 
 const PAGE_SIZE = 20;
 
+type BoolFilter = "true" | "false" | "any";
+
 const PLATFORM_SORTS: Record<
-  Platform | "all",
+  Platform | "any",
   ReadonlyArray<{ value: Sort; label: string }>
 > = {
-  all: [
+  any: [
     { value: "created", label: "Created" },
     { value: "applied", label: "Applied" },
   ],
@@ -53,57 +55,61 @@ export function JobList() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const platform = (): Platform | null =>
+  onMount(() => {
+    const next: Record<string, string | boolean> = {
+      platform: (searchParams.platform as string | undefined) ?? "any",
+      rating: (searchParams.rating as string | undefined) ?? "any",
+      applied: (searchParams.applied as string | undefined) ?? "any",
+      remote: (searchParams.remote as string | undefined) ?? "any",
+      is_english: (searchParams.is_english as string | undefined) ?? "any",
+    };
+    setSearchParams(next, { replace: true });
+  });
+
+  const platform = (): Platform | "any" =>
     z
       .union([
         z.literal("upwork"),
         z.literal("nofluffjobs"),
         z.literal("efinancialcareers"),
         z.literal("hackernews"),
+        z.literal("any"),
       ])
-      .nullable()
-      .catch(null)
+      .catch("any")
       .parse(searchParams.platform);
 
-  const ratingFilter = (): Rating | null =>
+  const ratingFilter = (): Rating | "any" =>
     z
-      .union([z.literal("liked"), z.literal("neutral"), z.literal("disliked")])
-      .nullable()
-      .catch(null)
+      .union([
+        z.literal("liked"),
+        z.literal("neutral"),
+        z.literal("disliked"),
+        z.literal("any"),
+      ])
+      .catch("any")
       .parse(searchParams.rating);
 
-  const appliedFilter = (): boolean | null =>
+  const appliedFilter = (): BoolFilter =>
     z
-      .union([
-        z.literal("true").transform(() => true),
-        z.literal("false").transform(() => false),
-        z.null(),
-      ])
-      .catch(null)
+      .union([z.literal("true"), z.literal("false"), z.literal("any")])
+      .catch("any")
       .parse(searchParams.applied);
 
-  const remoteFilter = (): boolean | null =>
+  const remoteFilter = (): BoolFilter =>
     z
-      .union([
-        z.literal("true").transform(() => true),
-        z.literal("false").transform(() => false),
-        z.null(),
-      ])
-      .catch(null)
+      .union([z.literal("true"), z.literal("false"), z.literal("any")])
+      .catch("any")
       .parse(searchParams.remote);
 
-  const englishFilter = (): boolean | null =>
+  const englishFilter = (): BoolFilter =>
     z
-      .union([
-        z.literal("true").transform(() => true),
-        z.literal("false").transform(() => false),
-        z.null(),
-      ])
-      .catch(null)
+      .union([z.literal("true"), z.literal("false"), z.literal("any")])
+      .catch("any")
       .parse(searchParams.is_english);
 
   const sortBy = (): Sort => {
-    const supported = PLATFORM_SORTS[platform() ?? "all"].map((s) => s.value);
+    const key: Platform | "any" = platform();
+    const supported = PLATFORM_SORTS[key].map((s) => s.value);
     const schema = z.enum(supported as [Sort, ...Sort[]]).catch(supported[0]);
     return schema.parse(searchParams.sort_by);
   };
@@ -117,11 +123,12 @@ export function JobList() {
         sort_by: sortBy(),
         page: page(),
         page_size: PAGE_SIZE,
-        platform: platform(),
-        rating: ratingFilter(),
-        applied: appliedFilter(),
-        remote: remoteFilter(),
-        is_english: englishFilter(),
+        platform: platform() === "any" ? null : platform(),
+        rating: ratingFilter() === "any" ? null : ratingFilter(),
+        applied: appliedFilter() === "any" ? null : appliedFilter() === "true",
+        remote: remoteFilter() === "any" ? null : remoteFilter() === "true",
+        is_english:
+          englishFilter() === "any" ? null : englishFilter() === "true",
       },
       isNotNil,
     ) as ListJobsParams;
@@ -143,8 +150,8 @@ export function JobList() {
     return "normal";
   });
 
-  function setPlatformAndReset(p: Platform | null) {
-    const supported = new Set(PLATFORM_SORTS[p ?? "all"].map((s) => s.value));
+  function setPlatformAndReset(p: Platform | "any") {
+    const supported = new Set(PLATFORM_SORTS[p].map((s) => s.value));
     const nextSort = supported.has(sortBy()) ? sortBy() : "created";
     setSearchParams(
       { platform: p, sort_by: nextSort, page: "" },
@@ -152,19 +159,19 @@ export function JobList() {
     );
   }
 
-  function setRatingAndReset(r: Rating | null) {
+  function setRatingAndReset(r: Rating | "any") {
     setSearchParams({ rating: r, page: "" }, { replace: true });
   }
 
-  function setAppliedAndReset(a: boolean | null) {
+  function setAppliedAndReset(a: BoolFilter) {
     setSearchParams({ applied: a, page: "" }, { replace: true });
   }
 
-  function setRemoteAndReset(r: boolean | null) {
+  function setRemoteAndReset(r: BoolFilter) {
     setSearchParams({ remote: r, page: "" }, { replace: true });
   }
 
-  function setEnglishAndReset(e: boolean | null) {
+  function setEnglishAndReset(e: BoolFilter) {
     setSearchParams({ is_english: e, page: "" }, { replace: true });
   }
 
@@ -196,7 +203,7 @@ export function JobList() {
           </button>
         ),
       },
-      ...(platform() == null
+      ...(platform() === "any"
         ? [
             {
               key: "platform",
@@ -300,16 +307,12 @@ export function JobList() {
         <Row gap="md" align="center" class="flex-wrap">
           <select
             class="select select-sm"
-            value={platform() ?? "all"}
+            value={platform()}
             onChange={(e) =>
-              setPlatformAndReset(
-                e.currentTarget.value === "all"
-                  ? null
-                  : (e.currentTarget.value as Platform),
-              )
+              setPlatformAndReset(e.currentTarget.value as Platform | "any")
             }
           >
-            <option value="all">Platforms: any</option>
+            <option value="any">Platforms: any</option>
             <option value="upwork">Upwork</option>
             <option value="nofluffjobs">NoFluffJobs</option>
             <option value="efinancialcareers">eFinancialCareers</option>
@@ -318,16 +321,12 @@ export function JobList() {
 
           <select
             class="select select-sm"
-            value={ratingFilter() ?? "all"}
+            value={ratingFilter()}
             onChange={(e) =>
-              setRatingAndReset(
-                e.currentTarget.value === "all"
-                  ? null
-                  : (e.currentTarget.value as Rating),
-              )
+              setRatingAndReset(e.currentTarget.value as Rating | "any")
             }
           >
-            <option value="all">Liked: any</option>
+            <option value="any">Liked: any</option>
             <option value="liked">Liked</option>
             <option value="neutral">Neutral</option>
             <option value="disliked">Disliked</option>
@@ -335,61 +334,51 @@ export function JobList() {
 
           <select
             class="select select-sm"
-            value={String(appliedFilter() ?? "all")}
+            value={appliedFilter()}
             onChange={(e) =>
-              setAppliedAndReset(
-                e.currentTarget.value === "all"
-                  ? null
-                  : e.currentTarget.value === "true",
-              )
+              setAppliedAndReset(e.currentTarget.value as BoolFilter)
             }
           >
-            <option value="all">Applied: any</option>
+            <option value="any">Applied: any</option>
             <option value="true">Applied</option>
             <option value="false">Not applied</option>
           </select>
 
           <select
             class="select select-sm"
-            value={String(remoteFilter() ?? "all")}
+            value={remoteFilter()}
             onChange={(e) =>
-              setRemoteAndReset(
-                e.currentTarget.value === "all"
-                  ? null
-                  : e.currentTarget.value === "true",
-              )
+              setRemoteAndReset(e.currentTarget.value as BoolFilter)
             }
           >
-            <option value="all">Remote: any</option>
+            <option value="any">Remote: any</option>
             <option value="true">Remote</option>
             <option value="false">Not remote</option>
           </select>
 
           <select
             class="select select-sm"
-            value={String(englishFilter() ?? "all")}
+            value={englishFilter()}
             onChange={(e) =>
-              setEnglishAndReset(
-                e.currentTarget.value === "all"
-                  ? null
-                  : e.currentTarget.value === "true",
-              )
+              setEnglishAndReset(e.currentTarget.value as BoolFilter)
             }
           >
-            <option value="all">Language: any</option>
+            <option value="any">Language: any</option>
             <option value="true">Language: English</option>
             <option value="false">Language: non-English</option>
           </select>
 
-          <Show when={PLATFORM_SORTS[platform() ?? "all"].length > 1}>
+          <Show when={PLATFORM_SORTS[platform()].length > 1}>
             <select
               class="select select-sm"
               value={sortBy()}
               onChange={(e) => setSortByAndReset(e.currentTarget.value as Sort)}
             >
-              {PLATFORM_SORTS[platform() ?? "all"].map((s) => (
-                <option value={s.value}>{s.label}</option>
-              ))}
+              {PLATFORM_SORTS[platform()].map(
+                (s: { value: Sort; label: string }) => (
+                  <option value={s.value}>{s.label}</option>
+                ),
+              )}
             </select>
           </Show>
         </Row>
