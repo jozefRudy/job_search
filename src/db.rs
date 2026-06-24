@@ -95,10 +95,10 @@ impl Db {
         offset: i64,
     ) -> Result<Paginated<Job>> {
         let order_by = sort.order_by_sql();
-        let liked_str = filter.liked.as_ref().map(|r| match r {
-            Rating::Liked => "liked",
-            Rating::Disliked => "disliked",
-            Rating::Neutral => "neutral",
+        let liked = filter.liked.map(|r| match r {
+            Rating::Liked => Some(1),
+            Rating::Disliked => Some(0),
+            Rating::Neutral => None,
         });
 
         let total: i64 = sqlx::query_scalar!(
@@ -107,20 +107,13 @@ impl Db {
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
-              AND (?2 IS NULL OR (
-                (?2 = 'liked' AND j.liked = 1) OR
-                (?2 = 'disliked' AND j.liked = 0) OR
-                (?2 = 'neutral' AND j.liked IS NULL)
-              ))
-              AND (?3 IS NULL OR (
-                (?3 = 1 AND r.applied_at IS NOT NULL) OR
-                (?3 = 0 AND r.applied_at IS NULL)
-              ))
+              AND (?2 IS NULL OR j.liked IS ?2)
+              AND (?3 IS NULL OR (r.applied_at IS NOT NULL) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
               AND (?5 IS NULL OR j.is_english = ?5)
             "#,
             filter.platform,
-            liked_str,
+            liked,
             filter.applied,
             filter.remote,
             filter.is_english,
@@ -136,15 +129,8 @@ impl Db {
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
-              AND (?2 IS NULL OR (
-                (?2 = 'liked' AND j.liked = 1) OR
-                (?2 = 'disliked' AND j.liked = 0) OR
-                (?2 = 'neutral' AND j.liked IS NULL)
-              ))
-              AND (?3 IS NULL OR (
-                (?3 = 1 AND r.applied_at IS NOT NULL) OR
-                (?3 = 0 AND r.applied_at IS NULL)
-              ))
+              AND (?2 IS NULL OR j.liked IS ?2)
+              AND (?3 IS NULL OR (r.applied_at IS NOT NULL) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
               AND (?5 IS NULL OR j.is_english = ?5)
             ORDER BY {} LIMIT ?6 OFFSET ?7
@@ -153,7 +139,7 @@ impl Db {
         );
         let rows = sqlx::query_as::<_, JobRow>(&sql)
             .bind(filter.platform)
-            .bind(liked_str)
+            .bind(liked)
             .bind(filter.applied)
             .bind(filter.remote)
             .bind(filter.is_english)
