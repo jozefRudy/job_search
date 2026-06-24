@@ -129,6 +129,7 @@ impl BrowserExt for Browser {
 const DEFAULT_WAIT_DELAY_MS: u64 = 500;
 const DEFAULT_WAIT_TRIES: u32 = 30;
 const CHALLENGE_GRACE_PERIOD_SECS: u64 = 30;
+const CLEAR_LINE: &str = "\r\x1B[2K";
 
 /// Poll `condition` up to `tries` times, sleeping `delay` between attempts.
 /// Returns `Ok(true)` as soon as the condition returns `Ok(true)`.
@@ -175,7 +176,6 @@ pub async fn wait_for_element(
 }
 
 /// Show an OS notification.
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub fn notify_user(title: &str, message: &str) {
     #[cfg(target_os = "macos")]
     {
@@ -193,9 +193,6 @@ pub fn notify_user(title: &str, message: &str) {
             .output();
     }
 }
-
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
-pub fn notify_user(_title: &str, _message: &str) {}
 
 /// Poll a JS condition until it returns true. If `challenge_js` is provided and
 /// detects a bot challenge, send an OS notification and wait for the user to
@@ -237,7 +234,7 @@ pub async fn wait_for_with_challenge_recovery(
                     ),
                 );
                 eprintln!(
-                    "Bot check detected at {}. Waiting up to {}s for user to solve...",
+                    "{CLEAR_LINE}Bot check at {}. Waiting up to {}s for user to solve...",
                     url,
                     grace.as_secs()
                 );
@@ -246,8 +243,16 @@ pub async fn wait_for_with_challenge_recovery(
             loop {
                 sleep(delay).await;
                 if !page.evaluate(js).await?.into_value()? {
+                    eprintln!("{CLEAR_LINE}Bot check cleared, resuming.");
                     break;
                 }
+                let remaining = deadline
+                    .saturating_duration_since(std::time::Instant::now())
+                    .as_secs();
+                eprint!(
+                    "{CLEAR_LINE}Bot check still present. {}s remaining...",
+                    remaining
+                );
                 if std::time::Instant::now() >= deadline {
                     bail!(
                         "Bot check still present after {}s. Solve it in the browser and retry.",
