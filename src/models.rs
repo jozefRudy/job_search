@@ -27,7 +27,6 @@ pub struct HackerNewsJobDetail {
     pub company: Option<String>,
     pub role: Option<String>,
     pub location: Option<String>,
-    pub remote: bool,
 }
 
 /// Full detail scraped from an individual eFinancialCareers job page.
@@ -36,10 +35,10 @@ pub struct EfinancialcareersJobDetail {
     pub company: String,
     pub location: String,
     pub employment_type: String,
+    pub work_arrangement_type: String,
     pub salary: String,
     pub description: String,
     pub posted_at: DateTime<Utc>,
-    pub remote: bool,
 }
 
 impl Default for EfinancialcareersJobDetail {
@@ -48,10 +47,10 @@ impl Default for EfinancialcareersJobDetail {
             company: String::new(),
             location: String::new(),
             employment_type: String::new(),
+            work_arrangement_type: String::new(),
             salary: String::new(),
             description: String::new(),
             posted_at: Utc::now(),
-            remote: false,
         }
     }
 }
@@ -280,6 +279,7 @@ pub struct Job {
     pub note: Option<String>,
     pub liked: Option<bool>,
     pub applied_at: Option<DateTime<Utc>>,
+    pub remote: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -816,6 +816,7 @@ mod tests {
                 liked,
                 note: None,
                 applied_at: None,
+                remote: true,
             }
         }
 
@@ -879,6 +880,7 @@ mod tests {
                 liked: None,
                 note: None,
                 applied_at: None,
+                remote: true,
             }
         }
 
@@ -939,6 +941,7 @@ mod tests {
                 liked: None,
                 note: None,
                 applied_at,
+                remote: true,
             }
         }
 

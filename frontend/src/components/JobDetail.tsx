@@ -20,7 +20,7 @@ import { Markdown } from "~/components/ui/Markdown";
 import { ConfirmModal } from "~/components/ui/Modal";
 import { Skeleton } from "~/components/ui/Skeleton";
 import { Swap } from "~/components/ui/Swap";
-import { fmtRelative } from "~/lib/utils";
+import { cn, fmtRelative } from "~/lib/utils";
 
 export function JobDetail() {
   const params = useParams();
@@ -102,13 +102,19 @@ export function JobDetailContent(props: { job: Job }) {
               {j.url}
             </a>
           </p>
-          <Show when={j.tags.length > 0}>
-            <Row gap="sm" class="flex-wrap">
-              <For each={j.tags}>
-                {(tag) => <span class="badge badge-sm">{tag}</span>}
-              </For>
-            </Row>
-          </Show>
+          <Row gap="sm" class="flex-wrap">
+            <span
+              class={cn(
+                "badge badge-sm",
+                j.remote ? "badge-success" : "badge-error",
+              )}
+            >
+              {j.remote ? "remote" : "not remote"}
+            </span>
+            <For each={j.tags}>
+              {(tag) => <span class="badge badge-sm">{tag}</span>}
+            </For>
+          </Row>
         </div>
       </div>
 
@@ -309,7 +315,6 @@ export function HackerNewsDetail(props: { job: Job }) {
             <DetailRow label="Company" value={d.company ?? props.job.company} />
             <DetailRow label="Role" value={d.role} />
             <DetailRow label="Location" value={d.location} />
-            <DetailRow label="Remote" value={d.remote ? "yes" : "no"} />
           </DetailList>
           <Show when={props.job.description} keyed>
             {(text) => <MarkdownDescription label="Description" text={text} />}
@@ -332,7 +337,6 @@ export function EfinancialcareersDetail(props: { job: Job }) {
           <DetailList>
             <DetailRow label="Company" value={d.company} />
             <DetailRow label="Location" value={d.location} />
-            <DetailRow label="Remote" value={d.remote ? "yes" : "no"} />
             <DetailRow label="Employment type" value={d.employment_type} />
             <DetailRow label="Posted" value={fmtRelative(d.posted_at)} />
           </DetailList>

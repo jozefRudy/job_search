@@ -56,8 +56,8 @@ export interface EfinancialcareersJobDetail {
   employment_type: string;
   location: string;
   posted_at: string;
-  remote: boolean;
   salary: string;
+  work_arrangement_type: string;
 }
 
 /**
@@ -70,7 +70,6 @@ export interface HackerNewsJobDetail {
   company?: string | null;
   /** @nullable */
   location?: string | null;
-  remote: boolean;
   /** @nullable */
   role?: string | null;
 }
@@ -120,6 +119,7 @@ export interface Job {
   note?: string | null;
   platform: Platform;
   raw: Data;
+  remote: boolean;
   tags: string[];
   title: string;
   updated_at: string;

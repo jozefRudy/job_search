@@ -280,10 +280,6 @@ impl EfinancialcareersScraper {
                     .join(", ")
             })
             .unwrap_or_default();
-        let remote = matches!(
-            job.work_arrangement_type.to_lowercase().as_str(),
-            "remote" | "temporarily_remote"
-        );
         let employment_type = [job.position_type, job.employment_type]
             .into_iter()
             .filter(|s| !s.is_empty())
@@ -294,10 +290,10 @@ impl EfinancialcareersScraper {
             company,
             location,
             employment_type,
+            work_arrangement_type: job.work_arrangement_type,
             salary: job.salary,
             description,
             posted_at,
-            remote,
         })
     }
 
@@ -325,6 +321,8 @@ impl EfinancialcareersScraper {
             .map(|b| b.to_string())
             .or_else(|| Some(salary.clone()).filter(|b| !b.is_empty()));
 
+        let remote = Self::is_remote(&detail);
+
         Job {
             id: 0,
             platform: Platform::Efinancialcareers,
@@ -346,7 +344,16 @@ impl EfinancialcareersScraper {
             liked: None,
             note: None,
             applied_at: None,
+            remote,
         }
+    }
+
+    fn is_remote(detail: &EfinancialcareersJobDetail) -> bool {
+        matches!(
+            detail.work_arrangement_type.to_lowercase().as_str(),
+            "remote" | "temporarily_remote"
+        ) || detail.location.to_lowercase().contains("remote")
+            || detail.employment_type.to_lowercase().contains("remote")
     }
 }
 
@@ -589,10 +596,10 @@ impl PlatformClient for EfinancialcareersScraper {
                             company: item.company.clone(),
                             location: item.location.clone(),
                             employment_type: item.employment_type.clone(),
+                            work_arrangement_type: String::new(),
                             salary: item.salary.clone(),
                             description,
                             posted_at: item.applied_at,
-                            remote: false,
                         }
                     }
                 };
@@ -601,6 +608,8 @@ impl PlatformClient for EfinancialcareersScraper {
                     crate::extractors::budget::parse_efinancialcareers_budget(&detail.salary)
                         .map(|b| b.to_string())
                         .or_else(|| Some(detail.salary.clone()).filter(|b| !b.is_empty()));
+
+                let remote = Self::is_remote(&detail);
 
                 let job = Job {
                     id: 0,
@@ -618,6 +627,7 @@ impl PlatformClient for EfinancialcareersScraper {
                     liked: None,
                     note: None,
                     applied_at: None,
+                    remote,
                 };
                 db.upsert_job(&job).await?
             };

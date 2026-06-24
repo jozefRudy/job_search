@@ -178,7 +178,6 @@ impl HackerNewsScraper {
                     company,
                     role,
                     location,
-                    remote,
                 },
             },
             company: None,
@@ -187,6 +186,7 @@ impl HackerNewsScraper {
             liked: None,
             note: None,
             applied_at: None,
+            remote,
         }))
     }
 

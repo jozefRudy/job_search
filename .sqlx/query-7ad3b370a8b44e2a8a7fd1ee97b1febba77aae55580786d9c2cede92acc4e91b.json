@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at, remote)\n            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)\n            ON CONFLICT(platform, external_id) DO UPDATE SET\n                title = excluded.title,\n                description = excluded.description,\n                url = excluded.url,\n                budget = excluded.budget,\n                tags = excluded.tags,\n                raw = excluded.raw,\n                remote = excluded.remote,\n                updated_at = CURRENT_TIMESTAMP\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7ad3b370a8b44e2a8a7fd1ee97b1febba77aae55580786d9c2cede92acc4e91b"
+}

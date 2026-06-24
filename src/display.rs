@@ -324,11 +324,6 @@ pub fn render_job_detailed(job: &Job) -> String {
             if !detail.salary.is_empty() {
                 lines.push(format!("  Salary:         {}", detail.salary));
             }
-            if detail.remote {
-                lines.push("  Remote:         yes".to_string());
-            } else {
-                lines.push("  Remote:         no".to_string());
-            }
             if !detail.description.is_empty() {
                 lines.push(format!(
                     "  Description:\n    {}",
@@ -348,11 +343,6 @@ pub fn render_job_detailed(job: &Job) -> String {
             }
             if let Some(location) = &detail.location {
                 lines.push(format!("  Location:       {}", location));
-            }
-            if detail.remote {
-                lines.push("  Remote:         yes".to_string());
-            } else {
-                lines.push("  Remote:         no".to_string());
             }
             if let Some(desc) = &job.description
                 && !desc.is_empty()

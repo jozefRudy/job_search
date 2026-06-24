@@ -17,6 +17,7 @@ const mockUpworkJob: Job = {
   liked: true,
   applied_at: null,
   note: null,
+  remote: true,
   raw: {
     platform: "upwork",
     detail: {
@@ -53,6 +54,7 @@ const mockNoFluffJob: Job = {
   liked: null,
   applied_at: "2026-06-07T09:00:00Z",
   note: "Applied via referral. Waiting for response.",
+  remote: false,
   raw: {
     platform: "nofluffjobs",
     detail: {

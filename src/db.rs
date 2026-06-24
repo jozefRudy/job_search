@@ -27,8 +27,8 @@ impl Db {
 
         let id = sqlx::query_scalar!(
             r#"
-            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at, remote)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
             ON CONFLICT(platform, external_id) DO UPDATE SET
                 title = excluded.title,
                 description = excluded.description,
@@ -36,6 +36,7 @@ impl Db {
                 budget = excluded.budget,
                 tags = excluded.tags,
                 raw = excluded.raw,
+                remote = excluded.remote,
                 updated_at = CURRENT_TIMESTAMP
             RETURNING id
             "#,
@@ -48,6 +49,7 @@ impl Db {
             tags,
             raw,
             created_at,
+            job.remote,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -67,7 +69,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.liked, r.note, r.applied_at
+                j.liked, j.remote, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
@@ -126,7 +128,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.liked, r.note, r.applied_at
+                j.liked, j.remote, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
@@ -163,7 +165,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.liked, r.note, r.applied_at
+                j.liked, j.remote, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE j.id = ?1
@@ -412,6 +414,7 @@ struct JobRow {
     created_at: chrono::NaiveDateTime,
     updated_at: chrono::NaiveDateTime,
     liked: Option<bool>,
+    remote: bool,
     note: Option<String>,
     applied_at: Option<chrono::NaiveDateTime>,
 }
@@ -436,6 +439,7 @@ impl From<JobRow> for Job {
             updated_at: r.updated_at.and_utc(),
             note: r.note,
             liked: r.liked,
+            remote: r.remote,
             applied_at: r.applied_at.map(|dt| dt.and_utc()),
         }
     }
@@ -489,6 +493,7 @@ mod tests {
             liked: None,
             note: None,
             applied_at: None,
+            remote: true,
         }
     }
 
@@ -546,6 +551,7 @@ mod tests {
             liked: None,
             note: None,
             applied_at: None,
+            remote: true,
         };
 
         let id = db.upsert_job(&job).await?;
@@ -598,6 +604,7 @@ mod tests {
             liked: None,
             note: None,
             applied_at: None,
+            remote: true,
         };
 
         let id = db.upsert_job(&job).await?;
@@ -724,7 +731,6 @@ mod tests {
                     company: Some(company.to_string()),
                     role: Some(role.to_string()),
                     location: None,
-                    remote: true,
                 },
             },
             company: None,
@@ -733,6 +739,7 @@ mod tests {
             liked: None,
             note: None,
             applied_at: None,
+            remote: true,
         };
 
         db.upsert_job(&job("hn-1", "Acme", "Senior Rust Engineer", 70))

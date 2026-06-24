@@ -561,6 +561,7 @@ impl NoFluffJobsScraper {
                             liked: None,
                             note: None,
                             applied_at: None,
+                            remote: true,
                         };
                         db.upsert_job(&job).await?;
                         state.inc_new();
@@ -793,6 +794,7 @@ impl NoFluffJobsScraper {
                             liked: None,
                             note: None,
                             applied_at: None,
+                            remote: true,
                         };
                         Some(db.upsert_job(&job).await?)
                     }

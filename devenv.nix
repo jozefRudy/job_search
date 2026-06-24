@@ -56,6 +56,13 @@
     };
   };
   scripts = {
+    kill-services.exec = ''
+      echo "Killing all services on ports 8080, 3000"
+      pkill -9 -f "devenv" || true
+      pkill -9 "process-compose" || true
+      lsof -ti:8080,3000 | xargs -r kill -9 || true
+    '';
+
     test.exec = ''
       cargo build && cargo clippy --all-targets -- -D warnings && cargo test && cargo fmt
     '';
