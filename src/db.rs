@@ -160,6 +160,31 @@ impl Db {
         Ok(Paginated { items, total })
     }
 
+    pub async fn get_jobs(&self, ids: &[i64]) -> Result<Vec<Job>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let ids_json = serde_json::to_string(ids)?;
+        let rows = sqlx::query_as::<_, JobRow>(
+            r#"
+            SELECT
+                j.id, j.platform, j.external_id, j.title, j.description,
+                j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
+                j.liked, j.remote, r.note, r.applied_at
+            FROM jobs j
+            LEFT JOIN reactions r ON r.job_id = j.id
+            WHERE j.id IN (SELECT value FROM json_each(?1))
+            ORDER BY j.id
+            "#,
+        )
+        .bind(ids_json)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows.into_iter().map(|r| r.into()).collect())
+    }
+
     pub async fn get_job(&self, id: i64) -> Result<Option<Job>> {
         let row = sqlx::query_as!(
             JobRow,
