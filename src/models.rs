@@ -1,3 +1,5 @@
+use crate::language::LanguageService;
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use clap::ValueEnum;
 use regex::Regex;
@@ -255,6 +257,7 @@ pub struct ListQuery {
     pub rating: Option<Rating>,
     pub applied: Option<bool>,
     pub remote: Option<bool>,
+    pub is_english: Option<bool>,
     #[serde(default)]
     pub sort_by: Sort,
     #[serde(default = "default_page")]
@@ -281,6 +284,41 @@ pub struct Job {
     pub liked: Option<bool>,
     pub applied_at: Option<DateTime<Utc>>,
     pub remote: bool,
+    pub is_english: bool,
+}
+
+impl Job {
+    /// Single text blob from all available advert text for language detection.
+    fn advert_text(&self) -> String {
+        let mut text = self.title.clone();
+        if let Some(d) = &self.description {
+            text.push(' ');
+            text.push_str(d);
+        }
+        match &self.raw {
+            Data::Upwork { detail } => {
+                text.push(' ');
+                text.push_str(&detail.description);
+            }
+            Data::Nofluffjobs { detail } => {
+                text.push(' ');
+                text.push_str(&detail.description);
+                text.push(' ');
+                text.push_str(&detail.requirements);
+            }
+            Data::Efinancialcareers { detail } => {
+                text.push(' ');
+                text.push_str(&detail.description);
+            }
+            Data::Hackernews { .. } => {}
+        }
+        text
+    }
+}
+
+/// Detect whether a job advert is English.
+pub async fn classify_language(svc: &LanguageService, job: &Job) -> Result<bool> {
+    svc.detect(&job.advert_text()).await
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
@@ -331,31 +369,7 @@ pub struct JobFilter {
     pub applied: Option<bool>,
     pub liked: Option<Rating>,
     pub remote: Option<bool>,
-}
-
-impl JobFilter {
-    pub fn apply(&self, jobs: Vec<Job>) -> Vec<Job> {
-        let mut jobs = jobs;
-
-        match self.applied {
-            Some(true) => jobs.retain(|j| j.applied_at.is_some()),
-            Some(false) => jobs.retain(|j| j.applied_at.is_none()),
-            None => {}
-        }
-
-        match self.liked {
-            Some(Rating::Liked) => jobs.retain(|j| j.liked == Some(true)),
-            Some(Rating::Disliked) => jobs.retain(|j| j.liked == Some(false)),
-            Some(Rating::Neutral) => jobs.retain(|j| j.liked.is_none()),
-            None => {}
-        }
-
-        if let Some(remote) = self.remote {
-            jobs.retain(|j| j.remote == remote);
-        }
-
-        jobs
-    }
+    pub is_english: Option<bool>,
 }
 
 /// Parsed budget value with consistent formatting.
@@ -796,128 +810,38 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_job_filter_rating() {
-        fn job(id: i64, liked: Option<bool>) -> Job {
-            Job {
-                id,
-                platform: Platform::Upwork,
-                external_id: format!("j{id}"),
-                title: format!("Job {id}"),
-                description: None,
-                url: "https://e.com".into(),
-                budget: None,
-                tags: vec![],
-                raw: Data::Upwork {
-                    detail: UpworkJobDetail::default(),
-                },
-                company: None,
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
-                liked,
-                note: None,
-                applied_at: None,
-                remote: true,
-            }
-        }
-
-        let jobs = vec![job(1, Some(true)), job(2, Some(false)), job(3, None)];
-
-        let ids = |f: JobFilter| {
-            f.apply(jobs.clone())
-                .into_iter()
-                .map(|j| j.id)
-                .collect::<Vec<_>>()
+    #[tokio::test]
+    async fn test_classify_language_detects_english() {
+        let svc = LanguageService::new();
+        let raw = Data::Upwork {
+            detail: UpworkJobDetail {
+                description: "We are looking for a Rust developer to build web services."
+                    .to_string(),
+                ..Default::default()
+            },
         };
-
-        assert_eq!(
-            ids(JobFilter {
-                liked: Some(Rating::Liked),
-                ..Default::default()
-            }),
-            vec![1]
-        );
-        assert_eq!(
-            ids(JobFilter {
-                liked: Some(Rating::Disliked),
-                ..Default::default()
-            }),
-            vec![2]
-        );
-        assert_eq!(
-            ids(JobFilter {
-                liked: Some(Rating::Neutral),
-                ..Default::default()
-            }),
-            vec![3]
-        );
-        assert_eq!(
-            ids(JobFilter {
-                liked: None,
-                ..Default::default()
-            }),
-            vec![1, 2, 3]
-        );
-    }
-
-    #[test]
-    fn test_job_filter_applied() {
-        fn job(id: i64, applied_at: Option<DateTime<Utc>>) -> Job {
-            Job {
-                id,
-                platform: Platform::Upwork,
-                external_id: format!("j{id}"),
-                title: format!("Job {id}"),
-                description: None,
-                url: "https://e.com".into(),
-                budget: None,
-                tags: vec![],
-                raw: Data::Upwork {
-                    detail: UpworkJobDetail::default(),
-                },
-                company: None,
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
-                liked: None,
-                note: None,
-                applied_at,
-                remote: true,
-            }
-        }
-
-        let jobs = vec![
-            job(1, Some(Utc::now() - chrono::Duration::days(1))),
-            job(2, None),
-            job(3, Some(Utc::now() - chrono::Duration::days(5))),
-        ];
-
-        let ids = |f: JobFilter| {
-            f.apply(jobs.clone())
-                .into_iter()
-                .map(|j| j.id)
-                .collect::<Vec<_>>()
+        let job = Job {
+            id: 0,
+            platform: Platform::Upwork,
+            external_id: "ext".to_string(),
+            title: "Rust Developer".to_string(),
+            description: Some("Remote full-time role".to_string()),
+            url: "https://example.com".to_string(),
+            budget: None,
+            tags: Vec::new(),
+            raw,
+            company: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            note: None,
+            liked: None,
+            applied_at: None,
+            remote: true,
+            is_english: true,
         };
-
-        assert_eq!(
-            ids(JobFilter {
-                applied: Some(true),
-                ..Default::default()
-            }),
-            vec![1, 3]
-        );
-        assert_eq!(
-            ids(JobFilter {
-                applied: Some(false),
-                ..Default::default()
-            }),
-            vec![2]
-        );
-        assert_eq!(
-            ids(JobFilter {
-                applied: None,
-                ..Default::default()
-            }),
-            vec![1, 2, 3]
-        );
+        let en = classify_language(&svc, &job)
+            .await
+            .expect("language classification should succeed");
+        assert!(en);
     }
 }

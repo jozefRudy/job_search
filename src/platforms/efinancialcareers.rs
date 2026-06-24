@@ -1,6 +1,7 @@
 use crate::browser::{BrowserExt, host_of, wait_for_element};
 use crate::db::Db;
-use crate::models::{Data, EfinancialcareersJobDetail, Job, Platform};
+use crate::language::LanguageService;
+use crate::models::{Data, EfinancialcareersJobDetail, Job, Platform, classify_language};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
@@ -165,17 +166,19 @@ struct FacadeResponse {
 
 pub struct EfinancialcareersScraper {
     config: EfinancialcareersConfig,
+    lang: LanguageService,
 }
 
 impl EfinancialcareersScraper {
-    pub fn new() -> Self {
+    pub fn new(lang: LanguageService) -> Self {
         Self {
             config: EfinancialcareersConfig::default(),
+            lang,
         }
     }
 
-    pub fn with_config(config: EfinancialcareersConfig) -> Self {
-        Self { config }
+    pub fn with_config(config: EfinancialcareersConfig, lang: LanguageService) -> Self {
+        Self { config, lang }
     }
 
     pub fn build_search_url(&self, query: &str) -> String {
@@ -306,11 +309,11 @@ impl EfinancialcareersScraper {
         if text.is_empty() { None } else { Some(text) }
     }
 
-    fn build_job(
+    async fn build_job(
         &self,
         card: &EfinancialcareersJobCard,
         detail: EfinancialcareersJobDetail,
-    ) -> Job {
+    ) -> Result<Job> {
         let created_at = detail.posted_at;
         let salary = if detail.salary.is_empty() {
             card.salary.clone()
@@ -323,7 +326,7 @@ impl EfinancialcareersScraper {
 
         let remote = Self::is_remote(&detail);
 
-        Job {
+        let job = Job {
             id: 0,
             platform: Platform::Efinancialcareers,
             external_id: card.external_id.clone(),
@@ -345,7 +348,10 @@ impl EfinancialcareersScraper {
             note: None,
             applied_at: None,
             remote,
-        }
+            is_english: true,
+        };
+        let is_english = classify_language(&self.lang, &job).await?;
+        Ok(Job { is_english, ..job })
     }
 
     fn is_remote(detail: &EfinancialcareersJobDetail) -> bool {
@@ -444,7 +450,7 @@ impl PlatformClient for EfinancialcareersScraper {
                     }
                 };
 
-                let job = self.build_job(card, detail);
+                let job = self.build_job(card, detail).await?;
                 db.upsert_job(&job).await?;
                 state.inc_new();
                 all_jobs.push(job);
@@ -610,25 +616,31 @@ impl PlatformClient for EfinancialcareersScraper {
                         .or_else(|| Some(detail.salary.clone()).filter(|b| !b.is_empty()));
 
                 let remote = Self::is_remote(&detail);
+                let created_at = detail.posted_at;
+                let description = Some(detail.description.clone()).filter(|d| !d.is_empty());
+                let raw = Data::Efinancialcareers { detail };
 
                 let job = Job {
                     id: 0,
                     platform: Platform::Efinancialcareers,
                     external_id: item.external_id.clone(),
                     title: item.title.clone(),
-                    description: Some(detail.description.clone()).filter(|d| !d.is_empty()),
+                    description,
                     url: item.url.clone(),
                     budget,
                     tags: Vec::new(),
-                    created_at: detail.posted_at,
-                    raw: Data::Efinancialcareers { detail },
+                    created_at,
+                    raw,
                     company: None,
                     updated_at: Utc::now(),
                     liked: None,
                     note: None,
                     applied_at: None,
                     remote,
+                    is_english: true,
                 };
+                let is_english = classify_language(&self.lang, &job).await?;
+                let job = Job { is_english, ..job };
                 db.upsert_job(&job).await?
             };
 
@@ -661,7 +673,7 @@ impl PlatformClient for EfinancialcareersScraper {
 
 impl Default for EfinancialcareersScraper {
     fn default() -> Self {
-        Self::new()
+        Self::new(LanguageService::new())
     }
 }
 
@@ -690,7 +702,7 @@ mod tests {
 
     #[test]
     fn test_build_search_url_with_keyword() {
-        let scraper = EfinancialcareersScraper::new();
+        let scraper = EfinancialcareersScraper::new(LanguageService::new());
         let url = scraper.build_search_url("developer");
         assert!(url.starts_with("https://www.efinancialcareers.com/jobs/remote/developer?"));
         assert!(url.contains("filters.workArrangementType=REMOTE"));
@@ -700,7 +712,7 @@ mod tests {
 
     #[test]
     fn test_build_search_url_multi_word_keyword() {
-        let scraper = EfinancialcareersScraper::new();
+        let scraper = EfinancialcareersScraper::new(LanguageService::new());
         let url = scraper.build_search_url("Rust Developer");
         // Path uses first word only; multi-word query lives in q= param.
         assert!(url.starts_with("https://www.efinancialcareers.com/jobs/remote/Rust?"));
@@ -709,7 +721,7 @@ mod tests {
 
     #[test]
     fn test_build_search_url_empty_keyword() {
-        let scraper = EfinancialcareersScraper::new();
+        let scraper = EfinancialcareersScraper::new(LanguageService::new());
         let url = scraper.build_search_url("");
         assert!(url.starts_with("https://www.efinancialcareers.com/jobs/remote?"));
         assert!(url.contains("q="));

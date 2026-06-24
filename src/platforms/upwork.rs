@@ -424,6 +424,7 @@ impl PlatformClient for UpworkScraper {
                             note: None,
                             applied_at: None,
                             remote: true,
+                            is_english: true,
                         };
                         db.upsert_job(&job).await?;
 
@@ -553,6 +554,7 @@ impl PlatformClient for UpworkScraper {
                             note: None,
                             applied_at: None,
                             remote: true,
+                            is_english: true,
                         };
                         Some(db.upsert_job(&job).await?)
                     }

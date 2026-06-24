@@ -99,6 +99,7 @@ async fn list_jobs(
         liked: query.rating,
         applied: query.applied,
         remote: query.remote,
+        is_english: query.is_english,
     };
     let paginated = state
         .db

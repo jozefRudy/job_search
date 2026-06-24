@@ -2,6 +2,7 @@ pub mod browser;
 pub mod cli;
 pub mod db;
 pub mod extractors;
+pub mod language;
 pub mod models;
 pub mod platforms;
 pub mod server;

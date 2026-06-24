@@ -114,6 +114,8 @@ export interface Job {
   external_id: string;
   id: number;
   /** @nullable */
+  is_english?: boolean | null;
+  /** @nullable */
   liked?: boolean | null;
   /** @nullable */
   note?: string | null;
@@ -165,6 +167,7 @@ platform?: Platform;
 rating?: Rating;
 applied?: boolean;
 remote?: boolean;
+is_english?: boolean;
 sort_by?: Sort;
 /**
  * @minimum 0

@@ -91,6 +91,10 @@ pub struct CommonListArgs {
     /// Filter by remote status: true/false. Omit for all.
     #[arg(long)]
     pub remote: Option<bool>,
+
+    /// Filter by English-language classification: true/false. Omit for all.
+    #[arg(long)]
+    pub english: Option<bool>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]

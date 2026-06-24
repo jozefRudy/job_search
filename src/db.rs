@@ -27,8 +27,8 @@ impl Db {
 
         let id = sqlx::query_scalar!(
             r#"
-            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at, remote)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at, remote, is_english)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
             ON CONFLICT(platform, external_id) DO UPDATE SET
                 title = excluded.title,
                 description = excluded.description,
@@ -37,6 +37,7 @@ impl Db {
                 tags = excluded.tags,
                 raw = excluded.raw,
                 remote = excluded.remote,
+                is_english = excluded.is_english,
                 updated_at = CURRENT_TIMESTAMP
             RETURNING id
             "#,
@@ -50,6 +51,7 @@ impl Db {
             raw,
             created_at,
             job.remote,
+            job.is_english,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -69,7 +71,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.liked, j.remote, r.note, r.applied_at
+                j.liked, j.remote, j.is_english, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
@@ -115,11 +117,13 @@ impl Db {
                 (?3 = 0 AND r.applied_at IS NULL)
               ))
               AND (?4 IS NULL OR j.remote = ?4)
+              AND (?5 IS NULL OR j.is_english = ?5)
             "#,
             filter.platform,
             liked_str,
             filter.applied,
             filter.remote,
+            filter.is_english,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -128,7 +132,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.liked, j.remote, r.note, r.applied_at
+                j.liked, j.remote, j.is_english, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
@@ -142,7 +146,8 @@ impl Db {
                 (?3 = 0 AND r.applied_at IS NULL)
               ))
               AND (?4 IS NULL OR j.remote = ?4)
-            ORDER BY {} LIMIT ?5 OFFSET ?6
+              AND (?5 IS NULL OR j.is_english = ?5)
+            ORDER BY {} LIMIT ?6 OFFSET ?7
             "#,
             order_by
         );
@@ -151,6 +156,7 @@ impl Db {
             .bind(liked_str)
             .bind(filter.applied)
             .bind(filter.remote)
+            .bind(filter.is_english)
             .bind(limit)
             .bind(offset)
             .fetch_all(&self.pool)
@@ -171,7 +177,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.liked, j.remote, r.note, r.applied_at
+                j.liked, j.remote, j.is_english, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE j.id IN (SELECT value FROM json_each(?1))
@@ -192,7 +198,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.liked, j.remote, r.note, r.applied_at
+                j.liked, j.remote, j.is_english, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE j.id = ?1
@@ -442,6 +448,7 @@ struct JobRow {
     updated_at: chrono::NaiveDateTime,
     liked: Option<bool>,
     remote: bool,
+    is_english: bool,
     note: Option<String>,
     applied_at: Option<chrono::NaiveDateTime>,
 }
@@ -468,6 +475,7 @@ impl From<JobRow> for Job {
             liked: r.liked,
             remote: r.remote,
             applied_at: r.applied_at.map(|dt| dt.and_utc()),
+            is_english: r.is_english,
         }
     }
 }
@@ -521,6 +529,7 @@ mod tests {
             note: None,
             applied_at: None,
             remote: true,
+            is_english: true,
         }
     }
 
@@ -579,6 +588,7 @@ mod tests {
             note: None,
             applied_at: None,
             remote: true,
+            is_english: true,
         };
 
         let id = db.upsert_job(&job).await?;
@@ -632,6 +642,7 @@ mod tests {
             note: None,
             applied_at: None,
             remote: true,
+            is_english: true,
         };
 
         let id = db.upsert_job(&job).await?;
@@ -767,6 +778,7 @@ mod tests {
             note: None,
             applied_at: None,
             remote: true,
+            is_english: true,
         };
 
         db.upsert_job(&job("hn-1", "Acme", "Senior Rust Engineer", 70))

@@ -1,6 +1,7 @@
 use chromiumoxide::browser::Browser;
 use futures::FutureExt;
 use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS};
+use jobsearch::language::LanguageService;
 use jobsearch::platforms::PlatformClient;
 use jobsearch::platforms::upwork::UpworkScraper;
 use std::sync::LazyLock;
@@ -296,7 +297,8 @@ async fn test_upwork_sync_applications() {
 #[ignore = "requires Brave browser installed and nofluffjobs.com accessible"]
 async fn test_nofluffjobs_search_page_has_cards_and_details() {
     with_browser(45, |browser| async move {
-        let scraper = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new();
+        let scraper =
+            jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new(LanguageService::new());
         let search_url = scraper.build_search_url("rust");
         let page = browser
             .new_tab(&search_url)
@@ -349,7 +351,8 @@ async fn test_nofluffjobs_search_page_has_cards_and_details() {
 #[ignore = "requires Brave browser installed and nofluffjobs.com accessible"]
 async fn test_nofluffjobs_load_more_adds_jobs() {
     with_browser(60, |browser| async move {
-        let scraper = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new();
+        let scraper =
+            jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new(LanguageService::new());
         let search_url = scraper.build_search_url("rust");
         let page = browser
             .new_tab(&search_url)
@@ -404,7 +407,9 @@ async fn test_nofluffjobs_load_more_adds_jobs() {
 #[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
 async fn test_efinancialcareers_search_page_has_cards_and_details() {
     with_browser(45, |browser| async move {
-        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new();
+        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new(
+            LanguageService::new(),
+        );
         let search_url = scraper.build_search_url("developer");
         let page = browser
             .new_tab(&search_url)
@@ -481,7 +486,9 @@ async fn test_efinancialcareers_search_page_has_cards_and_details() {
 #[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
 async fn test_efinancialcareers_show_more_adds_jobs() {
     with_browser(60, |browser| async move {
-        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new();
+        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new(
+            LanguageService::new(),
+        );
         let search_url = scraper.build_search_url("");
         let page = browser
             .new_tab(&search_url)
@@ -538,7 +545,9 @@ async fn test_efinancialcareers_show_more_adds_jobs() {
 #[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
 async fn test_efinancialcareers_zero_results_returns_count_zero() {
     with_browser(45, |browser| async move {
-        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new();
+        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new(
+            LanguageService::new(),
+        );
         let search_url = scraper.build_search_url("xyznonexistent12345thisshouldreturnnojobs");
         let page = browser
             .new_tab(&search_url)
@@ -571,7 +580,9 @@ async fn test_efinancialcareers_sync_applications() {
     with_browser(120, |browser| async move {
         let tmp = tempfile::NamedTempFile::new().expect("temp db");
         let db = jobsearch::db::Db::open(tmp.path()).await.expect("open db");
-        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new();
+        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new(
+            LanguageService::new(),
+        );
 
         let synced = scraper
             .sync_applications(&browser, &db, 500, Some(1))
@@ -643,7 +654,8 @@ async fn test_nofluffjobs_sync_applications() {
     with_browser(120, |browser| async move {
         let tmp = tempfile::NamedTempFile::new().expect("temp db");
         let db = jobsearch::db::Db::open(tmp.path()).await.expect("open db");
-        let scraper = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new();
+        let scraper =
+            jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new(LanguageService::new());
 
         let synced = scraper
             .sync_applications(&browser, &db, 500, Some(1))

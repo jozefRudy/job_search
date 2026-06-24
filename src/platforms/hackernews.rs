@@ -187,6 +187,7 @@ impl HackerNewsScraper {
             note: None,
             applied_at: None,
             remote,
+            is_english: true,
         }))
     }
 

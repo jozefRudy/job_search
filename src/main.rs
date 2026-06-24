@@ -7,6 +7,7 @@ use jobsearch::cli::{
     UpworkSortBy,
 };
 use jobsearch::db::Db;
+use jobsearch::language::LanguageService;
 use jobsearch::models::{JobFilter, Platform, Sort};
 use jobsearch::platforms::{
     PlatformClient,
@@ -78,6 +79,7 @@ async fn main() -> Result<()> {
                 fetch_and_store(&db, &browser, &scraper, &args.query, args.pause).await?;
             }
             UpdatePlatform::Nofluff(args) => {
+                let lang = LanguageService::new();
                 let config = jobsearch::platforms::nofluffjobs::NoFluffJobsConfig {
                     path: "remote".to_string(),
                     min_salary_eur: args.min_salary,
@@ -85,17 +87,18 @@ async fn main() -> Result<()> {
                     language: args.lang,
                     salary_currency: "EUR".to_string(),
                 };
-                let scraper = NoFluffJobsScraper::with_config(config);
+                let scraper = NoFluffJobsScraper::with_config(config, lang);
                 fetch_and_store(&db, &browser, &scraper, &args.query, args.pause).await?;
             }
             UpdatePlatform::Efinancialcareers(args) => {
+                let lang = LanguageService::new();
                 let config = EfinancialcareersConfig {
                     work_arrangement: "REMOTE".to_string(),
                     min_salary: args.min_salary,
                     currency_code: "USD".to_string(),
                     language: "en".to_string(),
                 };
-                let scraper = EfinancialcareersScraper::with_config(config);
+                let scraper = EfinancialcareersScraper::with_config(config, lang);
                 fetch_and_store(&db, &browser, &scraper, &args.query, args.pause_ms).await?;
             }
             UpdatePlatform::Hackernews(args) => {
@@ -110,6 +113,7 @@ async fn main() -> Result<()> {
                     applied: args.common.applied,
                     liked: args.common.rating,
                     remote: args.common.remote,
+                    is_english: args.common.english,
                 };
                 let sort = match args.sort {
                     CommonSortBy::Created => Sort::Created,
@@ -123,6 +127,7 @@ async fn main() -> Result<()> {
                     applied: args.common.applied,
                     liked: args.common.rating,
                     remote: args.common.remote,
+                    is_english: args.common.english,
                 };
                 let sort = match args.sort {
                     UpworkSortBy::Created => Sort::Created,
@@ -137,6 +142,7 @@ async fn main() -> Result<()> {
                     applied: args.common.applied,
                     liked: args.common.rating,
                     remote: args.common.remote,
+                    is_english: args.common.english,
                 };
                 let sort = match args.sort {
                     CommonSortBy::Created => Sort::Created,
@@ -150,6 +156,7 @@ async fn main() -> Result<()> {
                     applied: args.common.applied,
                     liked: args.common.rating,
                     remote: args.common.remote,
+                    is_english: args.common.english,
                 };
                 let sort = match args.sort {
                     CommonSortBy::Created => Sort::Created,
@@ -163,6 +170,7 @@ async fn main() -> Result<()> {
                     applied: args.common.applied,
                     liked: args.common.rating,
                     remote: args.common.remote,
+                    is_english: args.common.english,
                 };
                 let sort = match args.sort {
                     CommonSortBy::Created => Sort::Created,
@@ -192,11 +200,13 @@ async fn main() -> Result<()> {
                 sync_apps(&UpworkScraper::new(), &browser, &db, args.pause_ms).await?;
             }
             SyncPlatform::Nofluff(args) => {
-                sync_apps(&NoFluffJobsScraper::new(), &browser, &db, args.pause_ms).await?;
+                let lang = LanguageService::new();
+                sync_apps(&NoFluffJobsScraper::new(lang), &browser, &db, args.pause_ms).await?;
             }
             SyncPlatform::Efinancialcareers(args) => {
+                let lang = LanguageService::new();
                 sync_apps(
-                    &EfinancialcareersScraper::new(),
+                    &EfinancialcareersScraper::new(lang),
                     &browser,
                     &db,
                     args.pause_ms,

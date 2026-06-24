@@ -1,6 +1,7 @@
 use crate::browser::{BrowserExt, host_of, wait_for, wait_for_element};
 use crate::db::Db;
-use crate::models::{Data, Job, NoFluffJobDetail, Platform};
+use crate::language::LanguageService;
+use crate::models::{Data, Job, NoFluffJobDetail, Platform, classify_language};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
@@ -35,6 +36,7 @@ pub struct NofluffJobCard {
 pub struct NoFluffJobsScraper {
     config: NoFluffJobsConfig,
     client: Client,
+    lang: LanguageService,
 }
 
 const API_BASE: &str = "https://nofluffjobs.com/api";
@@ -442,23 +444,25 @@ impl PlatformClient for NoFluffJobsScraper {
 }
 
 impl NoFluffJobsScraper {
-    pub fn new() -> Self {
+    pub fn new(lang: LanguageService) -> Self {
         Self {
             config: NoFluffJobsConfig::default(),
             client: Client::builder()
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
                 .build()
                 .unwrap_or_else(|_| Client::new()),
+            lang,
         }
     }
 
-    pub fn with_config(config: NoFluffJobsConfig) -> Self {
+    pub fn with_config(config: NoFluffJobsConfig, lang: LanguageService) -> Self {
         Self {
             config,
             client: Client::builder()
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
                 .build()
                 .unwrap_or_else(|_| Client::new()),
+            lang,
         }
     }
 
@@ -562,7 +566,10 @@ impl NoFluffJobsScraper {
                             note: None,
                             applied_at: None,
                             remote: true,
+                            is_english: true,
                         };
+                        let is_english = classify_language(&self.lang, &job).await?;
+                        let job = Job { is_english, ..job };
                         db.upsert_job(&job).await?;
                         state.inc_new();
                         all_jobs.push(job);
@@ -755,58 +762,62 @@ impl NoFluffJobsScraper {
             let url = format!("https://nofluffjobs.com/job/{}", slug);
             let external_id = slug.clone();
 
-            let job_id = if let Some(job_id) =
-                db.find_job_id(&Platform::NoFluffJobs, &external_id).await?
-            {
-                Some(job_id)
-            } else {
-                sleep(Duration::from_millis(pause_ms)).await;
+            let job_id =
+                if let Some(job_id) = db.find_job_id(&Platform::NoFluffJobs, &external_id).await? {
+                    Some(job_id)
+                } else {
+                    sleep(Duration::from_millis(pause_ms)).await;
 
-                match self.fetch_detail(&slug).await {
-                    Ok(mut detail) => {
-                        detail.employment_type = item.offer.employment_type.clone();
+                    match self.fetch_detail(&slug).await {
+                        Ok(mut detail) => {
+                            detail.employment_type = item.offer.employment_type.clone();
 
-                        if let Some(posted) = item.offer.posted {
-                            detail.posted_at = posted;
+                            if let Some(posted) = item.offer.posted {
+                                detail.posted_at = posted;
+                            }
+                            let applied_at = applied_at_for(&item);
+                            let mut created_at = detail.posted_at;
+                            if created_at > applied_at {
+                                created_at = applied_at;
+                            }
+
+                            let budget = item.offer.budget.clone();
+                            let tags = item.offer.tags.clone();
+
+                            let description =
+                                Some(detail.description.clone()).filter(|d| !d.is_empty());
+                            let job = Job {
+                                id: 0,
+                                platform: Platform::NoFluffJobs,
+                                external_id,
+                                title: item.offer.title.clone(),
+                                description,
+                                url,
+                                budget,
+                                tags,
+                                raw: Data::Nofluffjobs { detail },
+                                company: None,
+                                created_at,
+                                updated_at: Utc::now(),
+                                liked: None,
+                                note: None,
+                                applied_at: None,
+                                remote: true,
+                                is_english: true,
+                            };
+                            let is_english = classify_language(&self.lang, &job).await?;
+                            let job = Job { is_english, ..job };
+                            Some(db.upsert_job(&job).await?)
                         }
-                        let applied_at = applied_at_for(&item);
-                        let mut created_at = detail.posted_at;
-                        if created_at > applied_at {
-                            created_at = applied_at;
+                        Err(e) => {
+                            eprintln!(
+                                "  Warning: failed to fetch detail for {}: {}",
+                                item.offer.title, e
+                            );
+                            None
                         }
-
-                        let budget = item.offer.budget.clone();
-                        let tags = item.offer.tags.clone();
-
-                        let job = Job {
-                            id: 0,
-                            platform: Platform::NoFluffJobs,
-                            external_id,
-                            title: item.offer.title.clone(),
-                            description: Some(detail.description.clone()).filter(|d| !d.is_empty()),
-                            url,
-                            budget,
-                            tags,
-                            raw: Data::Nofluffjobs { detail },
-                            company: None,
-                            created_at,
-                            updated_at: Utc::now(),
-                            liked: None,
-                            note: None,
-                            applied_at: None,
-                            remote: true,
-                        };
-                        Some(db.upsert_job(&job).await?)
                     }
-                    Err(e) => {
-                        eprintln!(
-                            "  Warning: failed to fetch detail for {}: {}",
-                            item.offer.title, e
-                        );
-                        None
-                    }
-                }
-            };
+                };
             let Some(job_id) = job_id else { continue };
 
             let stored_applied = db
@@ -862,7 +873,7 @@ impl NoFluffJobsScraper {
 
 impl Default for NoFluffJobsScraper {
     fn default() -> Self {
-        Self::new()
+        Self::new(LanguageService::new())
     }
 }
 
@@ -922,7 +933,7 @@ mod tests {
 
     #[test]
     fn test_build_search_url_default_with_query() {
-        let scraper = NoFluffJobsScraper::new();
+        let scraper = NoFluffJobsScraper::new(LanguageService::new());
         let url = scraper.build_search_url("rust");
         assert_eq!(
             url,
@@ -932,7 +943,7 @@ mod tests {
 
     #[test]
     fn test_build_search_url_empty_query() {
-        let scraper = NoFluffJobsScraper::new();
+        let scraper = NoFluffJobsScraper::new(LanguageService::new());
         let url = scraper.build_search_url("");
         assert_eq!(url, "https://nofluffjobs.com/remote?criteria=&sort=newest");
     }
@@ -946,7 +957,7 @@ mod tests {
             language: Some("en".to_string()),
             salary_currency: "EUR".to_string(),
         };
-        let scraper = NoFluffJobsScraper::with_config(config);
+        let scraper = NoFluffJobsScraper::with_config(config, LanguageService::new());
         let url = scraper.build_search_url("rust");
         assert_eq!(
             url,
@@ -963,7 +974,7 @@ mod tests {
             language: Some("en".to_string()),
             salary_currency: "EUR".to_string(),
         };
-        let scraper = NoFluffJobsScraper::with_config(config);
+        let scraper = NoFluffJobsScraper::with_config(config, LanguageService::new());
         let url = scraper.build_search_url("");
         assert_eq!(
             url,
@@ -980,7 +991,7 @@ mod tests {
             language: None,
             salary_currency: "EUR".to_string(),
         };
-        let scraper = NoFluffJobsScraper::with_config(config);
+        let scraper = NoFluffJobsScraper::with_config(config, LanguageService::new());
         let url = scraper.build_search_url("senior");
         assert_eq!(
             url,
