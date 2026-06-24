@@ -171,8 +171,9 @@ async fn main() -> Result<()> {
                 cmd_list(&db, filter, sort).await?;
             }
         },
-        Commands::Show { id } => {
-            cmd_show(&db, id).await?;
+        Commands::Show(args) => {
+            let jobs = db.get_jobs(&args.ids).await?;
+            println!("{}", serde_json::to_string_pretty(&jobs)?);
         }
         Commands::Delete { ids } => {
             cmd_delete(&db, ids).await?;
@@ -275,15 +276,6 @@ async fn fetch_and_store(
 async fn cmd_list(db: &Db, filter: JobFilter, sort: Sort) -> Result<()> {
     let jobs = db.list_jobs_filtered(&filter, sort, i64::MAX, 0).await?;
     println!("{}", serde_json::to_string_pretty(&jobs.items)?);
-    Ok(())
-}
-
-async fn cmd_show(db: &Db, id: i64) -> Result<()> {
-    let job = db
-        .get_job(id)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("Job {} not found", id))?;
-    println!("{}", serde_json::to_string_pretty(&job)?);
     Ok(())
 }
 

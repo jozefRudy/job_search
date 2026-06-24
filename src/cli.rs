@@ -20,9 +20,7 @@ pub enum Commands {
     Init,
     Update(UpdateCmd),
     List(ListCmd),
-    Show {
-        id: i64,
-    },
+    Show(ShowCmd),
     Delete {
         ids: Vec<i64>,
     },
@@ -72,6 +70,12 @@ pub struct PlatformListArgs {
     /// Sort order: created, applied
     #[arg(long, value_enum, default_value = "created")]
     pub sort: CommonSortBy,
+}
+
+#[derive(Args)]
+pub struct ShowCmd {
+    #[arg(required = true)]
+    pub ids: Vec<i64>,
 }
 
 #[derive(Args)]
