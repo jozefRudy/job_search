@@ -103,17 +103,27 @@ export function JobDetailContent(props: { job: Job }) {
             </a>
           </p>
           <Row gap="sm" class="flex-wrap">
+            <For each={j.tags}>
+              {(tag) => <span class="badge badge-sm">{tag}</span>}
+            </For>
+          </Row>
+          <Row gap="sm" class="flex-wrap">
             <span
               class={cn(
                 "badge badge-sm",
-                j.remote ? "badge-success" : "badge-error",
+                j.remote ? "badge-success" : "badge-neutral",
               )}
             >
               {j.remote ? "remote" : "not remote"}
             </span>
-            <For each={j.tags}>
-              {(tag) => <span class="badge badge-sm">{tag}</span>}
-            </For>
+            <span
+              class={cn(
+                "badge badge-sm",
+                j.is_english ? "badge-success" : "badge-neutral",
+              )}
+            >
+              {j.is_english ? "English" : "non-English"}
+            </span>
           </Row>
         </div>
       </div>
