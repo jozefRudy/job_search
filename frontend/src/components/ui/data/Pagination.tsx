@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { createEffect, For, Show } from "solid-js";
 import { match } from "ts-pattern";
 import { cn } from "~/lib/utils";
 
@@ -36,6 +36,13 @@ function formatRange(
 
 export function Pagination(props: PaginationProps) {
   const totalPages = () => Math.ceil(props.totalItems / props.pageSize);
+
+  createEffect(() => {
+    const tp = totalPages();
+    if (tp > 0 && props.currentPage > tp) {
+      props.onPageChange(tp);
+    }
+  });
 
   const rangeText = () =>
     formatRange(props.currentPage, props.totalItems, props.pageSize);
