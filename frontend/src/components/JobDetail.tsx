@@ -135,7 +135,6 @@ export function JobDetailContent(props: { job: Job }) {
             <Button
               variant={j.rating === "liked" ? "primary" : "ghost"}
               size="sm"
-              class={cn(j.rating === "liked" && "text-success")}
               onClick={() => handleRate("liked")}
             >
               {ratingEmoji("liked")} Like
@@ -143,7 +142,6 @@ export function JobDetailContent(props: { job: Job }) {
             <Button
               variant={j.rating === "disliked" ? "danger" : "ghost"}
               size="sm"
-              class={cn(j.rating === "disliked" && "text-error")}
               onClick={() => handleRate("disliked")}
             >
               {ratingEmoji("disliked")} Dislike
@@ -151,7 +149,6 @@ export function JobDetailContent(props: { job: Job }) {
             <Button
               variant={j.rating === "neutral" ? "secondary" : "ghost"}
               size="sm"
-              class={cn(j.rating === "neutral" && "text-warning")}
               onClick={() => handleRate("neutral")}
             >
               {ratingEmoji("neutral")} Neutral

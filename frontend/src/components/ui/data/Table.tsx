@@ -82,9 +82,7 @@ export function Table<T>(props: TableProps<T>) {
         </div>
       </Show>
 
-      <table
-        class={cn(classes, merged.loadState === "fetching" && "opacity-60")}
-      >
+      <table class={classes}>
         <thead>
           <tr>
             <For each={merged.columns}>
