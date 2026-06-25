@@ -220,12 +220,6 @@ async fn apply_job(
 pub async fn serve(db: Db, port: u16) -> Result<()> {
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
     eprintln!("jobsearch ({VERSION}) listening on http://0.0.0.0:{port}");
-    eprintln!(
-        " unsorted jobs -> http://127.0.0.1:{port}/?platform=any&page=1&applied=false&rating=neutral&remote=true&is_english=true"
-    );
-    eprintln!(
-        " jobs to apply -> http://127.0.0.1:{port}/?platform=any&page=1&applied=false&rating=liked&remote=any&is_english=any"
-    );
     axum::serve(listener, app(db)).await?;
     Ok(())
 }
