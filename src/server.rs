@@ -217,9 +217,23 @@ async fn apply_job(
     Ok(StatusCode::NO_CONTENT)
 }
 
+async fn shutdown_signal() {
+    let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("SIGTERM handler");
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {}
+        _ = term.recv() => {}
+    }
+}
+
 pub async fn serve(db: Db, port: u16) -> Result<()> {
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
     eprintln!("jobsearch ({VERSION}) listening on http://0.0.0.0:{port}");
-    axum::serve(listener, app(db)).await?;
+    axum::serve(listener, app(db))
+        .with_graceful_shutdown(async {
+            shutdown_signal().await;
+            eprintln!("jobsearch ({VERSION}) shutting down");
+        })
+        .await?;
     Ok(())
 }
