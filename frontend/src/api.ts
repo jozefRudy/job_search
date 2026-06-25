@@ -15,10 +15,12 @@ export type {
   ApplyRequest,
   Job,
   ListJobsParams,
-  Platform,
   RateRequest,
-  Rating,
   Sort,
+} from "~/generated/orval/jobsearch.schemas";
+export {
+  Platform,
+  Rating,
 } from "~/generated/orval/jobsearch.schemas";
 
 export function useListJobs(params: () => ListJobsParams) {

@@ -1,12 +1,14 @@
 import { useNavigate, useSearchParams } from "@solidjs/router";
 import { isNotNil, pickBy } from "es-toolkit";
-import { createMemo, onMount, Show } from "solid-js";
+import { createMemo, Show } from "solid-js";
 import { z } from "zod";
 import {
   type Job,
   type ListJobsParams,
   type Platform,
+  Platform as PlatformEnum,
   type Rating,
+  Rating as RatingEnum,
   type Sort,
   useListJobs,
   useRateJob,
@@ -51,68 +53,59 @@ const PLATFORM_SORTS: Record<
   ],
 };
 
+type WithAny<T extends string> = T | "any";
+
+const PLATFORMS: ReadonlyArray<WithAny<Platform>> = [
+  "any",
+  ...Object.values(PlatformEnum),
+];
+
+const RATINGS: ReadonlyArray<WithAny<Rating>> = [
+  "any",
+  ...Object.values(RatingEnum),
+];
+
+const BOOL_FILTERS: ReadonlyArray<BoolFilter> = ["any", "true", "false"];
+
+const enumSchema = <T extends string>(
+  values: ReadonlyArray<WithAny<T>>,
+  fallback: WithAny<T>,
+) =>
+  z
+    .union([...values.map((v) => z.literal(v)), z.literal("any")])
+    .catch(fallback);
+
 export function JobList() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  onMount(() => {
-    const platform = (searchParams.platform as string | undefined) ?? "any";
-
-    const sortBy =
-      (searchParams.sort_by as string | undefined) ??
-      PLATFORM_SORTS[platform as Platform | "any"][0].value;
-
-    const next: Record<string, string | boolean> = {
-      platform: platform,
-      rating: (searchParams.rating as string | undefined) ?? "any",
-      applied: (searchParams.applied as string | undefined) ?? "any",
-      remote: (searchParams.remote as string | undefined) ?? "any",
-      is_english: (searchParams.is_english as string | undefined) ?? "any",
-      sort_by: sortBy,
-    };
-    setSearchParams(next, { replace: true });
-  });
-
-  function enumFilter<T extends string>(
-    value: unknown,
-    values: readonly T[],
-  ): T | "any" {
-    return z
-      .union([...values.map((v) => z.literal(v)), z.literal("any")])
-      .catch("any")
-      .parse(value) as T | "any";
-  }
-
   const platform = (): Platform | "any" =>
-    enumFilter(searchParams.platform, [
-      "upwork",
-      "nofluffjobs",
-      "efinancialcareers",
-      "hackernews",
-    ]);
+    enumSchema(PLATFORMS, "any").parse(searchParams.platform);
 
   const rating = (): Rating | "any" =>
-    enumFilter(searchParams.rating, ["liked", "neutral", "disliked"]);
+    enumSchema(RATINGS, "any").parse(searchParams.rating);
 
   const applied = (): BoolFilter =>
-    enumFilter(searchParams.applied, ["true", "false"]);
+    enumSchema(BOOL_FILTERS, "any").parse(searchParams.applied);
   const remote = (): BoolFilter =>
-    enumFilter(searchParams.remote, ["true", "false"]);
+    enumSchema(BOOL_FILTERS, "any").parse(searchParams.remote);
   const english = (): BoolFilter =>
-    enumFilter(searchParams.is_english, ["true", "false"]);
+    enumSchema(BOOL_FILTERS, "any").parse(searchParams.is_english);
 
   const sortBy = (): Sort => {
-    const key: Platform | "any" = platform();
+    const key = platform();
     const supported = PLATFORM_SORTS[key].map((s) => s.value);
-    const schema = z.enum(supported as [Sort, ...Sort[]]).catch(supported[0]);
-    return schema.parse(searchParams.sort_by);
+    return z
+      .enum(supported as [Sort, ...Sort[]])
+      .catch(supported[0])
+      .parse(searchParams.sort_by);
   };
 
   const page = (): number =>
     z.coerce.number().int().positive().catch(1).parse(searchParams.page);
 
-  const params = (): ListJobsParams => {
-    return pickBy(
+  const params = (): ListJobsParams =>
+    pickBy(
       {
         sort_by: sortBy(),
         page: page(),
@@ -125,7 +118,6 @@ export function JobList() {
       },
       isNotNil,
     ) as ListJobsParams;
-  };
 
   const query = useListJobs(params);
   const rateMutation = useRateJob();
@@ -143,38 +135,13 @@ export function JobList() {
     return "normal";
   });
 
-  function setPlatformAndReset(p: Platform | "any") {
-    const supported = new Set(PLATFORM_SORTS[p].map((s) => s.value));
-    const nextSort = supported.has(sortBy()) ? sortBy() : "created";
-    setSearchParams(
-      { platform: p, sort_by: nextSort, page: "" },
-      { replace: true },
-    );
-  }
-
-  function setRatingAndReset(r: Rating | "any") {
-    setSearchParams({ rating: r, page: "" }, { replace: true });
-  }
-
-  function setAppliedAndReset(a: BoolFilter) {
-    setSearchParams({ applied: a, page: "" }, { replace: true });
-  }
-
-  function setRemoteAndReset(r: BoolFilter) {
-    setSearchParams({ remote: r, page: "" }, { replace: true });
-  }
-
-  function setEnglishAndReset(e: BoolFilter) {
-    setSearchParams({ is_english: e, page: "" }, { replace: true });
-  }
-
-  function setSortByAndReset(s: Sort) {
-    setSearchParams({ sort_by: s, page: "" }, { replace: true });
+  function updateSearch(next: Record<string, string>) {
+    setSearchParams({ ...searchParams, ...next, page: "1" }, { replace: true });
   }
 
   function setPageAndUpdate(p: number) {
     window.scrollTo({ top: 0, behavior: "auto" });
-    setSearchParams({ page: p === 1 ? "" : String(p) }, { replace: true });
+    setSearchParams({ page: String(p) }, { replace: true });
   }
 
   function handleRate(job: Job, rating: Rating) {
@@ -301,9 +268,7 @@ export function JobList() {
           <select
             class="select select-sm"
             value={platform()}
-            onChange={(e) =>
-              setPlatformAndReset(e.currentTarget.value as Platform | "any")
-            }
+            onChange={(e) => updateSearch({ platform: e.currentTarget.value })}
           >
             <option value="any">Platforms: any</option>
             <option value="upwork">Upwork</option>
@@ -315,9 +280,7 @@ export function JobList() {
           <select
             class="select select-sm"
             value={rating()}
-            onChange={(e) =>
-              setRatingAndReset(e.currentTarget.value as Rating | "any")
-            }
+            onChange={(e) => updateSearch({ rating: e.currentTarget.value })}
           >
             <option value="any">Liked: any</option>
             <option value="liked">Liked</option>
@@ -328,9 +291,7 @@ export function JobList() {
           <select
             class="select select-sm"
             value={applied()}
-            onChange={(e) =>
-              setAppliedAndReset(e.currentTarget.value as BoolFilter)
-            }
+            onChange={(e) => updateSearch({ applied: e.currentTarget.value })}
           >
             <option value="any">Applied: any</option>
             <option value="true">Applied</option>
@@ -340,9 +301,7 @@ export function JobList() {
           <select
             class="select select-sm"
             value={remote()}
-            onChange={(e) =>
-              setRemoteAndReset(e.currentTarget.value as BoolFilter)
-            }
+            onChange={(e) => updateSearch({ remote: e.currentTarget.value })}
           >
             <option value="any">Remote: any</option>
             <option value="true">Remote</option>
@@ -353,7 +312,7 @@ export function JobList() {
             class="select select-sm"
             value={english()}
             onChange={(e) =>
-              setEnglishAndReset(e.currentTarget.value as BoolFilter)
+              updateSearch({ is_english: e.currentTarget.value })
             }
           >
             <option value="any">Language: any</option>
@@ -365,7 +324,7 @@ export function JobList() {
             <select
               class="select select-sm"
               value={sortBy()}
-              onChange={(e) => setSortByAndReset(e.currentTarget.value as Sort)}
+              onChange={(e) => updateSearch({ sort_by: e.currentTarget.value })}
             >
               {PLATFORM_SORTS[platform()].map(
                 (s: { value: Sort; label: string }) => (
