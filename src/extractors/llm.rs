@@ -176,7 +176,7 @@ mod tests {
     #[test]
     fn test_truncate_respects_char_boundaries() {
         let s = "αβγδ".repeat(1000);
-        let t = LlmExtractor::<llm_hackernews::Fields>::truncate(&s);
+        let t = LlmExtractor::<llm_hackernews::ExtractFields>::truncate(&s);
         assert!(t.len() <= MAX_TEXT_LEN);
         assert!(t.is_char_boundary(t.len()));
     }

@@ -4,21 +4,19 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
-pub struct Fields {
+pub struct ExtractFields {
     #[schemars(description = "true only if the comment is an actual job advertisement")]
     #[serde(default)]
     pub is_job_ad: bool,
     #[schemars(description = "company or organization name")]
     pub company: Option<String>,
-    #[schemars(
-        description = "job title or role; if multiple roles are listed, join them with ' + '"
-    )]
+    #[schemars(description = "job title or role; if multiple listed, join them with ' + '")]
     pub role: Option<String>,
-    #[schemars(description = "location mentioned in the post, if multiple, join them with ' + '")]
-    pub location: Option<String>,
     #[schemars(
-        description = "true if the post explicitly mentions remote, distributed, worldwide, or global work"
+        description = "location mentioned in the post, if multiple listed, join them with ' + '"
     )]
+    pub location: Option<String>,
+    #[schemars(description = "true if the job is fully remote")]
     #[serde(default)]
     pub remote: Option<bool>,
     #[schemars(description = "raw compensation snippet (e.g. '$150k-$175k' or 'EUR 80k-100k')")]
@@ -28,7 +26,7 @@ pub struct Fields {
     pub tags: Vec<String>,
 }
 
-impl Extractable for Fields {
+impl Extractable for ExtractFields {
     const PROMPT: PromptKind = PromptKind::HackerNews;
     const HEALTHCHECK_TEXT: &'static str = include_str!("llm/fixtures/hackernews_healthcheck.md");
 
@@ -65,7 +63,7 @@ mod tests {
     #[ignore = "requires LLM CLI reachable via --llm-cli or DEFAULT_LLM_CLI"]
     async fn test_extract_hackernews_job_from_fixture() {
         let text = include_str!("llm/fixtures/hackernews_job.md");
-        let fields = LlmExtractor::<Fields>::from_cli(None)
+        let fields = LlmExtractor::<ExtractFields>::from_cli(None)
             .extract(text)
             .await
             .expect("llm extraction failed");
@@ -80,7 +78,7 @@ mod tests {
     #[ignore = "requires LLM CLI reachable via --llm-cli or DEFAULT_LLM_CLI"]
     async fn test_extract_hackernews_multiple_roles() {
         let text = include_str!("llm/fixtures/hackernews_multiple_roles.md");
-        let fields = LlmExtractor::<Fields>::from_cli(None)
+        let fields = LlmExtractor::<ExtractFields>::from_cli(None)
             .extract(text)
             .await
             .expect("llm extraction failed");

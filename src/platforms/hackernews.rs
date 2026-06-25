@@ -50,7 +50,7 @@ struct CommentSearchResponse {
 
 pub struct HackerNewsScraper {
     client: Client,
-    extractor: LlmExtractor<llm_hackernews::Fields>,
+    extractor: LlmExtractor<llm_hackernews::ExtractFields>,
 }
 
 impl HackerNewsScraper {
@@ -60,7 +60,7 @@ impl HackerNewsScraper {
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
                 .build()
                 .unwrap_or_else(|_| Client::new()),
-            extractor: LlmExtractor::<llm_hackernews::Fields>::from_cli(llm_cli),
+            extractor: LlmExtractor::<llm_hackernews::ExtractFields>::from_cli(llm_cli),
         }
     }
 
