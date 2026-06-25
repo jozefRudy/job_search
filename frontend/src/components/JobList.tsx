@@ -20,7 +20,7 @@ import { ErrorAlert } from "~/components/ui/ErrorAlert";
 import { Container } from "~/components/ui/layout/Container";
 import { Row } from "~/components/ui/layout/Row";
 import { Stack } from "~/components/ui/layout/Stack";
-import { cn, ellip, fmtRelative, ratingClass, ratingEmoji } from "~/lib/utils";
+import { cn, ellip, fmtRelative, ratingEmoji } from "~/lib/utils";
 
 const PAGE_SIZE = 20;
 
@@ -181,9 +181,7 @@ export function JobList() {
         key: "rating",
         header: "Rating",
         cell: (j: Job) => (
-          <span class={cn(ratingClass(j.rating), "font-bold")}>
-            {ratingEmoji(j.rating)}
-          </span>
+          <span class="text-base-content/70">{ratingEmoji(j.rating)}</span>
         ),
       },
       {

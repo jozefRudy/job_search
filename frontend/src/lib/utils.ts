@@ -58,13 +58,6 @@ export function ratingEmoji(rating: string | null | undefined): string {
     .otherwise(() => "↔️");
 }
 
-export function ratingClass(rating: string | null | undefined): string {
-  return match(rating)
-    .with("liked", () => "text-success")
-    .with("disliked", () => "text-error")
-    .otherwise(() => "text-base-content/40");
-}
-
 export function ellip(value: string | null | undefined, max: number): string {
   const s = value ?? "";
   if (s.length <= max) return s;
