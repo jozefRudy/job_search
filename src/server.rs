@@ -96,7 +96,7 @@ async fn list_jobs(
 
     let filter = JobFilter {
         platform: query.platform,
-        liked: query.rating,
+        rating: query.rating,
         applied: query.applied,
         remote: query.remote,
         is_english: query.is_english,
@@ -151,12 +151,11 @@ async fn rate_job(
     Path(id): Path<i64>,
     Json(body): Json<RateRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    match body.rating {
-        Rating::Liked => state.db.set_liked(&[id], true).await,
-        Rating::Disliked => state.db.set_liked(&[id], false).await,
-        Rating::Neutral => state.db.set_neutral(&[id]).await,
-    }
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    state
+        .db
+        .set_rating(&[id], body.rating)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::NO_CONTENT)
 }

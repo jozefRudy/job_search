@@ -22,13 +22,12 @@ impl Db {
     pub async fn upsert_job(&self, job: &Job) -> Result<i64> {
         let tags = serde_json::to_string(&job.tags)?;
         let raw = serde_json::to_string(&job.raw)?;
-        let platform = &job.platform;
         let created_at = job.created_at.naive_utc();
 
         let id = sqlx::query_scalar!(
             r#"
-            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at, remote, is_english)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at, remote, is_english, rating)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
             ON CONFLICT(platform, external_id) DO UPDATE SET
                 title = excluded.title,
                 description = excluded.description,
@@ -38,10 +37,11 @@ impl Db {
                 raw = excluded.raw,
                 remote = excluded.remote,
                 is_english = excluded.is_english,
+                rating = excluded.rating,
                 updated_at = CURRENT_TIMESTAMP
             RETURNING id
             "#,
-            platform,
+            job.platform,
             job.external_id,
             job.title,
             job.description,
@@ -52,6 +52,7 @@ impl Db {
             created_at,
             job.remote,
             job.is_english,
+            job.rating,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -71,7 +72,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.liked, j.remote, j.is_english, r.note, r.applied_at
+                j.rating, j.remote, j.is_english, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
@@ -95,11 +96,6 @@ impl Db {
         offset: i64,
     ) -> Result<Paginated<Job>> {
         let order_by = sort.order_by_sql();
-        let liked = filter.liked.map(|r| match r {
-            Rating::Liked => Some(1),
-            Rating::Disliked => Some(0),
-            Rating::Neutral => None,
-        });
 
         let total: i64 = sqlx::query_scalar!(
             r#"
@@ -107,13 +103,13 @@ impl Db {
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
-              AND (?2 IS NULL OR j.liked IS ?2)
+              AND (?2 IS NULL OR j.rating = ?2)
               AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
               AND (?5 IS NULL OR j.is_english = ?5)
             "#,
             filter.platform,
-            liked,
+            filter.rating,
             filter.applied,
             filter.remote,
             filter.is_english,
@@ -125,11 +121,11 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.liked, j.remote, j.is_english, r.note, r.applied_at
+                j.rating, j.remote, j.is_english, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
-              AND (?2 IS NULL OR j.liked IS ?2)
+              AND (?2 IS NULL OR j.rating = ?2)
               AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
               AND (?5 IS NULL OR j.is_english = ?5)
@@ -139,7 +135,7 @@ impl Db {
         );
         let rows = sqlx::query_as::<_, JobRow>(&sql)
             .bind(filter.platform)
-            .bind(liked)
+            .bind(filter.rating)
             .bind(filter.applied)
             .bind(filter.remote)
             .bind(filter.is_english)
@@ -163,7 +159,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.liked, j.remote, j.is_english, r.note, r.applied_at
+                j.rating, j.remote, j.is_english, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE j.id IN (SELECT value FROM json_each(?1))
@@ -184,7 +180,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.liked, j.remote, j.is_english, r.note, r.applied_at
+                j.rating, j.remote, j.is_english, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE j.id = ?1
@@ -225,22 +221,11 @@ impl Db {
         Ok(())
     }
 
-    pub async fn set_liked(&self, ids: &[i64], liked: bool) -> Result<()> {
+    pub async fn set_rating(&self, ids: &[i64], rating: Rating) -> Result<()> {
         let ids_json = serde_json::to_string(ids)?;
         sqlx::query!(
-            "UPDATE jobs SET liked = ?1 WHERE id IN (SELECT value FROM json_each(?2))",
-            liked,
-            ids_json
-        )
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
-    pub async fn set_neutral(&self, ids: &[i64]) -> Result<()> {
-        let ids_json = serde_json::to_string(ids)?;
-        sqlx::query!(
-            "UPDATE jobs SET liked = NULL WHERE id IN (SELECT value FROM json_each(?1))",
+            "UPDATE jobs SET rating = ?1 WHERE id IN (SELECT value FROM json_each(?2))",
+            rating,
             ids_json
         )
         .execute(&self.pool)
@@ -261,11 +246,11 @@ impl Db {
         let result = sqlx::query(
             r#"
             UPDATE jobs
-            SET liked = s.liked
+            SET rating = s.rating
             FROM source.jobs AS s
             WHERE jobs.platform = s.platform
               AND jobs.external_id = s.external_id
-              AND s.liked IS NOT NULL
+              AND s.rating <> 'neutral'
             "#,
         )
         .execute(&mut *conn)
@@ -421,7 +406,7 @@ impl Db {
 #[derive(sqlx::FromRow)]
 struct JobRow {
     id: i64,
-    platform: String,
+    platform: Platform,
     external_id: String,
     title: String,
     description: Option<String>,
@@ -432,7 +417,7 @@ struct JobRow {
     company: Option<String>,
     created_at: chrono::NaiveDateTime,
     updated_at: chrono::NaiveDateTime,
-    liked: Option<bool>,
+    rating: Rating,
     remote: bool,
     is_english: bool,
     note: Option<String>,
@@ -446,7 +431,7 @@ impl From<JobRow> for Job {
 
         Job {
             id: r.id,
-            platform: r.platform.parse().expect("unknown platform in db"),
+            platform: r.platform,
             external_id: r.external_id,
             title: r.title,
             description: r.description,
@@ -458,7 +443,7 @@ impl From<JobRow> for Job {
             created_at: r.created_at.and_utc(),
             updated_at: r.updated_at.and_utc(),
             note: r.note,
-            liked: r.liked,
+            rating: r.rating,
             remote: r.remote,
             applied_at: r.applied_at.map(|dt| dt.and_utc()),
             is_english: r.is_english,
@@ -511,7 +496,7 @@ mod tests {
             company: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
-            liked: None,
+            rating: Rating::Neutral,
             note: None,
             applied_at: None,
             remote: true,
@@ -570,7 +555,7 @@ mod tests {
             company: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
-            liked: None,
+            rating: Rating::Neutral,
             note: None,
             applied_at: None,
             remote: true,
@@ -624,7 +609,7 @@ mod tests {
             company: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
-            liked: None,
+            rating: Rating::Neutral,
             note: None,
             applied_at: None,
             remote: true,
@@ -703,14 +688,16 @@ mod tests {
         let id_b = source.upsert_job(&b).await?;
         let _id_c = source.upsert_job(&c).await?;
         let _id_d = source.upsert_job(&d).await?;
-        source.set_liked(&[id_a], true).await?;
-        source.set_liked(&[id_b], false).await?;
+        source.set_rating(&[id_a], Rating::Liked).await?;
+        source.set_rating(&[id_b], Rating::Disliked).await?;
 
         // Target has A, B, C; lacks D.
         let target_a = target.upsert_job(&a).await?;
         let target_b = target.upsert_job(&b).await?;
         target.upsert_job(&c).await?;
-        target.set_liked(&[target_a, target_b], true).await?;
+        target
+            .set_rating(&[target_a, target_b], Rating::Liked)
+            .await?;
 
         let synced = target
             .sync_likes(
@@ -724,9 +711,9 @@ mod tests {
 
         let jobs = target.list_jobs(None, Sort::Created, 100).await?;
         let find = |ext_id: &str| jobs.iter().find(|j| j.external_id == ext_id).unwrap();
-        assert_eq!(find("a").liked, Some(true));
-        assert_eq!(find("b").liked, Some(false));
-        assert_eq!(find("c").liked, None);
+        assert_eq!(find("a").rating, Rating::Liked);
+        assert_eq!(find("b").rating, Rating::Disliked);
+        assert_eq!(find("c").rating, Rating::Neutral);
 
         Ok(())
     }
@@ -760,7 +747,7 @@ mod tests {
             company: None,
             created_at: chrono::Utc::now() - chrono::Duration::days(days_ago),
             updated_at: chrono::Utc::now(),
-            liked: None,
+            rating: Rating::Neutral,
             note: None,
             applied_at: None,
             remote: true,
@@ -844,6 +831,85 @@ mod tests {
             )
             .await?;
         assert_eq!(all.items.len(), 2);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_jobs_filtered_rating() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let id_liked = db
+            .upsert_job(&test_job(Platform::Upwork, "liked", "Liked"))
+            .await?;
+        let id_disliked = db
+            .upsert_job(&test_job(Platform::Upwork, "disliked", "Disliked"))
+            .await?;
+        let id_neutral = db
+            .upsert_job(&test_job(Platform::Upwork, "neutral", "Neutral"))
+            .await?;
+        db.set_rating(&[id_liked], Rating::Liked).await?;
+        db.set_rating(&[id_disliked], Rating::Disliked).await?;
+        db.set_rating(&[id_neutral], Rating::Neutral).await?;
+
+        let liked = db
+            .list_jobs_filtered(
+                &JobFilter {
+                    platform: Some(Platform::Upwork),
+                    rating: Some(Rating::Liked),
+                    ..Default::default()
+                },
+                Sort::Created,
+                10,
+                0,
+            )
+            .await?;
+        assert_eq!(liked.items.len(), 1);
+        assert_eq!(liked.items[0].title, "Liked");
+
+        let disliked = db
+            .list_jobs_filtered(
+                &JobFilter {
+                    platform: Some(Platform::Upwork),
+                    rating: Some(Rating::Disliked),
+                    ..Default::default()
+                },
+                Sort::Created,
+                10,
+                0,
+            )
+            .await?;
+        assert_eq!(disliked.items.len(), 1);
+        assert_eq!(disliked.items[0].title, "Disliked");
+
+        let neutral = db
+            .list_jobs_filtered(
+                &JobFilter {
+                    platform: Some(Platform::Upwork),
+                    rating: Some(Rating::Neutral),
+                    ..Default::default()
+                },
+                Sort::Created,
+                10,
+                0,
+            )
+            .await?;
+        assert_eq!(neutral.items.len(), 1);
+        assert_eq!(neutral.items[0].title, "Neutral");
+
+        let all = db
+            .list_jobs_filtered(
+                &JobFilter {
+                    platform: Some(Platform::Upwork),
+                    ..Default::default()
+                },
+                Sort::Created,
+                10,
+                0,
+            )
+            .await?;
+        assert_eq!(all.items.len(), 3);
 
         Ok(())
     }

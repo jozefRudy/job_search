@@ -8,7 +8,7 @@ use jobsearch::cli::{
 };
 use jobsearch::db::Db;
 use jobsearch::language::LanguageService;
-use jobsearch::models::{JobFilter, Platform, Sort};
+use jobsearch::models::{JobFilter, Platform, Rating, Sort};
 use jobsearch::platforms::{
     PlatformClient,
     efinancialcareers::{EfinancialcareersConfig, EfinancialcareersScraper},
@@ -111,7 +111,7 @@ async fn main() -> Result<()> {
                 let filter = JobFilter {
                     platform: None,
                     applied: args.common.applied,
-                    liked: args.common.rating,
+                    rating: args.common.rating,
                     remote: args.common.remote,
                     is_english: args.common.english,
                 };
@@ -125,7 +125,7 @@ async fn main() -> Result<()> {
                 let filter = JobFilter {
                     platform: Some(Platform::Upwork),
                     applied: args.common.applied,
-                    liked: args.common.rating,
+                    rating: args.common.rating,
                     remote: args.common.remote,
                     is_english: args.common.english,
                 };
@@ -140,7 +140,7 @@ async fn main() -> Result<()> {
                 let filter = JobFilter {
                     platform: Some(Platform::NoFluffJobs),
                     applied: args.common.applied,
-                    liked: args.common.rating,
+                    rating: args.common.rating,
                     remote: args.common.remote,
                     is_english: args.common.english,
                 };
@@ -154,7 +154,7 @@ async fn main() -> Result<()> {
                 let filter = JobFilter {
                     platform: Some(Platform::Efinancialcareers),
                     applied: args.common.applied,
-                    liked: args.common.rating,
+                    rating: args.common.rating,
                     remote: args.common.remote,
                     is_english: args.common.english,
                 };
@@ -168,7 +168,7 @@ async fn main() -> Result<()> {
                 let filter = JobFilter {
                     platform: Some(Platform::Hackernews),
                     applied: args.common.applied,
-                    liked: args.common.rating,
+                    rating: args.common.rating,
                     remote: args.common.remote,
                     is_english: args.common.english,
                 };
@@ -329,7 +329,7 @@ async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
             }
         }
         ReactAction::Like { ids } => {
-            db.set_liked(&ids, true).await?;
+            db.set_rating(&ids, Rating::Liked).await?;
             println!(
                 "Liked {} job{}",
                 ids.len(),
@@ -337,7 +337,7 @@ async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
             );
         }
         ReactAction::Dislike { ids } => {
-            db.set_liked(&ids, false).await?;
+            db.set_rating(&ids, Rating::Disliked).await?;
             println!(
                 "Disliked {} job{}",
                 ids.len(),
@@ -345,7 +345,7 @@ async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
             );
         }
         ReactAction::Neutral { ids } => {
-            db.set_neutral(&ids).await?;
+            db.set_rating(&ids, Rating::Neutral).await?;
             println!(
                 "Reset {} job{} to neutral",
                 ids.len(),

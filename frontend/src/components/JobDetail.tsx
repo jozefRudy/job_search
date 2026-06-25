@@ -20,7 +20,7 @@ import { Markdown } from "~/components/ui/Markdown";
 import { ConfirmModal } from "~/components/ui/Modal";
 import { Skeleton } from "~/components/ui/Skeleton";
 import { Swap } from "~/components/ui/Swap";
-import { cn, fmtRelative } from "~/lib/utils";
+import { cn, fmtRelative, ratingEmoji } from "~/lib/utils";
 
 export function JobDetail() {
   const params = useParams();
@@ -133,25 +133,28 @@ export function JobDetailContent(props: { job: Job }) {
           <Card.Title class="text-lg">Actions</Card.Title>
           <Row gap="sm" align="center">
             <Button
-              variant={j.liked === true ? "primary" : "ghost"}
+              variant={j.rating === "liked" ? "primary" : "ghost"}
               size="sm"
+              class={cn(j.rating === "liked" && "text-success")}
               onClick={() => handleRate("liked")}
             >
-              👍 Like
+              {ratingEmoji("liked")} Like
             </Button>
             <Button
-              variant={j.liked === false ? "danger" : "ghost"}
+              variant={j.rating === "disliked" ? "danger" : "ghost"}
               size="sm"
+              class={cn(j.rating === "disliked" && "text-error")}
               onClick={() => handleRate("disliked")}
             >
-              👎 Dislike
+              {ratingEmoji("disliked")} Dislike
             </Button>
             <Button
-              variant={j.liked === null ? "secondary" : "ghost"}
+              variant={j.rating === "neutral" ? "secondary" : "ghost"}
               size="sm"
+              class={cn(j.rating === "neutral" && "text-warning")}
               onClick={() => handleRate("neutral")}
             >
-              ↔️ Neutral
+              {ratingEmoji("neutral")} Neutral
             </Button>
             <div class="divider divider-horizontal mx-1" />
             <Swap

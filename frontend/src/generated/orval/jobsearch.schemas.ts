@@ -101,6 +101,15 @@ export const Platform = {
   upwork: 'upwork',
 } as const;
 
+export type Rating = typeof Rating[keyof typeof Rating];
+
+
+export const Rating = {
+  liked: 'liked',
+  disliked: 'disliked',
+  neutral: 'neutral',
+} as const;
+
 export interface Job {
   /** @nullable */
   applied_at?: string | null;
@@ -113,13 +122,11 @@ export interface Job {
   description?: string | null;
   external_id: string;
   id: number;
-  /** @nullable */
-  is_english?: boolean | null;
-  /** @nullable */
-  liked?: boolean | null;
+  is_english: boolean;
   /** @nullable */
   note?: string | null;
   platform: Platform;
+  rating: Rating;
   raw: Data;
   remote: boolean;
   tags: string[];
@@ -133,15 +140,6 @@ export interface JobListResponse {
   /** @minimum 0 */
   total: number;
 }
-
-export type Rating = typeof Rating[keyof typeof Rating];
-
-
-export const Rating = {
-  liked: 'liked',
-  disliked: 'disliked',
-  neutral: 'neutral',
-} as const;
 
 export interface RateRequest {
   rating: Rating;

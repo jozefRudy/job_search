@@ -1,7 +1,7 @@
 use crate::browser::{BrowserExt, host_of, wait_for_element};
 use crate::db::Db;
 use crate::language::LanguageService;
-use crate::models::{Data, EfinancialcareersJobDetail, Job, Platform, classify_language};
+use crate::models::{Data, EfinancialcareersJobDetail, Job, Platform, Rating, classify_language};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
@@ -344,7 +344,7 @@ impl EfinancialcareersScraper {
             company: None,
             created_at,
             updated_at: Utc::now(),
-            liked: None,
+            rating: Rating::Neutral,
             note: None,
             applied_at: None,
             remote,
@@ -633,7 +633,7 @@ impl PlatformClient for EfinancialcareersScraper {
                     raw,
                     company: None,
                     updated_at: Utc::now(),
-                    liked: None,
+                    rating: Rating::Neutral,
                     note: None,
                     applied_at: None,
                     remote,

@@ -1,6 +1,6 @@
 use crate::browser::{BrowserExt, host_of, wait_for_element, wait_for_with_challenge_recovery};
 use crate::db::Db;
-use crate::models::{Data, Job, Platform, UpworkJobDetail};
+use crate::models::{Data, Job, Platform, Rating, UpworkJobDetail};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, anyhow, bail};
@@ -420,7 +420,7 @@ impl PlatformClient for UpworkScraper {
                             company: None,
                             created_at: v.posted_at_text.unwrap_or_else(chrono::Utc::now),
                             updated_at: chrono::Utc::now(),
-                            liked: None,
+                            rating: Rating::Neutral,
                             note: None,
                             applied_at: None,
                             remote: true,
@@ -550,7 +550,7 @@ impl PlatformClient for UpworkScraper {
                             company: None,
                             created_at,
                             updated_at: chrono::Utc::now(),
-                            liked: None,
+                            rating: Rating::Neutral,
                             note: None,
                             applied_at: None,
                             remote: true,

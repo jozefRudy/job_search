@@ -181,8 +181,8 @@ export function JobList() {
         key: "rating",
         header: "Rating",
         cell: (j: Job) => (
-          <span class={cn(ratingClass(j.liked), "font-bold")}>
-            {ratingEmoji(j.liked)}
+          <span class={cn(ratingClass(j.rating), "font-bold")}>
+            {ratingEmoji(j.rating)}
           </span>
         ),
       },
@@ -195,7 +195,7 @@ export function JobList() {
             <Button
               variant="ghost"
               size="sm"
-              class={cn(j.liked === true && "text-success")}
+              class={cn(j.rating === "liked" && "text-success")}
               onClick={() => handleRate(j, "liked")}
             >
               👍
@@ -203,7 +203,7 @@ export function JobList() {
             <Button
               variant="ghost"
               size="sm"
-              class={cn(j.liked === false && "text-error")}
+              class={cn(j.rating === "disliked" && "text-error")}
               onClick={() => handleRate(j, "disliked")}
             >
               👎
@@ -211,7 +211,7 @@ export function JobList() {
             <Button
               variant="ghost"
               size="sm"
-              class={cn(j.liked === null && "text-warning")}
+              class={cn(j.rating === "neutral" && "text-warning")}
               onClick={() => handleRate(j, "neutral")}
             >
               ↔️

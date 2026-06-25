@@ -5,7 +5,6 @@ use clap::ValueEnum;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::str::FromStr;
 use std::sync::LazyLock;
 use utoipa::IntoParams;
 use utoipa::ToSchema;
@@ -191,26 +190,38 @@ impl fmt::Display for Platform {
     }
 }
 
-impl FromStr for Platform {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "efinancialcareers" => Ok(Platform::Efinancialcareers),
-            "hackernews" => Ok(Platform::Hackernews),
-            "nofluffjobs" => Ok(Platform::NoFluffJobs),
-            "upwork" => Ok(Platform::Upwork),
-            _ => anyhow::bail!("unknown platform: '{}'", s),
+impl From<String> for Platform {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "efinancialcareers" => Platform::Efinancialcareers,
+            "hackernews" => Platform::Hackernews,
+            "nofluffjobs" => Platform::NoFluffJobs,
+            "upwork" => Platform::Upwork,
+            _ => panic!("unknown platform in db: '{}'", s),
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum, ToSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum, ToSchema, sqlx::Type,
+)]
+#[sqlx(rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum Rating {
     Liked,
     Disliked,
     Neutral,
+}
+
+impl From<String> for Rating {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "liked" => Rating::Liked,
+            "disliked" => Rating::Disliked,
+            "neutral" => Rating::Neutral,
+            _ => panic!("unknown rating in db: '{}'", s),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -281,7 +292,7 @@ pub struct Job {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub note: Option<String>,
-    pub liked: Option<bool>,
+    pub rating: Rating,
     pub applied_at: Option<DateTime<Utc>>,
     pub remote: bool,
     pub is_english: bool,
@@ -367,7 +378,7 @@ impl std::str::FromStr for Recency {
 pub struct JobFilter {
     pub platform: Option<Platform>,
     pub applied: Option<bool>,
-    pub liked: Option<Rating>,
+    pub rating: Option<Rating>,
     pub remote: Option<bool>,
     pub is_english: Option<bool>,
 }
@@ -834,7 +845,7 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
             note: None,
-            liked: None,
+            rating: Rating::Neutral,
             applied_at: None,
             remote: true,
             is_english: true,

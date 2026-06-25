@@ -51,17 +51,17 @@ export function fmtRelative(dtStr: string | null | undefined): string {
     .otherwise(({ days }) => `${Math.floor(days / 7)}w ago`);
 }
 
-export function ratingEmoji(liked: boolean | null | undefined): string {
-  return match(liked)
-    .with(true, () => "👍")
-    .with(false, () => "👎")
-    .otherwise(() => "—");
+export function ratingEmoji(rating: string | null | undefined): string {
+  return match(rating)
+    .with("liked", () => "👍")
+    .with("disliked", () => "👎")
+    .otherwise(() => "↔️");
 }
 
-export function ratingClass(liked: boolean | null | undefined): string {
-  return match(liked)
-    .with(true, () => "text-success")
-    .with(false, () => "text-error")
+export function ratingClass(rating: string | null | undefined): string {
+  return match(rating)
+    .with("liked", () => "text-success")
+    .with("disliked", () => "text-error")
     .otherwise(() => "text-base-content/40");
 }
 

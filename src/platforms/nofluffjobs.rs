@@ -1,7 +1,7 @@
 use crate::browser::{BrowserExt, host_of, wait_for, wait_for_element};
 use crate::db::Db;
 use crate::language::LanguageService;
-use crate::models::{Data, Job, NoFluffJobDetail, Platform, classify_language};
+use crate::models::{Data, Job, NoFluffJobDetail, Platform, Rating, classify_language};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
@@ -562,7 +562,7 @@ impl NoFluffJobsScraper {
                             company: None,
                             created_at: posted,
                             updated_at: chrono::Utc::now(),
-                            liked: None,
+                            rating: Rating::Neutral,
                             note: None,
                             applied_at: None,
                             remote: true,
@@ -799,7 +799,7 @@ impl NoFluffJobsScraper {
                                 company: None,
                                 created_at,
                                 updated_at: Utc::now(),
-                                liked: None,
+                                rating: Rating::Neutral,
                                 note: None,
                                 applied_at: None,
                                 remote: true,

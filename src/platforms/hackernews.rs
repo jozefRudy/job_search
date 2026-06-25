@@ -1,7 +1,7 @@
 use crate::db::Db;
 use crate::extractors::llm::LlmExtractor;
 use crate::extractors::llm_hackernews;
-use crate::models::{Data, HackerNewsJobDetail, Job, Platform};
+use crate::models::{Data, HackerNewsJobDetail, Job, Platform, Rating};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::Result;
@@ -183,7 +183,7 @@ impl HackerNewsScraper {
             company: None,
             created_at: posted_at,
             updated_at: Utc::now(),
-            liked: None,
+            rating: Rating::Neutral,
             note: None,
             applied_at: None,
             remote,
