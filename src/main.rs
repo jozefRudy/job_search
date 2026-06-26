@@ -26,7 +26,7 @@ async fn cmd_init(manager: &BrowserManager, urls: &[&str]) -> Result<()> {
     ensure_init_tabs(&browser, urls).await?;
     let tabs_after = browser.get_page_urls().await?;
 
-    for url in urls.iter() {
+    for url in urls {
         let host = jobsearch::browser::host_of(url);
         let was_open = tabs_before
             .iter()
@@ -37,9 +37,9 @@ async fn cmd_init(manager: &BrowserManager, urls: &[&str]) -> Result<()> {
             .filter_map(|u| jobsearch::browser::host_of(u))
             .any(|h| Some(h) == host);
         match (was_open, is_open) {
-            (true, _) => eprintln!("  {} - already open, skipping", url),
-            (false, true) => eprintln!("  {} - opened", url),
-            (false, false) => eprintln!("  {} - opened (loading...)", url),
+            (true, _) => eprintln!("  {url} - already open, skipping"),
+            (false, true) => eprintln!("  {url} - opened"),
+            (false, false) => eprintln!("  {url} - opened (loading...)"),
         }
     }
 
@@ -308,7 +308,7 @@ async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
         } => {
             db.get_job(id)
                 .await?
-                .ok_or_else(|| anyhow::anyhow!("Job {} not found", id))?;
+                .ok_or_else(|| anyhow::anyhow!("Job {id} not found"))?;
             let note = if let Some(n) = note {
                 Some(n)
             } else if let Some(path) = note_file {
@@ -320,12 +320,12 @@ async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
                 .await?;
             match note {
                 Some(n) if !n.is_empty() => {
-                    println!("Job {} marked applied with note:", id);
+                    println!("Job {id} marked applied with note:");
                     for line in n.lines() {
-                        println!("  {}", line);
+                        println!("  {line}");
                     }
                 }
-                _ => println!("Job {} marked applied", id),
+                _ => println!("Job {id} marked applied"),
             }
         }
         ReactAction::Like { ids } => {
@@ -386,7 +386,7 @@ async fn cmd_diagnose(db: &Db, db_path: &std::path::Path) -> Result<()> {
     println!("Total jobs: {}", stats.total);
     println!("\nBy platform:");
     for (p, c) in &stats.by_platform {
-        println!("  {}: {}", p, c);
+        println!("  {p}: {c}");
     }
 
     Ok(())

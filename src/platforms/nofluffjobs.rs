@@ -23,7 +23,7 @@ const COUNT_CARDS_JS: &str = include_str!("nofluffjobs/count_cards.js");
 const GET_TOTAL_RESULTS_JS: &str = include_str!("nofluffjobs/get_total_results.js");
 const FETCH_APPLICATIONS_JS: &str = include_str!("nofluffjobs/fetch_applications.js");
 
-/// Card scraped from NoFluffJobs search page DOM.
+/// Card scraped from `NoFluffJobs` search page DOM.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NofluffJobCard {
     pub external_id: String,
@@ -41,7 +41,7 @@ pub struct NoFluffJobsScraper {
 
 const API_BASE: &str = "https://nofluffjobs.com/api";
 
-/// Raw API response from NoFluffJobs /candidates/my-applications endpoint.
+/// Raw API response from `NoFluffJobs` /candidates/my-applications endpoint.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawApplicationsResponse {
@@ -100,7 +100,7 @@ struct RawTileValue {
     value: String,
 }
 
-/// Polymorphic date from NoFluffJobs: ISO string or integer milliseconds.
+/// Polymorphic date from `NoFluffJobs`: ISO string or integer milliseconds.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 enum NfjDate {
@@ -210,7 +210,7 @@ impl TryFrom<RawOfferSummary> for OfferSummary {
     }
 }
 
-/// Raw API response from NoFluffJobs detail endpoint.
+/// Raw API response from `NoFluffJobs` detail endpoint.
 ///
 /// Active postings return detail fields at the top level; expired postings wrap
 /// them under `jobOffer`. We normalize both shapes at the boundary.
@@ -444,6 +444,7 @@ impl PlatformClient for NoFluffJobsScraper {
 }
 
 impl NoFluffJobsScraper {
+    #[must_use]
     pub fn new(lang: LanguageService) -> Self {
         Self {
             config: NoFluffJobsConfig::default(),
@@ -455,6 +456,7 @@ impl NoFluffJobsScraper {
         }
     }
 
+    #[must_use]
     pub fn with_config(config: NoFluffJobsConfig, lang: LanguageService) -> Self {
         Self {
             config,
@@ -476,7 +478,7 @@ impl NoFluffJobsScraper {
             .await
     }
 
-    /// Scrape job cards from NoFluffJobs search page via browser.
+    /// Scrape job cards from `NoFluffJobs` search page via browser.
     /// The website respects filters (unlike the API), so this gives accurate results.
     /// Clicks "See more offers" to load additional pages.
     pub async fn fetch_jobs_via_browser(
@@ -655,7 +657,7 @@ impl NoFluffJobsScraper {
 
     /// Fetch job detail from API (no DB dependency).
     pub async fn fetch_detail(&self, job_id: &str) -> Result<NoFluffJobDetail> {
-        let url = format!("{}/posting/{}", API_BASE, job_id);
+        let url = format!("{API_BASE}/posting/{job_id}");
         let envelope: RawPostingEnvelope = self
             .client
             .get(&url)
@@ -671,7 +673,7 @@ impl NoFluffJobsScraper {
         envelope.try_into()
     }
 
-    /// Sync submitted applications from the NoFluffJobs profile page.
+    /// Sync submitted applications from the `NoFluffJobs` profile page.
     pub async fn sync_applications(
         &self,
         browser: &Browser,
@@ -707,14 +709,14 @@ impl NoFluffJobsScraper {
             let raw: Value = page.evaluate(js.as_str()).await?.into_value()?;
             if let Some(err) = raw.get("error") {
                 page.close().await.ok();
-                bail!("applications fetch error: {}", err);
+                bail!("applications fetch error: {err}");
             }
 
             let res: RawApplicationsResponse = serde_json::from_value(raw)?;
             for raw_item in res.items {
                 match raw_item.try_into() {
                     Ok(item) => all_items.push(item),
-                    Err(e) => eprintln!("  Warning: skipping malformed application item: {}", e),
+                    Err(e) => eprintln!("  Warning: skipping malformed application item: {e}"),
                 }
             }
 
@@ -759,7 +761,7 @@ impl NoFluffJobsScraper {
                 );
                 continue;
             }
-            let url = format!("https://nofluffjobs.com/job/{}", slug);
+            let url = format!("https://nofluffjobs.com/job/{slug}");
             let external_id = slug.clone();
 
             let job_id =
@@ -846,21 +848,22 @@ impl NoFluffJobsScraper {
         let mut parts: Vec<String> = Vec::new();
 
         if let Some(emp) = &self.config.employment {
-            parts.push(format!("employment={}", emp));
+            parts.push(format!("employment={emp}"));
         }
         if let Some(salary) = self.config.min_salary_eur {
-            parts.push(format!("salary>eur{}m", salary));
+            parts.push(format!("salary>eur{salary}m"));
         }
         if let Some(lang) = &self.config.language {
-            parts.push(format!("jobLanguage={}", lang));
+            parts.push(format!("jobLanguage={lang}"));
         }
         if !query.is_empty() {
-            parts.push(format!("keyword={}", query));
+            parts.push(format!("keyword={query}"));
         }
 
         parts.join(" ")
     }
 
+    #[must_use]
     pub fn build_search_url(&self, query: &str) -> String {
         let criteria = self.build_criteria(query);
         format!(
@@ -1037,7 +1040,7 @@ mod tests {
                 currency: "EUR".into(),
                 from: 100,
                 to: 200,
-                employment_type: "".into(),
+                employment_type: String::new(),
             }),
             tiles: RawTiles { values: vec![] },
             url: "dev".into(),
@@ -1045,7 +1048,7 @@ mod tests {
         };
         let offer: OfferSummary = raw.try_into().unwrap();
         assert_eq!(offer.budget, Some("100 - 200 EUR/mo".into()));
-        assert!(!offer.tags.contains(&"".into()));
+        assert!(!offer.tags.contains(&String::new()));
     }
 
     #[test]

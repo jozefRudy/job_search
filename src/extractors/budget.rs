@@ -20,7 +20,7 @@ fn parse_number(s: &str) -> Option<u32> {
     } else {
         1
     };
-    let digits: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
+    let digits: String = s.chars().filter(char::is_ascii_digit).collect();
     let n: u64 = digits.parse().ok()?;
     (n * multiplier).try_into().ok()
 }
@@ -57,14 +57,14 @@ pub fn parse_upwork_budget(s: &str) -> Option<Budget> {
             Budget::Single {
                 amount: min,
                 currency: "USD".to_string(),
-                period: period.map(|p| p.to_string()),
+                period: period.map(std::string::ToString::to_string),
             }
         } else {
             Budget::Range {
                 min,
                 max,
                 currency: "USD".to_string(),
-                period: period.map(|p| p.to_string()),
+                period: period.map(std::string::ToString::to_string),
             }
         });
     }
@@ -74,11 +74,11 @@ pub fn parse_upwork_budget(s: &str) -> Option<Budget> {
     Some(Budget::Single {
         amount,
         currency: "USD".to_string(),
-        period: period.map(|p| p.to_string()),
+        period: period.map(std::string::ToString::to_string),
     })
 }
 
-/// NoFluffJobs budget strings: "7 069 – 9 426 EUR", "15 000 – 20 000 PLN", "Salary Match".
+/// `NoFluffJobs` budget strings: "7 069 – 9 426 EUR", "15 000 – 20 000 PLN", "Salary Match".
 pub fn parse_nofluff_budget(s: &str) -> Option<Budget> {
     let cleaned = normalize(s).trim().to_string();
 

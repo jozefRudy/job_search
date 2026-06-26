@@ -60,7 +60,7 @@ pub fn app(db: Db) -> Router {
 
 async fn serve_static(uri: axum::http::Uri) -> Response {
     let path = uri.path().trim_start_matches('/');
-    let path = if !path.is_empty() { path } else { "index.html" };
+    let path = if path.is_empty() { "index.html" } else { path };
     let served_path = if STATIC_DIR.get_file(path).is_some() {
         path
     } else {
@@ -227,7 +227,7 @@ async fn shutdown_signal() {
 }
 
 pub async fn serve(db: Db, port: u16) -> Result<()> {
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     eprintln!("jobsearch ({VERSION}) listening on http://0.0.0.0:{port}");
     axum::serve(listener, app(db))
         .with_graceful_shutdown(async {

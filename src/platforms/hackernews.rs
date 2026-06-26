@@ -54,6 +54,7 @@ pub struct HackerNewsScraper {
 }
 
 impl HackerNewsScraper {
+    #[must_use]
     pub fn new(llm_cli: Option<String>) -> Self {
         Self {
             client: Client::builder()
@@ -65,7 +66,7 @@ impl HackerNewsScraper {
     }
 
     async fn latest_thread_id(&self) -> Result<String> {
-        let url = format!("{}/search_by_date", ALGOLIA_BASE);
+        let url = format!("{ALGOLIA_BASE}/search_by_date");
         let response: StorySearchResponse = self
             .client
             .get(&url)
@@ -93,13 +94,13 @@ impl HackerNewsScraper {
         query: &str,
         page: usize,
     ) -> Result<Vec<CommentHit>> {
-        let url = format!("{}/search_by_date", ALGOLIA_BASE);
+        let url = format!("{ALGOLIA_BASE}/search_by_date");
         let response: CommentSearchResponse = self
             .client
             .get(&url)
             .query(&[
                 ("query", query),
-                ("tags", &format!("comment,story_{}", thread_id)),
+                ("tags", &format!("comment,story_{thread_id}")),
                 ("hitsPerPage", "1000"),
                 ("page", &page.to_string()),
             ])
@@ -118,7 +119,7 @@ impl HackerNewsScraper {
         let text = Self::html_to_text(html);
         text.lines()
             .find(|l| !l.trim().is_empty())
-            .map(|l| l.trim())
+            .map(str::trim)
             .unwrap_or_default()
             .to_string()
     }
@@ -261,7 +262,7 @@ impl HackerNewsScraper {
                             .await?;
                     }
                     Err(e) => {
-                        eprintln!("    Warning: failed to parse HN comment: {}", e);
+                        eprintln!("    Warning: failed to parse HN comment: {e}");
                         db.mark_rejected(&Platform::Hackernews, &object_id, "parse_failed")
                             .await?;
                     }

@@ -81,6 +81,7 @@ impl<T: Extractable> LlmExtractor<T> {
         self.extract(T::HEALTHCHECK_TEXT).await?.verify()
     }
 
+    #[must_use]
     pub fn from_cli(llm_cli: Option<String>) -> Self {
         let command = llm_cli
             .filter(|s| !s.is_empty())
@@ -108,7 +109,7 @@ impl<T: Extractable> LlmExtractor<T> {
             anyhow::bail!("llm returned empty or NONE response");
         }
         let out = strip_json_fences(&out);
-        serde_json::from_str(&out).with_context(|| format!("failed to parse LLM JSON: {}", out))
+        serde_json::from_str(&out).with_context(|| format!("failed to parse LLM JSON: {out}"))
     }
 
     async fn run(&self, prompt: &str) -> Result<Option<String>> {
@@ -123,7 +124,7 @@ impl<T: Extractable> LlmExtractor<T> {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            anyhow::bail!("llm extractor failed: {}", stderr);
+            anyhow::bail!("llm extractor failed: {stderr}");
         }
 
         let text = String::from_utf8_lossy(&output.stdout).trim().to_string();

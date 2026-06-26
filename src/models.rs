@@ -132,7 +132,7 @@ fn unit_to_duration(unit: &str, n: i64, now: DateTime<Utc>) -> Option<DateTime<U
     }
 }
 
-/// Full detail scraped from an individual NoFluffJobs job page.
+/// Full detail scraped from an individual `NoFluffJobs` job page.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct NoFluffJobDetail {
     pub company: String,
@@ -197,7 +197,7 @@ impl From<String> for Platform {
             "hackernews" => Platform::Hackernews,
             "nofluffjobs" => Platform::NoFluffJobs,
             "upwork" => Platform::Upwork,
-            _ => panic!("unknown platform in db: '{}'", s),
+            _ => panic!("unknown platform in db: '{s}'"),
         }
     }
 }
@@ -219,7 +219,7 @@ impl From<String> for Rating {
             "liked" => Rating::Liked,
             "disliked" => Rating::Disliked,
             "neutral" => Rating::Neutral,
-            _ => panic!("unknown rating in db: '{}'", s),
+            _ => panic!("unknown rating in db: '{s}'"),
         }
     }
 }
@@ -245,6 +245,7 @@ pub enum Sort {
 }
 
 impl Sort {
+    #[must_use]
     pub fn order_by_sql(&self) -> &'static str {
         match self {
             Sort::Created => "j.created_at DESC",
@@ -358,16 +359,16 @@ impl std::str::FromStr for Recency {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim();
         if s.len() < 2 {
-            anyhow::bail!("recency must be like 1d or 4w, got '{}'", s);
+            anyhow::bail!("recency must be like 1d or 4w, got '{s}'");
         }
         let (num, unit) = s.split_at(s.len() - 1);
         let n: i64 = num
             .parse()
-            .map_err(|_| anyhow::anyhow!("invalid recency number '{}'", num))?;
+            .map_err(|_| anyhow::anyhow!("invalid recency number '{num}'"))?;
         let days = match unit {
             "d" => n,
             "w" => n * 7,
-            _ => anyhow::bail!("recency unit must be 'd' or 'w', got '{}'", unit),
+            _ => anyhow::bail!("recency unit must be 'd' or 'w', got '{unit}'"),
         };
         Ok(Recency(days))
     }
@@ -408,9 +409,9 @@ impl fmt::Display for Budget {
                 currency,
                 period,
             } => {
-                write!(f, "{} - {} {}", min, max, currency)?;
+                write!(f, "{min} - {max} {currency}")?;
                 if let Some(p) = period {
-                    write!(f, "/{}", p)?;
+                    write!(f, "/{p}")?;
                 }
             }
             Budget::Single {
@@ -418,9 +419,9 @@ impl fmt::Display for Budget {
                 currency,
                 period,
             } => {
-                write!(f, "{} {}", amount, currency)?;
+                write!(f, "{amount} {currency}")?;
                 if let Some(p) = period {
-                    write!(f, "/{}", p)?;
+                    write!(f, "/{p}")?;
                 }
             }
         }
@@ -431,6 +432,7 @@ impl fmt::Display for Budget {
 impl Budget {
     /// Parse budget strings like "7 069 – 9 426 EUR" or "$50-$100/hr".
     /// `default_period` is applied when the string does not already specify one.
+    #[must_use]
     pub fn parse(s: &str, default_period: Option<&str>) -> Option<Self> {
         let s = Self::normalize(s);
         Self::parse_code_prefix_range(&s, default_period)
@@ -439,7 +441,7 @@ impl Budget {
     }
 
     fn resolve_period(explicit: Option<String>, default: Option<&str>) -> Option<String> {
-        explicit.or_else(|| default.map(|p| p.to_string()))
+        explicit.or_else(|| default.map(std::string::ToString::to_string))
     }
 
     /// Parse currency-code-prefixed ranges like "USD120000 - USD140000 per annum".
@@ -495,22 +497,21 @@ impl Budget {
 
         let integer: u32 = caps[1]
             .chars()
-            .filter(|c| c.is_ascii_digit())
+            .filter(char::is_ascii_digit)
             .collect::<String>()
             .parse()
             .ok()?;
 
         let fraction_part = caps.get(2).map(|m| m.as_str());
-        let fraction_digits = fraction_part.map(|s| s.len()).unwrap_or(0);
+        let fraction_digits = fraction_part.map_or(0, str::len);
         let fraction: u32 = fraction_part
-            .map(|s| {
+            .map_or(0, |s| {
                 s.chars()
-                    .filter(|c| c.is_ascii_digit())
+                    .filter(char::is_ascii_digit)
                     .collect::<String>()
                     .parse()
                     .unwrap_or(0)
-            })
-            .unwrap_or(0);
+            });
 
         let multiplier: u64 = match caps
             .get(3)
@@ -523,10 +524,10 @@ impl Budget {
         };
 
         if fraction_digits == 0 {
-            (integer as u64 * multiplier).try_into().ok()
+            (u64::from(integer) * multiplier).try_into().ok()
         } else {
             let scale = 10_u64.pow(fraction_digits as u32);
-            let value = (integer as u64 * scale + fraction as u64) * multiplier / scale;
+            let value = (u64::from(integer) * scale + u64::from(fraction)) * multiplier / scale;
             value.try_into().ok()
         }
     }
@@ -738,16 +739,12 @@ mod tests {
             let result = parse_relative_time(input);
             assert!(
                 result.is_some(),
-                "expected parse_relative_time({:?}) to succeed",
-                input
+                "expected parse_relative_time({input:?}) to succeed"
             );
             let diff = now - result.unwrap();
             assert!(
                 (diff - expected).num_seconds().abs() < 2,
-                "expected ~{:?} for {:?}, got {:?}",
-                expected,
-                input,
-                diff
+                "expected ~{expected:?} for {input:?}, got {diff:?}"
             );
         }
 
@@ -777,16 +774,12 @@ mod tests {
             let result = parse_relative_time(input);
             assert!(
                 result.is_some(),
-                "expected parse_relative_time({:?}) to succeed",
-                input
+                "expected parse_relative_time({input:?}) to succeed"
             );
             let diff = now - result.unwrap();
             assert!(
                 (diff - expected_duration).num_seconds().abs() < 2,
-                "expected ~{:?} for {:?}, got {:?}",
-                expected_duration,
-                input,
-                diff
+                "expected ~{expected_duration:?} for {input:?}, got {diff:?}"
             );
         }
     }
@@ -807,16 +800,12 @@ mod tests {
             let result = parse_relative_time(input);
             assert!(
                 result.is_some(),
-                "expected parse_relative_time({:?}) to succeed",
-                input
+                "expected parse_relative_time({input:?}) to succeed"
             );
             let diff = now - result.unwrap();
             assert!(
                 (diff - expected).num_seconds().abs() < 2,
-                "expected ~{:?} for {:?}, got {:?}",
-                expected,
-                input,
-                diff
+                "expected ~{expected:?} for {input:?}, got {diff:?}"
             );
         }
     }

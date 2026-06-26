@@ -128,7 +128,7 @@ async fn test_upwork_job_detail_fetch() {
         let jobs = UpworkScraper::scrape_page(&page).await.expect("scrape");
         assert!(!jobs.is_empty(), "need at least one job for detail test");
         let job_url = jobs[0].url.clone();
-        println!("fetching detail for: {}", job_url);
+        println!("fetching detail for: {job_url}");
         page.close().await.ok();
 
         let scraper = UpworkScraper::new();
@@ -189,7 +189,7 @@ async fn test_upwork_pagination_has_next_page() {
             .expect("scrape first page");
         assert!(!first_page.is_empty(), "first page should have jobs");
         let first_count = first_page.len();
-        println!("first page: {} jobs", first_count);
+        println!("first page: {first_count} jobs");
 
         let has_next: bool = page
             .evaluate(r#"!!document.querySelector('a[data-test="next-page"]:not(.is-disabled)')"#)
@@ -220,7 +220,7 @@ async fn test_upwork_pagination_has_next_page() {
             .await
             .expect("scrape second page");
         let second_count = second_page.len();
-        println!("second page: {} jobs", second_count);
+        println!("second page: {second_count} jobs");
 
         assert!(!second_page.is_empty(), "page 2 should have jobs");
 
@@ -272,7 +272,7 @@ async fn test_upwork_sync_applications() {
                 "applied: {} | applied_at: {:?} | note_len: {:?}",
                 job.title,
                 job.applied_at,
-                job.note.as_ref().map(|n| n.len())
+                job.note.as_ref().map(std::string::String::len)
             );
             assert!(
                 job.budget.is_some(),
@@ -372,7 +372,7 @@ async fn test_nofluffjobs_load_more_adds_jobs() {
             .expect("scrape first page");
         assert!(!first_page.is_empty(), "first page should have jobs");
         let first_count = first_page.len();
-        println!("first page: {} jobs", first_count);
+        println!("first page: {first_count} jobs");
 
         let more_loaded =
             jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::click_load_more(&page, 2000)
@@ -387,13 +387,11 @@ async fn test_nofluffjobs_load_more_adds_jobs() {
             .await
             .expect("scrape second page");
         let total = second_page.len();
-        println!("after load-more: {} jobs", total);
+        println!("after load-more: {total} jobs");
 
         assert!(
             total > first_count,
-            "after load-more, total should increase: {} vs {}",
-            total,
-            first_count
+            "after load-more, total should increase: {total} vs {first_count}"
         );
 
         page.close().await.ok();
@@ -433,7 +431,7 @@ async fn test_efinancialcareers_search_page_has_cards_and_details() {
                 .await
                 .expect("scrape_total should find a count in heading");
         assert!(total_jobs > 0, "total job count should be positive");
-        println!("total jobs from heading: {}", total_jobs);
+        println!("total jobs from heading: {total_jobs}");
 
         let first = &jobs[0];
         assert!(!first.external_id.is_empty(), "external_id required");
@@ -509,7 +507,7 @@ async fn test_efinancialcareers_show_more_adds_jobs() {
                 .expect("scrape first page");
         assert!(!first_page.is_empty(), "first page should have jobs");
         let first_count = first_page.len();
-        println!("first page: {} jobs", first_count);
+        println!("first page: {first_count} jobs");
 
         let more_loaded =
             jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::click_show_more(
@@ -527,13 +525,11 @@ async fn test_efinancialcareers_show_more_adds_jobs() {
                 .await
                 .expect("scrape second page");
         let total = second_page.len();
-        println!("after show-more: {} jobs", total);
+        println!("after show-more: {total} jobs");
 
         assert!(
             total > first_count,
-            "after show-more, total should increase: {} vs {}",
-            total,
-            first_count
+            "after show-more, total should increase: {total} vs {first_count}"
         );
 
         page.close().await.ok();
@@ -631,8 +627,7 @@ async fn test_efinancialcareers_sync_applications() {
             assert!(
                 job.description
                     .as_ref()
-                    .map(|d| !d.is_empty())
-                    .unwrap_or(false),
+                    .is_some_and(|d| !d.is_empty()),
                 "synced job should have description from batch API"
             );
             if let jobsearch::models::Data::Efinancialcareers { detail } = &job.raw {

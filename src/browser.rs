@@ -40,6 +40,7 @@ pub async fn ensure_init_tabs(browser: &Browser, urls: &[&str]) -> Result<()> {
     Ok(())
 }
 
+#[must_use]
 pub fn host_of(url: &str) -> Option<String> {
     url::Url::parse(url)
         .ok()?
@@ -52,7 +53,7 @@ pub trait BrowserExt {
     async fn new_blank_tab(&self) -> Result<chromiumoxide::Page>;
     async fn new_tab(&self, url: &str) -> Result<chromiumoxide::Page>;
     async fn get_page_urls(&self) -> Result<Vec<String>>;
-    /// Return (target_id, url) pairs for all page targets.
+    /// Return (`target_id`, url) pairs for all page targets.
     async fn get_page_targets(&self) -> Result<Vec<(TargetId, String)>>;
     /// Close page targets whose IDs are not in `keep_ids`.
     async fn close_pages_except(&self, keep_ids: &[TargetId]) -> Result<()>;
@@ -68,7 +69,7 @@ impl BrowserExt for Browser {
                     .url("about:blank")
                     .background(true)
                     .build()
-                    .map_err(|s| anyhow::anyhow!("{}", s))?,
+                    .map_err(|s| anyhow::anyhow!("{s}"))?,
             )
             .await?)
     }
@@ -120,7 +121,7 @@ impl BrowserExt for Browser {
             .same_site(CookieSameSite::Lax)
             .expires(expires)
             .build()
-            .map_err(|s| anyhow::anyhow!("{}", s))?;
+            .map_err(|s| anyhow::anyhow!("{s}"))?;
         self.set_cookies(vec![cookie]).await?;
         Ok(())
     }
@@ -179,7 +180,7 @@ pub async fn wait_for_element(
 pub fn notify_user(title: &str, message: &str) {
     #[cfg(target_os = "macos")]
     {
-        let script = format!("display notification {:?} with title {:?}", message, title);
+        let script = format!("display notification {message:?} with title {title:?}");
         let _ = std::process::Command::new("osascript")
             .arg("-e")
             .arg(script)
@@ -229,8 +230,7 @@ pub async fn wait_for_with_challenge_recovery(
                 notify_user(
                     "Jobsearch bot check",
                     &format!(
-                        "{} hit a robot check. Solve it in the browser; test will resume.",
-                        url
+                        "{url} hit a robot check. Solve it in the browser; test will resume."
                     ),
                 );
                 eprintln!(
@@ -250,8 +250,7 @@ pub async fn wait_for_with_challenge_recovery(
                     .saturating_duration_since(std::time::Instant::now())
                     .as_secs();
                 eprint!(
-                    "{CLEAR_LINE}Bot check still present. {}s remaining...",
-                    remaining
+                    "{CLEAR_LINE}Bot check still present. {remaining}s remaining..."
                 );
                 if std::time::Instant::now() >= deadline {
                     bail!(
@@ -276,6 +275,7 @@ pub struct BrowserManager {
 }
 
 impl BrowserManager {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(None)),
@@ -315,8 +315,7 @@ impl BrowserManager {
             .arg("-x")
             .arg(BROWSER_APP)
             .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
+            .is_ok_and(|o| o.status.success())
     }
 
     async fn launch() -> Result<(Browser, tokio::task::JoinHandle<()>)> {

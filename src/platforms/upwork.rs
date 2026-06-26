@@ -24,9 +24,7 @@ const CLICK_PAGE_JS: &str = include_str!("upwork/click_page.js");
 const GET_SUBMITTED_PAGE_JS: &str = include_str!("upwork/get_submitted_page.js");
 
 fn format_upwork_budget(s: &str) -> String {
-    crate::extractors::budget::parse_upwork_budget(s)
-        .map(|b| b.to_string())
-        .unwrap_or_else(|| s.trim().to_string())
+    crate::extractors::budget::parse_upwork_budget(s).map_or_else(|| s.trim().to_string(), |b| b.to_string())
 }
 
 /// Upwork canonical external id prefix.
@@ -44,7 +42,7 @@ fn normalize_upwork_external_id(id: &str) -> String {
     if digits.is_empty() {
         String::new()
     } else {
-        format!("{}{}", UPWORK_ID_PREFIX, digits)
+        format!("{UPWORK_ID_PREFIX}{digits}")
     }
 }
 
@@ -60,9 +58,7 @@ fn extract_upwork_external_id_from_url(url: &str) -> Option<String> {
 
 /// Strip slug, query params, and referrer from Upwork job URL.
 fn normalize_upwork_url(url: &str) -> String {
-    extract_upwork_external_id_from_url(url)
-        .map(|id| format!("https://www.upwork.com/jobs/{}", id))
-        .unwrap_or_else(|| url.to_string())
+    extract_upwork_external_id_from_url(url).map_or_else(|| url.to_string(), |id| format!("https://www.upwork.com/jobs/{id}"))
 }
 
 /// Raw job card from JS scraper (all strings).
@@ -130,6 +126,7 @@ pub enum UpworkTier {
 }
 
 impl UpworkSearchParams {
+    #[must_use]
     pub fn new(query: &str) -> Self {
         Self {
             query: query.to_string(),
@@ -138,26 +135,31 @@ impl UpworkSearchParams {
         }
     }
 
+    #[must_use]
     pub fn tier(mut self, tier: Option<UpworkTier>) -> Self {
         self.tier = tier;
         self
     }
 
+    #[must_use]
     pub fn hourly_rate_min(mut self, min: Option<u32>) -> Self {
         self.hourly_rate_min = min;
         self
     }
 
+    #[must_use]
     pub fn client_hires(mut self, hires: Option<String>) -> Self {
         self.client_hires = hires;
         self
     }
 
+    #[must_use]
     pub fn page(mut self, page: u32) -> Self {
         self.page = page;
         self
     }
 
+    #[must_use]
     pub fn build_url(&self) -> String {
         let mut url = url::Url::parse("https://www.upwork.com/nx/search/jobs/").unwrap();
         {
@@ -184,7 +186,7 @@ impl UpworkSearchParams {
             }
             pairs.append_pair("t", "0");
             if let Some(min) = self.hourly_rate_min {
-                pairs.append_pair("hourly_rate", &format!("{}-", min));
+                pairs.append_pair("hourly_rate", &format!("{min}-"));
             }
             if let Some(ref hires) = self.client_hires {
                 pairs.append_pair("client_hires", hires);
@@ -202,10 +204,12 @@ pub struct UpworkScraper {
 }
 
 impl UpworkScraper {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[must_use]
     pub fn with_config(
         tier: Option<UpworkTier>,
         hourly_rate_min: Option<u32>,
@@ -218,6 +222,7 @@ impl UpworkScraper {
         }
     }
 
+    #[must_use]
     pub fn build_search_url(
         query: &str,
         tier: Option<UpworkTier>,
@@ -261,7 +266,7 @@ impl UpworkScraper {
 
         page.close().await.ok();
         raw.try_into()
-            .map_err(|e| anyhow!("invalid job detail: {}", e))
+            .map_err(|e| anyhow!("invalid job detail: {e}"))
     }
 
     /// Scrape job cards from current search page.
@@ -520,15 +525,14 @@ impl PlatformClient for UpworkScraper {
 
         let mut state = FetchState::new();
         let total = limit
-            .map(|l| min(l, all_proposals.len()))
-            .unwrap_or(all_proposals.len());
+            .map_or(all_proposals.len(), |l| min(l, all_proposals.len()));
 
         for item in &all_proposals {
             if state.checked() >= max {
                 break;
             }
             let external_id = normalize_upwork_external_id(&item.openingUID);
-            let job_url = format!("https://www.upwork.com/jobs/{}", external_id);
+            let job_url = format!("https://www.upwork.com/jobs/{external_id}");
 
             let job_id = if let Some(id) = db.find_job_id(&Platform::Upwork, &external_id).await? {
                 Some(id)
@@ -600,9 +604,7 @@ impl PlatformClient for UpworkScraper {
             let applied_at = item
                 .createdTs
                 .as_ref()
-                .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(Utc::now);
+                .and_then(|s| DateTime::parse_from_rfc3339(s).ok()).map_or_else(Utc::now, |dt| dt.with_timezone(&Utc));
 
             let note = if cover_letter.is_empty() {
                 None

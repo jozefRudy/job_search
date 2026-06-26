@@ -21,7 +21,7 @@ impl LanguageService {
     /// Create new language service. Shares singleton detector across all instances.
     pub fn new() -> Self {
         let detector = DETECTOR.get_or_init(|| {
-            use lingua::Language::*;
+            use lingua::Language::{English, French, German, Spanish};
             let d = LanguageDetectorBuilder::from_languages(&[English, French, German, Spanish])
                 .with_minimum_relative_distance(0.4)
                 .with_preloaded_language_models()
@@ -41,18 +41,16 @@ impl LanguageService {
         let text = text.to_string();
         tokio::task::spawn_blocking(move || detect_one(&detector, &text))
             .await
-            .map_err(|e| anyhow::anyhow!("language detection task panicked: {}", e))
+            .map_err(|e| anyhow::anyhow!("language detection task panicked: {e}"))
     }
 }
 
 fn detect_one(detector: &LanguageDetector, text: &str) -> bool {
     let detected = detector.detect_language_of(text);
     let confidence = detected
-        .map(|lang| detector.compute_language_confidence(text, lang))
-        .unwrap_or(0.0);
+        .map_or(0.0, |lang| detector.compute_language_confidence(text, lang));
     detected
-        .map(|l| l.iso_code_639_1().to_string() == "en" && confidence > 0.5)
-        .unwrap_or(false)
+        .is_some_and(|l| l.iso_code_639_1().to_string() == "en" && confidence > 0.5)
 }
 
 #[cfg(test)]
@@ -76,8 +74,7 @@ mod tests {
                 svc.detect(text)
                     .await
                     .expect("language detection should succeed"),
-                "Should detect as English: \"{}\"",
-                text
+                "Should detect as English: \"{text}\""
             );
         }
     }
@@ -130,8 +127,7 @@ mod tests {
                 !svc.detect(text)
                     .await
                     .expect("language detection should succeed"),
-                "Should NOT detect as English: \"{}\"",
-                text
+                "Should NOT detect as English: \"{text}\""
             );
         }
     }

@@ -81,9 +81,7 @@ impl TryFrom<RawApplicationItem> for ApplicationItem {
             bail!("job url missing id: {}", raw.url);
         }
 
-        let applied_at = DateTime::parse_from_rfc3339(&raw.applied_at_text)
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc::now());
+        let applied_at = DateTime::parse_from_rfc3339(&raw.applied_at_text).map_or_else(|_| Utc::now(), |dt| dt.with_timezone(&Utc));
 
         Ok(ApplicationItem {
             internal_job_id: raw.internal_job_id,
@@ -170,6 +168,7 @@ pub struct EfinancialcareersScraper {
 }
 
 impl EfinancialcareersScraper {
+    #[must_use]
     pub fn new(lang: LanguageService) -> Self {
         Self {
             config: EfinancialcareersConfig::default(),
@@ -177,20 +176,22 @@ impl EfinancialcareersScraper {
         }
     }
 
+    #[must_use]
     pub fn with_config(config: EfinancialcareersConfig, lang: LanguageService) -> Self {
         Self { config, lang }
     }
 
+    #[must_use]
     pub fn build_search_url(&self, query: &str) -> String {
         let keyword = query.trim();
         // eFinancialCareers expects literal `+` for spaces in q= param.
-        let encoded = keyword.replace(" ", "+");
+        let encoded = keyword.replace(' ', "+");
         // Path slug: single-word or empty. Multi-word queries use q= only.
         let first_word = keyword.split_whitespace().next().unwrap_or("");
         let path_slug = if first_word.is_empty() {
             String::new()
         } else {
-            format!("/{}", first_word)
+            format!("/{first_word}")
         };
 
         format!(
@@ -253,8 +254,7 @@ impl EfinancialcareersScraper {
         job_id: &str,
     ) -> Result<EfinancialcareersJobDetail> {
         let url = format!(
-            "https://job-branding-facade.efinancialcareers.com/job/{}",
-            job_id
+            "https://job-branding-facade.efinancialcareers.com/job/{job_id}"
         );
         let res = http
             .get(&url)
@@ -263,15 +263,13 @@ impl EfinancialcareersScraper {
             .await?;
         if !res.status().is_success() {
             let body = res.text().await.unwrap_or_default();
-            bail!("job detail fetch failed: {}", body);
+            bail!("job detail fetch failed: {body}");
         }
         let facade: FacadeResponse = res.json().await?;
         let job = facade.data;
 
         let description = Self::html_to_text(&job.description).unwrap_or_default();
-        let posted_at = DateTime::parse_from_rfc3339(&job.posted_date)
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc::now());
+        let posted_at = DateTime::parse_from_rfc3339(&job.posted_date).map_or_else(|_| Utc::now(), |dt| dt.with_timezone(&Utc));
         let company = job.brand.map(|b| b.name).unwrap_or_default();
         let location = job
             .location
@@ -496,7 +494,7 @@ impl PlatformClient for EfinancialcareersScraper {
         let auth: AuthResult = page.evaluate(EXTRACT_AUTH_JS).await?.into_value()?;
         let auth = match auth {
             AuthResult::Ok(info) => info,
-            AuthResult::Error { error } => bail!("{}", error),
+            AuthResult::Error { error } => bail!("{error}"),
         };
         if auth.token.is_empty() || auth.jobseeker_id.is_empty() {
             bail!("missing efinancialcareers auth token or jobseeker id");
@@ -513,7 +511,7 @@ impl PlatformClient for EfinancialcareersScraper {
 
         let raw_items = match result {
             ApplicationsResult::Ok { applied } => applied,
-            ApplicationsResult::Error { error } => bail!("{}", error),
+            ApplicationsResult::Error { error } => bail!("{error}"),
         };
 
         let items: Vec<ApplicationItem> = raw_items
@@ -521,7 +519,7 @@ impl PlatformClient for EfinancialcareersScraper {
             .filter_map(|raw| match raw.try_into() {
                 Ok(item) => Some(item),
                 Err(e) => {
-                    eprintln!("  Warning: skipping malformed application item: {}", e);
+                    eprintln!("  Warning: skipping malformed application item: {e}");
                     None
                 }
             })
@@ -563,7 +561,7 @@ impl PlatformClient for EfinancialcareersScraper {
                     .await?;
                 if !res.status().is_success() {
                     let body = res.text().await.unwrap_or_default();
-                    bail!("batch job fetch failed: {}", body);
+                    bail!("batch job fetch failed: {body}");
                 }
                 let batch: BatchResponse = res.json().await?;
                 for job in batch.data {

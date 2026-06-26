@@ -108,7 +108,7 @@ pub struct UpworkListArgs {
     #[command(flatten)]
     pub common: CommonListArgs,
 
-    /// Sort order: created, upwork_viewed, applied
+    /// Sort order: created, `upwork_viewed`, applied
     #[arg(long, value_enum, default_value = "upwork_viewed")]
     pub sort: UpworkSortBy,
 }
@@ -181,7 +181,7 @@ pub enum UpdatePlatform {
     /// Fetch Upwork jobs
     Upwork(UpworkArgs),
 
-    /// Fetch NoFluffJobs jobs
+    /// Fetch `NoFluffJobs` jobs
     Nofluff(NofluffArgs),
 
     /// Fetch eFinancialCareers jobs

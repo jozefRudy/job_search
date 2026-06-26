@@ -3,6 +3,7 @@
 pub struct CursorGuard;
 
 impl CursorGuard {
+    #[must_use]
     pub fn new() -> Self {
         hide_cursor();
         Self

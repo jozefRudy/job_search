@@ -5,6 +5,7 @@ pub struct FetchState {
 }
 
 impl FetchState {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -17,18 +18,22 @@ impl FetchState {
         self.existing += 1;
     }
 
+    #[must_use]
     pub fn checked(&self) -> usize {
         self.existing + self.new
     }
 
+    #[must_use]
     pub fn new_count(&self) -> usize {
         self.new
     }
 
+    #[must_use]
     pub fn existing(&self) -> usize {
         self.existing
     }
 
+    #[must_use]
     pub fn summary(&self) -> String {
         format!(
             "Total checked: {} ({} new, {} existing)",
@@ -38,6 +43,7 @@ impl FetchState {
         )
     }
 
+    #[must_use]
     pub fn progress_line(&self, total: Option<usize>, item_name: &str) -> String {
         match total {
             Some(t) => format!(

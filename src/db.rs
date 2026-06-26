@@ -68,7 +68,7 @@ impl Db {
     ) -> Result<Vec<Job>> {
         let order_by = sort.order_by_sql();
         let sql = format!(
-            r#"
+            r"
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
@@ -76,16 +76,15 @@ impl Db {
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
-            ORDER BY {} LIMIT ?2
-            "#,
-            order_by
+            ORDER BY {order_by} LIMIT ?2
+            "
         );
         let rows = sqlx::query_as::<_, JobRow>(&sql)
             .bind(platform)
             .bind(limit)
             .fetch_all(&self.pool)
             .await?;
-        Ok(rows.into_iter().map(|r| r.into()).collect())
+        Ok(rows.into_iter().map(std::convert::Into::into).collect())
     }
 
     pub async fn list_jobs_filtered(
@@ -117,7 +116,7 @@ impl Db {
         .fetch_one(&self.pool)
         .await?;
         let sql = format!(
-            r#"
+            r"
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
@@ -129,9 +128,8 @@ impl Db {
               AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
               AND (?5 IS NULL OR j.is_english = ?5)
-            ORDER BY {} LIMIT ?6 OFFSET ?7
-            "#,
-            order_by
+            ORDER BY {order_by} LIMIT ?6 OFFSET ?7
+            "
         );
         let rows = sqlx::query_as::<_, JobRow>(&sql)
             .bind(filter.platform)
@@ -144,7 +142,7 @@ impl Db {
             .fetch_all(&self.pool)
             .await?;
 
-        let items = rows.into_iter().map(|r| r.into()).collect();
+        let items = rows.into_iter().map(std::convert::Into::into).collect();
         Ok(Paginated { items, total })
     }
 
@@ -155,7 +153,7 @@ impl Db {
 
         let ids_json = serde_json::to_string(ids)?;
         let rows = sqlx::query_as::<_, JobRow>(
-            r#"
+            r"
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
@@ -164,13 +162,13 @@ impl Db {
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE j.id IN (SELECT value FROM json_each(?1))
             ORDER BY j.id
-            "#,
+            ",
         )
         .bind(ids_json)
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|r| r.into()).collect())
+        Ok(rows.into_iter().map(std::convert::Into::into).collect())
     }
 
     pub async fn get_job(&self, id: i64) -> Result<Option<Job>> {
@@ -190,7 +188,7 @@ impl Db {
         .fetch_optional(&self.pool)
         .await?;
 
-        Ok(row.map(|r| r.into()))
+        Ok(row.map(std::convert::Into::into))
     }
 
     pub async fn set_applied(
@@ -234,7 +232,7 @@ impl Db {
     }
 
     /// Copy non-null liked state from `source_path` into self, matching by
-    /// (platform, external_id). Ignore rows missing in target.
+    /// (platform, `external_id`). Ignore rows missing in target.
     pub async fn sync_likes(&self, source_path: &str) -> Result<u64> {
         let mut conn = self.pool.acquire().await?;
 
@@ -244,14 +242,14 @@ impl Db {
             .await?;
 
         let result = sqlx::query(
-            r#"
+            r"
             UPDATE jobs
             SET rating = s.rating
             FROM source.jobs AS s
             WHERE jobs.platform = s.platform
               AND jobs.external_id = s.external_id
               AND s.rating <> 'neutral'
-            "#,
+            ",
         )
         .execute(&mut *conn)
         .await;
@@ -275,7 +273,7 @@ impl Db {
         Ok(())
     }
 
-    /// Fetch job id by platform + external_id.
+    /// Fetch job id by platform + `external_id`.
     pub async fn find_job_id(&self, platform: &Platform, external_id: &str) -> Result<Option<i64>> {
         let id = sqlx::query_scalar!(
             "SELECT id FROM jobs WHERE platform = ?1 AND external_id = ?2",
@@ -292,12 +290,12 @@ impl Db {
         let ids_json = serde_json::to_string(ids)?;
         let platform = platform.to_string();
         let pending: Vec<String> = sqlx::query_scalar(
-            r#"
+            r"
             SELECT value
             FROM json_each(?1)
             WHERE value NOT IN (SELECT external_id FROM jobs WHERE platform = ?2)
               AND value NOT IN (SELECT external_id FROM rejected_jobs WHERE platform = ?2)
-            "#,
+            ",
         )
         .bind(&ids_json)
         .bind(&platform)
@@ -357,7 +355,7 @@ impl Db {
         Ok(count > 0)
     }
 
-    /// Fetch updated_at for a job by platform + external_id.
+    /// Fetch `updated_at` for a job by platform + `external_id`.
     pub async fn job_updated_at(
         &self,
         platform: &Platform,
@@ -489,7 +487,7 @@ mod tests {
             external_id: external_id.to_string(),
             title: title.to_string(),
             description: None,
-            url: format!("https://example.com/{}", external_id),
+            url: format!("https://example.com/{external_id}"),
             budget: None,
             tags: vec![],
             raw,
@@ -729,9 +727,9 @@ mod tests {
             id: 0,
             platform: Platform::Hackernews,
             external_id: ext.to_string(),
-            title: format!("{} | {}", company, role),
+            title: format!("{company} | {role}"),
             description: None,
-            url: format!("https://news.ycombinator.com/item?id={}", ext),
+            url: format!("https://news.ycombinator.com/item?id={ext}"),
             budget: None,
             tags: vec![],
             raw: Data::Hackernews {
