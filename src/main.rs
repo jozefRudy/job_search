@@ -72,113 +72,8 @@ async fn main() -> Result<()> {
         Commands::Init => {
             cmd_init(&browser, DEFAULT_INIT_URLS).await?;
         }
-        Commands::Update(update_cmd) => match update_cmd.platform {
-            UpdatePlatform::Upwork(args) => {
-                let scraper =
-                    UpworkScraper::with_config(args.tier, args.min_rate, args.client_hires);
-                fetch_and_store(&db, &browser, &scraper, &args.query, args.pause).await?;
-            }
-            UpdatePlatform::Nofluff(args) => {
-                let lang = LanguageService::new();
-                let config = jobsearch::platforms::nofluffjobs::NoFluffJobsConfig {
-                    path: "remote".to_string(),
-                    min_salary_eur: args.min_salary,
-                    employment: args.employment,
-                    language: args.lang,
-                    salary_currency: "EUR".to_string(),
-                };
-                let scraper = NoFluffJobsScraper::with_config(config, lang);
-                fetch_and_store(&db, &browser, &scraper, &args.query, args.pause).await?;
-            }
-            UpdatePlatform::Efinancialcareers(args) => {
-                let lang = LanguageService::new();
-                let config = EfinancialcareersConfig {
-                    work_arrangement: "REMOTE".to_string(),
-                    min_salary: args.min_salary,
-                    currency_code: "USD".to_string(),
-                    language: "en".to_string(),
-                };
-                let scraper = EfinancialcareersScraper::with_config(config, lang);
-                fetch_and_store(&db, &browser, &scraper, &args.query, args.pause_ms).await?;
-            }
-            UpdatePlatform::Hackernews(args) => {
-                let scraper = HackerNewsScraper::new(Some(args.llm_cli));
-                fetch_and_store(&db, &browser, &scraper, &args.query, 0).await?;
-            }
-        },
-        Commands::List(cmd) => match cmd.target {
-            ListTarget::All(args) => {
-                let filter = JobFilter {
-                    platform: None,
-                    applied: args.common.applied,
-                    rating: args.common.rating,
-                    remote: args.common.remote,
-                    is_english: args.common.english,
-                };
-                let sort = match args.sort {
-                    CommonSortBy::Created => Sort::Created,
-                    CommonSortBy::Applied => Sort::Applied,
-                };
-                cmd_list(&db, filter, sort).await?;
-            }
-            ListTarget::Upwork(args) => {
-                let filter = JobFilter {
-                    platform: Some(Platform::Upwork),
-                    applied: args.common.applied,
-                    rating: args.common.rating,
-                    remote: args.common.remote,
-                    is_english: args.common.english,
-                };
-                let sort = match args.sort {
-                    UpworkSortBy::Created => Sort::Created,
-                    UpworkSortBy::UpworkViewed => Sort::UpworkViewed,
-                    UpworkSortBy::Applied => Sort::Applied,
-                };
-                cmd_list(&db, filter, sort).await?;
-            }
-            ListTarget::Nofluff(args) => {
-                let filter = JobFilter {
-                    platform: Some(Platform::NoFluffJobs),
-                    applied: args.common.applied,
-                    rating: args.common.rating,
-                    remote: args.common.remote,
-                    is_english: args.common.english,
-                };
-                let sort = match args.sort {
-                    CommonSortBy::Created => Sort::Created,
-                    CommonSortBy::Applied => Sort::Applied,
-                };
-                cmd_list(&db, filter, sort).await?;
-            }
-            ListTarget::Efinancialcareers(args) => {
-                let filter = JobFilter {
-                    platform: Some(Platform::Efinancialcareers),
-                    applied: args.common.applied,
-                    rating: args.common.rating,
-                    remote: args.common.remote,
-                    is_english: args.common.english,
-                };
-                let sort = match args.sort {
-                    CommonSortBy::Created => Sort::Created,
-                    CommonSortBy::Applied => Sort::Applied,
-                };
-                cmd_list(&db, filter, sort).await?;
-            }
-            ListTarget::Hackernews(args) => {
-                let filter = JobFilter {
-                    platform: Some(Platform::Hackernews),
-                    applied: args.common.applied,
-                    rating: args.common.rating,
-                    remote: args.common.remote,
-                    is_english: args.common.english,
-                };
-                let sort = match args.sort {
-                    CommonSortBy::Created => Sort::Created,
-                    CommonSortBy::Applied => Sort::Applied,
-                };
-                cmd_list(&db, filter, sort).await?;
-            }
-        },
+        Commands::Update(update_cmd) => cmd_update(update_cmd, &db, &browser).await?,
+        Commands::List(cmd) => cmd_list_with_target(cmd, &db).await?,
         Commands::Show(args) => {
             let jobs = db.get_jobs(&args.ids).await?;
             println!("{}", serde_json::to_string_pretty(&jobs)?);
@@ -195,45 +90,177 @@ async fn main() -> Result<()> {
         Commands::Diagnose => {
             cmd_diagnose(&db, &db_path).await?;
         }
-        Commands::SyncApplications(cmd) => match cmd.platform {
-            SyncPlatform::Upwork(args) => {
-                sync_apps(&UpworkScraper::new(), &browser, &db, args.pause_ms).await?;
-            }
-            SyncPlatform::Nofluff(args) => {
-                let lang = LanguageService::new();
-                sync_apps(&NoFluffJobsScraper::new(lang), &browser, &db, args.pause_ms).await?;
-            }
-            SyncPlatform::Efinancialcareers(args) => {
-                let lang = LanguageService::new();
-                sync_apps(
-                    &EfinancialcareersScraper::new(lang),
-                    &browser,
-                    &db,
-                    args.pause_ms,
-                )
-                .await?;
-            }
-        },
+        Commands::SyncApplications(cmd) => cmd_sync_applications(cmd, &db, &browser).await?,
         Commands::SyncLikes { from, to } => {
-            if !from.exists() {
-                bail!("source file does not exist: {}", from.display());
-            }
-            if !to.exists() {
-                bail!("target file does not exist: {}", to.display());
-            }
-            let target = Db::open(&to).await?;
-            let synced = target
-                .sync_likes(from.to_str().context("invalid source path")?)
-                .await?;
-            println!(
-                "Synced {} like{}",
-                synced,
-                if synced == 1 { "" } else { "s" }
-            );
+            cmd_sync_likes(&from, &to).await?;
         }
     }
 
     // Browser stays alive for reuse
+    Ok(())
+}
+
+async fn cmd_update(
+    update_cmd: jobsearch::cli::UpdateCmd,
+    db: &Db,
+    browser: &BrowserManager,
+) -> Result<()> {
+    match update_cmd.platform {
+        UpdatePlatform::Upwork(args) => {
+            let scraper = UpworkScraper::with_config(args.tier, args.min_rate, args.client_hires);
+            fetch_and_store(db, browser, &scraper, &args.query, args.pause).await?;
+        }
+        UpdatePlatform::Nofluff(args) => {
+            let lang = LanguageService::new();
+            let config = jobsearch::platforms::nofluffjobs::NoFluffJobsConfig {
+                path: "remote".to_string(),
+                min_salary_eur: args.min_salary,
+                employment: args.employment,
+                language: args.lang,
+                salary_currency: "EUR".to_string(),
+            };
+            let scraper = NoFluffJobsScraper::with_config(config, lang);
+            fetch_and_store(db, browser, &scraper, &args.query, args.pause).await?;
+        }
+        UpdatePlatform::Efinancialcareers(args) => {
+            let lang = LanguageService::new();
+            let config = EfinancialcareersConfig {
+                work_arrangement: "REMOTE".to_string(),
+                min_salary: args.min_salary,
+                currency_code: "USD".to_string(),
+                language: "en".to_string(),
+            };
+            let scraper = EfinancialcareersScraper::with_config(config, lang);
+            fetch_and_store(db, browser, &scraper, &args.query, args.pause_ms).await?;
+        }
+        UpdatePlatform::Hackernews(args) => {
+            let scraper = HackerNewsScraper::new(Some(args.llm_cli));
+            fetch_and_store(db, browser, &scraper, &args.query, 0).await?;
+        }
+    }
+    Ok(())
+}
+
+async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<()> {
+    match cmd.target {
+        ListTarget::All(args) => {
+            let filter = JobFilter {
+                platform: None,
+                applied: args.common.applied,
+                rating: args.common.rating,
+                remote: args.common.remote,
+                is_english: args.common.english,
+            };
+            let sort = match args.sort {
+                CommonSortBy::Created => Sort::Created,
+                CommonSortBy::Applied => Sort::Applied,
+            };
+            cmd_list(db, filter, sort).await?;
+        }
+        ListTarget::Upwork(args) => {
+            let filter = JobFilter {
+                platform: Some(Platform::Upwork),
+                applied: args.common.applied,
+                rating: args.common.rating,
+                remote: args.common.remote,
+                is_english: args.common.english,
+            };
+            let sort = match args.sort {
+                UpworkSortBy::Created => Sort::Created,
+                UpworkSortBy::UpworkViewed => Sort::UpworkViewed,
+                UpworkSortBy::Applied => Sort::Applied,
+            };
+            cmd_list(db, filter, sort).await?;
+        }
+        ListTarget::Nofluff(args) => {
+            let filter = JobFilter {
+                platform: Some(Platform::NoFluffJobs),
+                applied: args.common.applied,
+                rating: args.common.rating,
+                remote: args.common.remote,
+                is_english: args.common.english,
+            };
+            let sort = match args.sort {
+                CommonSortBy::Created => Sort::Created,
+                CommonSortBy::Applied => Sort::Applied,
+            };
+            cmd_list(db, filter, sort).await?;
+        }
+        ListTarget::Efinancialcareers(args) => {
+            let filter = JobFilter {
+                platform: Some(Platform::Efinancialcareers),
+                applied: args.common.applied,
+                rating: args.common.rating,
+                remote: args.common.remote,
+                is_english: args.common.english,
+            };
+            let sort = match args.sort {
+                CommonSortBy::Created => Sort::Created,
+                CommonSortBy::Applied => Sort::Applied,
+            };
+            cmd_list(db, filter, sort).await?;
+        }
+        ListTarget::Hackernews(args) => {
+            let filter = JobFilter {
+                platform: Some(Platform::Hackernews),
+                applied: args.common.applied,
+                rating: args.common.rating,
+                remote: args.common.remote,
+                is_english: args.common.english,
+            };
+            let sort = match args.sort {
+                CommonSortBy::Created => Sort::Created,
+                CommonSortBy::Applied => Sort::Applied,
+            };
+            cmd_list(db, filter, sort).await?;
+        }
+    }
+    Ok(())
+}
+
+async fn cmd_sync_applications(
+    cmd: jobsearch::cli::SyncApplicationsCmd,
+    db: &Db,
+    browser: &BrowserManager,
+) -> Result<()> {
+    match cmd.platform {
+        SyncPlatform::Upwork(args) => {
+            sync_apps(&UpworkScraper::new(), browser, db, args.pause_ms).await?;
+        }
+        SyncPlatform::Nofluff(args) => {
+            let lang = LanguageService::new();
+            sync_apps(&NoFluffJobsScraper::new(lang), browser, db, args.pause_ms).await?;
+        }
+        SyncPlatform::Efinancialcareers(args) => {
+            let lang = LanguageService::new();
+            sync_apps(
+                &EfinancialcareersScraper::new(lang),
+                browser,
+                db,
+                args.pause_ms,
+            )
+            .await?;
+        }
+    }
+    Ok(())
+}
+
+async fn cmd_sync_likes(from: &std::path::Path, to: &std::path::Path) -> Result<()> {
+    if !from.exists() {
+        bail!("source file does not exist: {}", from.display());
+    }
+    if !to.exists() {
+        bail!("target file does not exist: {}", to.display());
+    }
+    let target = Db::open(to).await?;
+    let synced = target
+        .sync_likes(from.to_str().context("invalid source path")?)
+        .await?;
+    println!(
+        "Synced {} like{}",
+        synced,
+        if synced == 1 { "" } else { "s" }
+    );
     Ok(())
 }
 
@@ -361,13 +388,21 @@ fn format_bytes(bytes: u64) -> String {
     if bytes == 0 {
         return "0 bytes".to_string();
     }
-    let exp = (bytes as f64).log(1024.0).min(UNITS.len() as f64 - 1.0) as usize;
-    let val = bytes as f64 / 1024f64.powi(exp as i32);
+    let exp = log_base(bytes, 1024).min(f64::from(
+        u32::try_from(UNITS.len())
+            .unwrap_or(u32::MAX)
+            .saturating_sub(1),
+    )) as usize;
+    let val = bytes as f64 / 1024f64.powi(exp.try_into().unwrap_or(i32::MAX));
     if exp == 0 {
         format!("{} {}", bytes, UNITS[exp])
     } else {
         format!("{:.2} {}", val, UNITS[exp])
     }
+}
+
+fn log_base(n: u64, base: u32) -> f64 {
+    (n as f64).log(f64::from(base))
 }
 
 async fn cmd_diagnose(db: &Db, db_path: &std::path::Path) -> Result<()> {

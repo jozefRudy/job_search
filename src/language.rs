@@ -47,10 +47,8 @@ impl LanguageService {
 
 fn detect_one(detector: &LanguageDetector, text: &str) -> bool {
     let detected = detector.detect_language_of(text);
-    let confidence = detected
-        .map_or(0.0, |lang| detector.compute_language_confidence(text, lang));
-    detected
-        .is_some_and(|l| l.iso_code_639_1().to_string() == "en" && confidence > 0.5)
+    let confidence = detected.map_or(0.0, |lang| detector.compute_language_confidence(text, lang));
+    detected.is_some_and(|l| l.iso_code_639_1().to_string() == "en" && confidence > 0.5)
 }
 
 #[cfg(test)]

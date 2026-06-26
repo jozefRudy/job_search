@@ -504,7 +504,7 @@ impl NoFluffJobsScraper {
             .ok()
             .and_then(|v| v.into_value().ok())
             .flatten()
-            .map(|n: i32| n as usize);
+            .and_then(|n: i32| usize::try_from(n).ok());
 
         let mut all_jobs = Vec::new();
         let platform = Platform::NoFluffJobs;
@@ -697,129 +697,27 @@ impl NoFluffJobsScraper {
             .await?;
         sleep(Duration::from_millis(pause_ms)).await;
 
-        let per_page = 20i32;
-        let mut page_num = 0i32;
-        let mut all_items: Vec<ApplicationItem> = Vec::new();
-
-        loop {
-            let js = FETCH_APPLICATIONS_JS
-                .replace("__PAGE__", &page_num.to_string())
-                .replace("__LIMIT__", &per_page.to_string());
-
-            let raw: Value = page.evaluate(js.as_str()).await?.into_value()?;
-            if let Some(err) = raw.get("error") {
-                page.close().await.ok();
-                bail!("applications fetch error: {err}");
-            }
-
-            let res: RawApplicationsResponse = serde_json::from_value(raw)?;
-            for raw_item in res.items {
-                match raw_item.try_into() {
-                    Ok(item) => all_items.push(item),
-                    Err(e) => eprintln!("  Warning: skipping malformed application item: {e}"),
-                }
-            }
-
-            if !res.has_next {
-                break;
-            }
-            page_num += 1;
-            sleep(Duration::from_millis(pause_ms)).await;
-        }
+        let all_items = self.fetch_application_items(&page, pause_ms).await?;
         page.close().await.ok();
 
-        // Deduplicate by postingId, keep the latest application.
-        let mut latest_by_posting: HashMap<String, ApplicationItem> = HashMap::new();
-        for item in all_items {
-            match latest_by_posting.get_mut(&item.posting_id) {
-                Some(existing) => {
-                    if item.applied_date > existing.applied_date {
-                        *existing = item;
-                    }
-                }
-                None => {
-                    latest_by_posting.insert(item.posting_id.clone(), item);
-                }
-            }
-        }
-
+        let deduped = dedupe_latest_by_posting(all_items);
         let max = limit.unwrap_or(usize::MAX);
         let mut state = FetchState::new();
-        let total = min(max, latest_by_posting.len());
+        let total = min(max, deduped.len());
 
         let _guard = CursorGuard::new();
-        for item in latest_by_posting.into_values() {
+        for item in deduped {
             if state.checked() >= max {
                 break;
             }
 
-            let slug = item.offer.url.trim().to_lowercase();
-            if slug.is_empty() || slug.contains('/') || slug.contains('?') {
-                eprintln!(
-                    "  Warning: application item has invalid job slug for {}",
-                    item.offer.title
-                );
-                continue;
-            }
-            let url = format!("https://nofluffjobs.com/job/{slug}");
-            let external_id = slug.clone();
-
-            let job_id =
-                if let Some(job_id) = db.find_job_id(&Platform::NoFluffJobs, &external_id).await? {
-                    Some(job_id)
-                } else {
-                    sleep(Duration::from_millis(pause_ms)).await;
-
-                    match self.fetch_detail(&slug).await {
-                        Ok(mut detail) => {
-                            detail.employment_type = item.offer.employment_type.clone();
-
-                            if let Some(posted) = item.offer.posted {
-                                detail.posted_at = posted;
-                            }
-                            let applied_at = applied_at_for(&item);
-                            let mut created_at = detail.posted_at;
-                            if created_at > applied_at {
-                                created_at = applied_at;
-                            }
-
-                            let budget = item.offer.budget.clone();
-                            let tags = item.offer.tags.clone();
-
-                            let description =
-                                Some(detail.description.clone()).filter(|d| !d.is_empty());
-                            let job = Job {
-                                id: 0,
-                                platform: Platform::NoFluffJobs,
-                                external_id,
-                                title: item.offer.title.clone(),
-                                description,
-                                url,
-                                budget,
-                                tags,
-                                raw: Data::Nofluffjobs { detail },
-                                company: None,
-                                created_at,
-                                updated_at: Utc::now(),
-                                rating: Rating::Neutral,
-                                note: None,
-                                applied_at: None,
-                                remote: true,
-                                is_english: true,
-                            };
-                            let is_english = classify_language(&self.lang, &job).await?;
-                            let job = Job { is_english, ..job };
-                            Some(db.upsert_job(&job).await?)
-                        }
-                        Err(e) => {
-                            eprintln!(
-                                "  Warning: failed to fetch detail for {}: {}",
-                                item.offer.title, e
-                            );
-                            None
-                        }
-                    }
-                };
+            let job_id = match self.upsert_application_job(db, &item, pause_ms).await {
+                Ok(id) => id,
+                Err(e) => {
+                    eprintln!("  Warning: failed to sync {}: {e}", item.offer.title);
+                    continue;
+                }
+            };
             let Some(job_id) = job_id else { continue };
 
             let stored_applied = db
@@ -842,6 +740,113 @@ impl NoFluffJobsScraper {
         }
 
         Ok(state)
+    }
+
+    async fn fetch_application_items(
+        &self,
+        page: &chromiumoxide::Page,
+        pause_ms: u64,
+    ) -> Result<Vec<ApplicationItem>> {
+        let per_page = 20i32;
+        let mut page_num = 0i32;
+        let mut all_items = Vec::new();
+
+        loop {
+            let js = FETCH_APPLICATIONS_JS
+                .replace("__PAGE__", &page_num.to_string())
+                .replace("__LIMIT__", &per_page.to_string());
+
+            let raw: Value = page.evaluate(js.as_str()).await?.into_value()?;
+            if let Some(err) = raw.get("error") {
+                bail!("applications fetch error: {err}");
+            }
+
+            let res: RawApplicationsResponse = serde_json::from_value(raw)?;
+            for raw_item in res.items {
+                match raw_item.try_into() {
+                    Ok(item) => all_items.push(item),
+                    Err(e) => eprintln!("  Warning: skipping malformed application item: {e}"),
+                }
+            }
+
+            if !res.has_next {
+                break;
+            }
+            page_num += 1;
+            sleep(Duration::from_millis(pause_ms)).await;
+        }
+
+        Ok(all_items)
+    }
+
+    async fn upsert_application_job(
+        &self,
+        db: &Db,
+        item: &ApplicationItem,
+        pause_ms: u64,
+    ) -> Result<Option<i64>> {
+        let slug = item.offer.url.trim().to_lowercase();
+        if slug.is_empty() || slug.contains('/') || slug.contains('?') {
+            eprintln!(
+                "  Warning: application item has invalid job slug for {}",
+                item.offer.title
+            );
+            return Ok(None);
+        }
+        let url = format!("https://nofluffjobs.com/job/{slug}");
+        let external_id = slug.clone();
+
+        if let Some(job_id) = db.find_job_id(&Platform::NoFluffJobs, &external_id).await? {
+            return Ok(Some(job_id));
+        }
+
+        sleep(Duration::from_millis(pause_ms)).await;
+
+        let mut detail = match self.fetch_detail(&slug).await {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!(
+                    "  Warning: failed to fetch detail for {}: {}",
+                    item.offer.title, e
+                );
+                return Ok(None);
+            }
+        };
+
+        detail.employment_type = item.offer.employment_type.clone();
+        if let Some(posted) = item.offer.posted {
+            detail.posted_at = posted;
+        }
+
+        let applied_at = applied_at_for(item);
+        let mut created_at = detail.posted_at;
+        if created_at > applied_at {
+            created_at = applied_at;
+        }
+
+        let description = Some(detail.description.clone()).filter(|d| !d.is_empty());
+        let job = Job {
+            id: 0,
+            platform: Platform::NoFluffJobs,
+            external_id,
+            title: item.offer.title.clone(),
+            description,
+            url,
+            budget: item.offer.budget.clone(),
+            tags: item.offer.tags.clone(),
+            raw: Data::Nofluffjobs { detail },
+            company: None,
+            created_at,
+            updated_at: Utc::now(),
+            rating: Rating::Neutral,
+            note: None,
+            applied_at: None,
+            remote: true,
+            is_english: true,
+        };
+        let is_english = classify_language(&self.lang, &job).await?;
+        let job = Job { is_english, ..job };
+        Ok(Some(db.upsert_job(&job).await?))
     }
 
     fn build_criteria(&self, query: &str) -> String {
@@ -928,6 +933,23 @@ fn applied_at_for(item: &ApplicationItem) -> DateTime<Utc> {
         .map(|s| s.date)
         .min()
         .unwrap_or(item.applied_date)
+}
+
+fn dedupe_latest_by_posting(items: Vec<ApplicationItem>) -> Vec<ApplicationItem> {
+    let mut latest_by_posting: HashMap<String, ApplicationItem> = HashMap::new();
+    for item in items {
+        match latest_by_posting.get_mut(&item.posting_id) {
+            Some(existing) => {
+                if item.applied_date > existing.applied_date {
+                    *existing = item;
+                }
+            }
+            None => {
+                latest_by_posting.insert(item.posting_id.clone(), item);
+            }
+        }
+    }
+    latest_by_posting.into_values().collect()
 }
 
 #[cfg(test)]

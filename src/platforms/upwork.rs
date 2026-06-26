@@ -24,7 +24,8 @@ const CLICK_PAGE_JS: &str = include_str!("upwork/click_page.js");
 const GET_SUBMITTED_PAGE_JS: &str = include_str!("upwork/get_submitted_page.js");
 
 fn format_upwork_budget(s: &str) -> String {
-    crate::extractors::budget::parse_upwork_budget(s).map_or_else(|| s.trim().to_string(), |b| b.to_string())
+    crate::extractors::budget::parse_upwork_budget(s)
+        .map_or_else(|| s.trim().to_string(), |b| b.to_string())
 }
 
 /// Upwork canonical external id prefix.
@@ -58,7 +59,10 @@ fn extract_upwork_external_id_from_url(url: &str) -> Option<String> {
 
 /// Strip slug, query params, and referrer from Upwork job URL.
 fn normalize_upwork_url(url: &str) -> String {
-    extract_upwork_external_id_from_url(url).map_or_else(|| url.to_string(), |id| format!("https://www.upwork.com/jobs/{id}"))
+    extract_upwork_external_id_from_url(url).map_or_else(
+        || url.to_string(),
+        |id| format!("https://www.upwork.com/jobs/{id}"),
+    )
 }
 
 /// Raw job card from JS scraper (all strings).
@@ -76,22 +80,30 @@ struct RawJobCard {
 }
 
 /// Job card with parsed timestamps.
+struct ProposalsPage {
+    items: Vec<RawSubmittedItem>,
+    total: usize,
+    max: usize,
+}
+
 #[derive(Debug, Clone, Deserialize)]
-#[allow(non_snake_case)]
 struct RawSubmittedList {
     pub page: u32,
     pub total: u32,
-    pub itemsPerPage: u32,
+    #[serde(rename = "itemsPerPage")]
+    pub items_per_page: u32,
     pub items: Vec<RawSubmittedItem>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[allow(non_snake_case)]
 struct RawSubmittedItem {
-    pub openingUID: String,
-    pub applicationUID: String,
+    #[serde(rename = "openingUID")]
+    pub opening_uid: String,
+    #[serde(rename = "applicationUID")]
+    pub application_uid: String,
     pub title: String,
-    pub createdTs: Option<String>,
+    #[serde(rename = "createdTs")]
+    pub created_ts: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -344,6 +356,96 @@ impl TryFrom<RawJobDetail> for UpworkJobDetail {
     }
 }
 
+#[derive(Clone, Copy)]
+struct SearchContext<'a> {
+    browser: &'a Browser,
+    db: &'a Db,
+    page_len: usize,
+    pause_ms: u64,
+    fetch_started_at: DateTime<Utc>,
+    detail_ttl: chrono::Duration,
+}
+
+impl UpworkScraper {
+    async fn ensure_upwork_tab(&self, browser: &Browser) -> Result<()> {
+        let page_hosts: Vec<_> = browser
+            .get_page_urls()
+            .await?
+            .into_iter()
+            .filter_map(|u| host_of(&u))
+            .collect();
+        if !page_hosts.iter().any(|h| h.contains("upwork.com")) {
+            bail!("Upwork requires open upwork.com tab in Brave");
+        }
+        Ok(())
+    }
+
+    async fn process_search_card(
+        &self,
+        ctx: SearchContext<'_>,
+        v: &UpworkJobCard,
+        state: &mut FetchState,
+    ) -> Result<()> {
+        let is_stale = v.posted_at_text.is_some_and(|posted| {
+            let age = chrono::Utc::now() - posted;
+            age.num_days() >= 7
+        });
+
+        let updated_at = ctx
+            .db
+            .job_updated_at(&Platform::Upwork, &v.external_id)
+            .await?;
+
+        if let Some(ts) = updated_at
+            && (ctx.fetch_started_at - ts < ctx.detail_ttl || is_stale)
+        {
+            state.inc_existing();
+            eprint!("{}", state.progress_line(Some(ctx.page_len), ""));
+            return Ok(());
+        }
+
+        let job_url = v.url.clone();
+
+        match self.fetch_job_detail(ctx.browser, &job_url).await {
+            Ok(detail) => {
+                let job = Job {
+                    id: 0,
+                    platform: Platform::Upwork,
+                    external_id: v.external_id.clone(),
+                    title: v.title.clone(),
+                    description: v.description.clone(),
+                    url: v.url.clone(),
+                    budget: v.budget.clone(),
+                    tags: v.tags.clone(),
+                    raw: Data::Upwork { detail },
+                    company: None,
+                    created_at: v.posted_at_text.unwrap_or_else(chrono::Utc::now),
+                    updated_at: chrono::Utc::now(),
+                    rating: Rating::Neutral,
+                    note: None,
+                    applied_at: None,
+                    remote: true,
+                    is_english: true,
+                };
+                ctx.db.upsert_job(&job).await?;
+
+                if updated_at.is_some() {
+                    state.inc_existing();
+                } else {
+                    state.inc_new();
+                }
+            }
+            Err(e) => {
+                eprintln!("    Warning: failed to fetch detail for {}: {}", v.title, e);
+            }
+        }
+
+        eprint!("{}", state.progress_line(Some(ctx.page_len), &v.title));
+        sleep(Duration::from_millis(ctx.pause_ms)).await;
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl PlatformClient for UpworkScraper {
     fn name(&self) -> &'static str {
@@ -357,15 +459,7 @@ impl PlatformClient for UpworkScraper {
         query: &str,
         pause_ms: u64,
     ) -> Result<FetchState> {
-        let page_hosts: Vec<_> = browser
-            .get_page_urls()
-            .await?
-            .into_iter()
-            .filter_map(|u| host_of(&u))
-            .collect();
-        if !page_hosts.iter().any(|h| h.contains("upwork.com")) {
-            bail!("Upwork requires open upwork.com tab in Brave");
-        }
+        self.ensure_upwork_tab(browser).await?;
 
         let base_params = UpworkSearchParams::new(query)
             .tier(self.tier)
@@ -381,7 +475,6 @@ impl PlatformClient for UpworkScraper {
 
         sleep(Duration::from_millis(pause_ms)).await;
 
-        let mut all_jobs: Vec<Job> = Vec::new();
         let mut page_num = 1u32;
         let mut state = FetchState::new();
         let fetch_started_at = chrono::Utc::now();
@@ -392,62 +485,16 @@ impl PlatformClient for UpworkScraper {
         loop {
             let raw_jobs = Self::scrape_page(&page).await?;
 
+            let ctx = SearchContext {
+                browser,
+                db,
+                page_len: raw_jobs.len(),
+                pause_ms,
+                fetch_started_at,
+                detail_ttl,
+            };
             for v in &raw_jobs {
-                let is_stale = v.posted_at_text.is_some_and(|posted| {
-                    let age = chrono::Utc::now() - posted;
-                    age.num_days() >= 7
-                });
-
-                let updated_at = db.job_updated_at(&Platform::Upwork, &v.external_id).await?;
-
-                if let Some(ts) = updated_at
-                    && (fetch_started_at - ts < detail_ttl || is_stale)
-                {
-                    state.inc_existing();
-                    eprint!("{}", state.progress_line(Some(raw_jobs.len()), ""));
-                    continue;
-                }
-
-                let job_url = v.url.clone();
-
-                match self.fetch_job_detail(browser, &job_url).await {
-                    Ok(detail) => {
-                        let job = Job {
-                            id: 0,
-                            platform: Platform::Upwork,
-                            external_id: v.external_id.clone(),
-                            title: v.title.clone(),
-                            description: v.description.clone(),
-                            url: v.url.clone(),
-                            budget: v.budget.clone(),
-                            tags: v.tags.clone(),
-                            raw: Data::Upwork { detail },
-                            company: None,
-                            created_at: v.posted_at_text.unwrap_or_else(chrono::Utc::now),
-                            updated_at: chrono::Utc::now(),
-                            rating: Rating::Neutral,
-                            note: None,
-                            applied_at: None,
-                            remote: true,
-                            is_english: true,
-                        };
-                        db.upsert_job(&job).await?;
-
-                        let exists = updated_at.is_some();
-                        if exists {
-                            state.inc_existing();
-                        } else {
-                            state.inc_new();
-                        }
-                        all_jobs.push(job);
-                    }
-                    Err(e) => {
-                        eprintln!("    Warning: failed to fetch detail for {}: {}", v.title, e);
-                    }
-                }
-
-                eprint!("{}", state.progress_line(Some(raw_jobs.len()), &v.title));
-                sleep(Duration::from_millis(pause_ms)).await;
+                self.process_search_card(ctx, v, &mut state).await?;
             }
 
             let has_next: bool = page.evaluate(HAS_NEXT_PAGE_JS).await?.into_value()?;
@@ -487,6 +534,28 @@ impl PlatformClient for UpworkScraper {
             bail!("Upwork requires open upwork.com tab in Brave");
         }
 
+        let proposals = self.fetch_proposals(browser, pause_ms, limit).await?;
+        let mut state = FetchState::new();
+        let _guard = CursorGuard::new();
+
+        for item in &proposals.items {
+            if state.checked() >= proposals.max {
+                break;
+            }
+            self.process_proposal(browser, db, item, proposals.total, pause_ms, &mut state)
+                .await?;
+        }
+        Ok(state)
+    }
+}
+
+impl UpworkScraper {
+    async fn fetch_proposals(
+        &self,
+        browser: &Browser,
+        pause_ms: u64,
+        limit: Option<usize>,
+    ) -> Result<ProposalsPage> {
         let page = browser
             .new_tab("https://www.upwork.com/nx/proposals/")
             .await?;
@@ -495,7 +564,6 @@ impl PlatformClient for UpworkScraper {
         let mut all_proposals: Vec<RawSubmittedItem> = Vec::new();
         let max = limit.unwrap_or(usize::MAX);
 
-        let _guard = CursorGuard::new();
         loop {
             let list: RawSubmittedList = page
                 .evaluate(EXTRACT_SUBMITTED_LIST_JS)
@@ -503,7 +571,7 @@ impl PlatformClient for UpworkScraper {
                 .into_value()?;
             all_proposals.extend(list.items);
 
-            let total_pages = list.total.div_ceil(list.itemsPerPage);
+            let total_pages = list.total.div_ceil(list.items_per_page);
             let next_page = list.page + 2; // page is 0-indexed, button is 1-indexed
 
             if next_page > total_pages || all_proposals.len() >= max {
@@ -523,105 +591,110 @@ impl PlatformClient for UpworkScraper {
 
         page.close().await.ok();
 
-        let mut state = FetchState::new();
-        let total = limit
-            .map_or(all_proposals.len(), |l| min(l, all_proposals.len()));
-
-        for item in &all_proposals {
-            if state.checked() >= max {
-                break;
-            }
-            let external_id = normalize_upwork_external_id(&item.openingUID);
-            let job_url = format!("https://www.upwork.com/jobs/{external_id}");
-
-            let job_id = if let Some(id) = db.find_job_id(&Platform::Upwork, &external_id).await? {
-                Some(id)
-            } else {
-                match self.fetch_job_detail(browser, &job_url).await {
-                    Ok(detail) => {
-                        let created_at = detail.posted_at;
-                        let job = Job {
-                            id: 0,
-                            platform: Platform::Upwork,
-                            external_id: external_id.clone(),
-                            title: item.title.clone(),
-                            description: Some(detail.description.clone()).filter(|b| !b.is_empty()),
-                            url: job_url.clone(),
-                            budget: Some(format_upwork_budget(&detail.exact_budget))
-                                .filter(|b| !b.is_empty()),
-                            tags: detail.tags.clone(),
-                            raw: Data::Upwork { detail },
-                            company: None,
-                            created_at,
-                            updated_at: chrono::Utc::now(),
-                            rating: Rating::Neutral,
-                            note: None,
-                            applied_at: None,
-                            remote: true,
-                            is_english: true,
-                        };
-                        Some(db.upsert_job(&job).await?)
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "  Warning: failed to fetch detail for {}: {}",
-                            item.title, e
-                        );
-                        None
-                    }
-                }
-            };
-
-            let Some(job_id) = job_id else { continue };
-
-            if db
-                .get_job(job_id)
-                .await?
-                .and_then(|j| j.applied_at)
-                .is_some()
-            {
-                state.inc_existing();
-                eprint!("{}", state.progress_line(Some(total), &item.title));
-                continue;
-            }
-
-            let cover_letter: String = {
-                let detail_page = browser
-                    .new_tab(&format!(
-                        "https://www.upwork.com/nx/proposals/{}",
-                        item.applicationUID
-                    ))
-                    .await?;
-                sleep(Duration::from_millis(pause_ms)).await;
-                let letter = detail_page
-                    .evaluate(EXTRACT_PROPOSAL_DETAIL_JS)
-                    .await?
-                    .into_value::<String>()?;
-                detail_page.close().await.ok();
-                letter
-            };
-
-            let applied_at = item
-                .createdTs
-                .as_ref()
-                .and_then(|s| DateTime::parse_from_rfc3339(s).ok()).map_or_else(Utc::now, |dt| dt.with_timezone(&Utc));
-
-            let note = if cover_letter.is_empty() {
-                None
-            } else {
-                Some(cover_letter.as_str())
-            };
-
-            db.set_applied(job_id, note, applied_at).await?;
-            state.inc_new();
-
-            eprint!("{}", state.progress_line(Some(total), &item.title));
-        }
-        Ok(state)
+        let total = limit.map_or(all_proposals.len(), |l| min(l, all_proposals.len()));
+        Ok(ProposalsPage {
+            items: all_proposals,
+            total,
+            max,
+        })
     }
 
-    async fn react(&self, _job: &Job, _note: Option<String>) -> Result<()> {
-        Err(anyhow!("Upwork react not yet implemented"))
+    async fn process_proposal(
+        &self,
+        browser: &Browser,
+        db: &Db,
+        item: &RawSubmittedItem,
+        total: usize,
+        pause_ms: u64,
+        state: &mut FetchState,
+    ) -> Result<()> {
+        let external_id = normalize_upwork_external_id(&item.opening_uid);
+        let job_url = format!("https://www.upwork.com/jobs/{external_id}");
+
+        let job_id = if let Some(id) = db.find_job_id(&Platform::Upwork, &external_id).await? {
+            Some(id)
+        } else {
+            match self.fetch_job_detail(browser, &job_url).await {
+                Ok(detail) => {
+                    let created_at = detail.posted_at;
+                    let job = Job {
+                        id: 0,
+                        platform: Platform::Upwork,
+                        external_id: external_id.clone(),
+                        title: item.title.clone(),
+                        description: Some(detail.description.clone()).filter(|b| !b.is_empty()),
+                        url: job_url.clone(),
+                        budget: Some(format_upwork_budget(&detail.exact_budget))
+                            .filter(|b| !b.is_empty()),
+                        tags: detail.tags.clone(),
+                        raw: Data::Upwork { detail },
+                        company: None,
+                        created_at,
+                        updated_at: chrono::Utc::now(),
+                        rating: Rating::Neutral,
+                        note: None,
+                        applied_at: None,
+                        remote: true,
+                        is_english: true,
+                    };
+                    Some(db.upsert_job(&job).await?)
+                }
+                Err(e) => {
+                    eprintln!(
+                        "  Warning: failed to fetch detail for {}: {}",
+                        item.title, e
+                    );
+                    None
+                }
+            }
+        };
+
+        let Some(job_id) = job_id else { return Ok(()) };
+
+        if db
+            .get_job(job_id)
+            .await?
+            .and_then(|j| j.applied_at)
+            .is_some()
+        {
+            state.inc_existing();
+            eprint!("{}", state.progress_line(Some(total), &item.title));
+            return Ok(());
+        }
+
+        let cover_letter: String = {
+            let detail_page = browser
+                .new_tab(&format!(
+                    "https://www.upwork.com/nx/proposals/{}",
+                    item.application_uid
+                ))
+                .await?;
+            sleep(Duration::from_millis(pause_ms)).await;
+            let letter = detail_page
+                .evaluate(EXTRACT_PROPOSAL_DETAIL_JS)
+                .await?
+                .into_value::<String>()?;
+            detail_page.close().await.ok();
+            letter
+        };
+
+        let applied_at = item
+            .created_ts
+            .as_ref()
+            .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+            .map_or_else(Utc::now, |dt| dt.with_timezone(&Utc));
+
+        let note = if cover_letter.is_empty() {
+            None
+        } else {
+            Some(cover_letter.as_str())
+        };
+
+        db.set_applied(job_id, note, applied_at).await?;
+        state.inc_new();
+
+        eprint!("{}", state.progress_line(Some(total), &item.title));
+        Ok(())
     }
 }
 

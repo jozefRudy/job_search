@@ -16,7 +16,7 @@ pub struct ExtractFields {
         description = "location mentioned in the post, if multiple listed, join them with ' + '"
     )]
     pub location: Option<String>,
-    #[schemars(description = "true if fully remote from anywhere in the EU")]
+    #[schemars(description = "true if the job is fully remote")]
     #[serde(default)]
     pub remote: Option<bool>,
     #[schemars(description = "raw compensation snippet (e.g. '$150k-$175k' or 'EUR 80k-100k')")]
@@ -70,7 +70,7 @@ mod tests {
         assert!(fields.is_job_ad, "expected job ad");
         assert_eq!(fields.company.as_deref(), Some("Stripe"));
         assert_eq!(fields.role.as_deref(), Some("Senior Backend Engineer"));
-        assert!(fields.remote.unwrap_or(false), "expected remote");
+        assert_eq!(fields.remote, Some(true), "expected remote");
         assert!(fields.budget.is_some(), "expected budget");
     }
 
@@ -93,6 +93,6 @@ mod tests {
             role.chars().filter(|c| *c == '+').count() == 3,
             "expected 4 roles joined, got {role:?}"
         );
-        assert!(fields.remote.unwrap_or(false), "expected remote");
+        assert_eq!(fields.remote, Some(true), "expected remote");
     }
 }

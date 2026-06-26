@@ -91,8 +91,8 @@ async fn list_jobs(
 ) -> Result<Json<JobListResponse>, StatusCode> {
     let page = query.page.max(1);
     let page_size = query.page_size.clamp(1, 100);
-    let offset = ((page - 1) * page_size) as i64;
-    let limit = page_size as i64;
+    let offset = i64::try_from((page - 1) * page_size).unwrap_or(i64::MAX);
+    let limit = i64::try_from(page_size).unwrap_or(i64::MAX);
 
     let filter = JobFilter {
         platform: query.platform,
@@ -109,7 +109,7 @@ async fn list_jobs(
 
     Ok(Json(JobListResponse {
         jobs: paginated.items,
-        total: paginated.total as usize,
+        total: usize::try_from(paginated.total).unwrap_or(usize::MAX),
     }))
 }
 

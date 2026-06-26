@@ -625,9 +625,7 @@ async fn test_efinancialcareers_sync_applications() {
                 "synced job should have external_id"
             );
             assert!(
-                job.description
-                    .as_ref()
-                    .is_some_and(|d| !d.is_empty()),
+                job.description.as_ref().is_some_and(|d| !d.is_empty()),
                 "synced job should have description from batch API"
             );
             if let jobsearch::models::Data::Efinancialcareers { detail } = &job.raw {

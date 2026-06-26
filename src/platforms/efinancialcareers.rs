@@ -81,7 +81,8 @@ impl TryFrom<RawApplicationItem> for ApplicationItem {
             bail!("job url missing id: {}", raw.url);
         }
 
-        let applied_at = DateTime::parse_from_rfc3339(&raw.applied_at_text).map_or_else(|_| Utc::now(), |dt| dt.with_timezone(&Utc));
+        let applied_at = DateTime::parse_from_rfc3339(&raw.applied_at_text)
+            .map_or_else(|_| Utc::now(), |dt| dt.with_timezone(&Utc));
 
         Ok(ApplicationItem {
             internal_job_id: raw.internal_job_id,
@@ -181,6 +182,22 @@ impl EfinancialcareersScraper {
         Self { config, lang }
     }
 
+    async fn ensure_efinancialcareers_tab(&self, browser: &Browser) -> Result<()> {
+        let page_hosts: Vec<_> = browser
+            .get_page_urls()
+            .await?
+            .into_iter()
+            .filter_map(|u| host_of(&u))
+            .collect();
+        if !page_hosts
+            .iter()
+            .any(|h| h.contains("efinancialcareers.com"))
+        {
+            bail!("eFinancialCareers requires open efinancialcareers.com tab in Brave");
+        }
+        Ok(())
+    }
+
     #[must_use]
     pub fn build_search_url(&self, query: &str) -> String {
         let keyword = query.trim();
@@ -217,6 +234,46 @@ impl EfinancialcareersScraper {
         .await
     }
 
+    async fn process_search_card(
+        &self,
+        db: &Db,
+        card: &EfinancialcareersJobCard,
+        total_jobs: usize,
+        pause_ms: u64,
+        state: &mut FetchState,
+    ) -> Result<()> {
+        if db
+            .find_job_id(&Platform::Efinancialcareers, &card.external_id)
+            .await?
+            .is_some()
+        {
+            state.inc_existing();
+            eprint!("{}", state.progress_line(Some(total_jobs), ""));
+            return Ok(());
+        }
+
+        sleep(Duration::from_millis(pause_ms)).await;
+
+        let http = reqwest::Client::new();
+        let detail = match self.fetch_detail(&http, &card.external_id).await {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!(
+                    "    Warning: failed to fetch detail for {}: {}",
+                    card.external_id, e
+                );
+                return Ok(());
+            }
+        };
+
+        let job = self.build_job(card, detail).await?;
+        db.upsert_job(&job).await?;
+        state.inc_new();
+
+        eprint!("{}", state.progress_line(Some(total_jobs), &card.title));
+        Ok(())
+    }
+
     pub async fn scrape_page(page: &chromiumoxide::Page) -> Result<Vec<EfinancialcareersJobCard>> {
         let cards: Vec<EfinancialcareersJobCard> =
             page.evaluate(SCRAPE_CARDS_JS).await?.into_value()?;
@@ -226,7 +283,8 @@ impl EfinancialcareersScraper {
     pub async fn scrape_total(page: &chromiumoxide::Page) -> Result<usize> {
         let total: Option<i64> = page.evaluate(SCRAPE_TOTAL_JS).await?.into_value()?;
         match total {
-            Some(n) if n >= 0 => Ok(n as usize),
+            Some(n) if n >= 0 => usize::try_from(n)
+                .map_err(|_| anyhow::anyhow!("eFinancialCareers total exceeds usize")),
             _ => bail!("eFinancialCareers total job count not found in heading"),
         }
     }
@@ -253,9 +311,7 @@ impl EfinancialcareersScraper {
         http: &reqwest::Client,
         job_id: &str,
     ) -> Result<EfinancialcareersJobDetail> {
-        let url = format!(
-            "https://job-branding-facade.efinancialcareers.com/job/{job_id}"
-        );
+        let url = format!("https://job-branding-facade.efinancialcareers.com/job/{job_id}");
         let res = http
             .get(&url)
             .header("Accept", "application/json")
@@ -269,7 +325,8 @@ impl EfinancialcareersScraper {
         let job = facade.data;
 
         let description = Self::html_to_text(&job.description).unwrap_or_default();
-        let posted_at = DateTime::parse_from_rfc3339(&job.posted_date).map_or_else(|_| Utc::now(), |dt| dt.with_timezone(&Utc));
+        let posted_at = DateTime::parse_from_rfc3339(&job.posted_date)
+            .map_or_else(|_| Utc::now(), |dt| dt.with_timezone(&Utc));
         let company = job.brand.map(|b| b.name).unwrap_or_default();
         let location = job
             .location
@@ -374,18 +431,7 @@ impl PlatformClient for EfinancialcareersScraper {
         query: &str,
         pause_ms: u64,
     ) -> Result<FetchState> {
-        let page_hosts: Vec<_> = browser
-            .get_page_urls()
-            .await?
-            .into_iter()
-            .filter_map(|u| host_of(&u))
-            .collect();
-        if !page_hosts
-            .iter()
-            .any(|h| h.contains("efinancialcareers.com"))
-        {
-            bail!("eFinancialCareers requires open efinancialcareers.com tab in Brave");
-        }
+        self.ensure_efinancialcareers_tab(browser).await?;
 
         let search_url = self.build_search_url(query);
         let page = browser.new_tab(&search_url).await?;
@@ -401,7 +447,6 @@ impl PlatformClient for EfinancialcareersScraper {
             return Ok(FetchState::new());
         }
 
-        let mut all_jobs = Vec::new();
         let mut processed_ids: HashSet<String> = HashSet::new();
         let mut state = FetchState::new();
         let _guard = CursorGuard::new();
@@ -424,36 +469,8 @@ impl PlatformClient for EfinancialcareersScraper {
             }
 
             for card in &new_cards {
-                if db
-                    .find_job_id(&Platform::Efinancialcareers, &card.external_id)
-                    .await?
-                    .is_some()
-                {
-                    state.inc_existing();
-                    eprint!("{}", state.progress_line(Some(total_jobs), ""));
-                    continue;
-                }
-
-                sleep(Duration::from_millis(pause_ms)).await;
-
-                let http = reqwest::Client::new();
-                let detail = match self.fetch_detail(&http, &card.external_id).await {
-                    Ok(d) => d,
-                    Err(e) => {
-                        eprintln!(
-                            "    Warning: failed to fetch detail for {}: {}",
-                            card.external_id, e
-                        );
-                        continue;
-                    }
-                };
-
-                let job = self.build_job(card, detail).await?;
-                db.upsert_job(&job).await?;
-                state.inc_new();
-                all_jobs.push(job);
-
-                eprint!("{}", state.progress_line(Some(total_jobs), &card.title));
+                self.process_search_card(db, card, total_jobs, pause_ms, &mut state)
+                    .await?;
             }
 
             if !Self::click_show_more(&page, pause_ms).await {
@@ -472,175 +489,23 @@ impl PlatformClient for EfinancialcareersScraper {
         pause_ms: u64,
         limit: Option<usize>,
     ) -> Result<FetchState> {
-        let page_hosts: Vec<_> = browser
-            .get_page_urls()
-            .await?
-            .into_iter()
-            .filter_map(|u| host_of(&u))
-            .collect();
-        if !page_hosts
-            .iter()
-            .any(|h| h.contains("efinancialcareers.com"))
-        {
-            bail!("eFinancialCareers requires open efinancialcareers.com tab in Brave");
-        }
-
-        let page = browser
-            .new_tab("https://www.efinancialcareers.com/myefc/my-jobs")
+        let auth = self.extract_auth(browser, pause_ms).await?;
+        let items = self
+            .fetch_application_items(browser, pause_ms, limit, &auth)
             .await?;
-        let _ = wait_for_element(&page, &["efc-my-jobs"], None, None).await;
-        sleep(Duration::from_millis(pause_ms)).await;
-
-        let auth: AuthResult = page.evaluate(EXTRACT_AUTH_JS).await?.into_value()?;
-        let auth = match auth {
-            AuthResult::Ok(info) => info,
-            AuthResult::Error { error } => bail!("{error}"),
-        };
-        if auth.token.is_empty() || auth.jobseeker_id.is_empty() {
-            bail!("missing efinancialcareers auth token or jobseeker id");
-        }
-
-        let fetch_js = FETCH_APPLICATIONS_JS
-            .replace("__TOKEN__", &serde_json::to_string(&auth.token)?)
-            .replace(
-                "__JOBSEEKER_ID__",
-                &serde_json::to_string(&auth.jobseeker_id)?,
-            );
-        let result: ApplicationsResult = page.evaluate(fetch_js.as_str()).await?.into_value()?;
-        page.close().await.ok();
-
-        let raw_items = match result {
-            ApplicationsResult::Ok { applied } => applied,
-            ApplicationsResult::Error { error } => bail!("{error}"),
-        };
-
-        let items: Vec<ApplicationItem> = raw_items
-            .into_iter()
-            .filter_map(|raw| match raw.try_into() {
-                Ok(item) => Some(item),
-                Err(e) => {
-                    eprintln!("  Warning: skipping malformed application item: {e}");
-                    None
-                }
-            })
-            .take(limit.unwrap_or(usize::MAX))
-            .collect();
-
-        let http = reqwest::Client::new();
-        let mut missing: Vec<&ApplicationItem> = Vec::new();
-        for item in &items {
-            if db
-                .find_job_id(&Platform::Efinancialcareers, &item.external_id)
-                .await?
-                .is_none()
-            {
-                missing.push(item);
-            }
-        }
-
-        let mut descriptions: HashMap<String, String> = HashMap::new();
-        if !missing.is_empty() {
-            for chunk in missing.chunks(BATCH_CHUNK_SIZE) {
-                let ids: Vec<&str> = chunk
-                    .iter()
-                    .map(|i| i.internal_job_id.as_str())
-                    .filter(|id| !id.is_empty())
-                    .collect();
-                if ids.is_empty() {
-                    continue;
-                }
-                let url = format!(
-                    "https://job.efinancialcareers.com/api/v1/jobs/batch?job_ids={}&response_properties=title,summary,description",
-                    ids.join(",")
-                );
-                let res = http
-                    .get(&url)
-                    .header("Authorization", format!("Bearer {}", auth.token))
-                    .header("Accept", "application/json")
-                    .send()
-                    .await?;
-                if !res.status().is_success() {
-                    let body = res.text().await.unwrap_or_default();
-                    bail!("batch job fetch failed: {body}");
-                }
-                let batch: BatchResponse = res.json().await?;
-                for job in batch.data {
-                    if let Some(text) = Self::html_to_text(&job.description) {
-                        descriptions.insert(job.id, text);
-                    }
-                }
-            }
-        }
+        let descriptions = self
+            .fetch_batch_descriptions(db, pause_ms, &items, &auth)
+            .await?;
 
         let mut state = FetchState::new();
         let _guard = CursorGuard::new();
+        let http = reqwest::Client::new();
 
         for item in &items {
-            let job_id = if let Some(id) = db
-                .find_job_id(&Platform::Efinancialcareers, &item.external_id)
-                .await?
-            {
-                id
-            } else {
-                sleep(Duration::from_millis(pause_ms)).await;
-
-                let detail = match self.fetch_detail(&http, &item.external_id).await {
-                    Ok(d) => d,
-                    Err(e) => {
-                        eprintln!(
-                            "\r    Warning: failed to fetch detail for {} (job may be expired): {}",
-                            item.external_id, e
-                        );
-                        let description = descriptions
-                            .get(&item.internal_job_id)
-                            .cloned()
-                            .unwrap_or_default();
-
-                        EfinancialcareersJobDetail {
-                            company: item.company.clone(),
-                            location: item.location.clone(),
-                            employment_type: item.employment_type.clone(),
-                            work_arrangement_type: String::new(),
-                            salary: item.salary.clone(),
-                            description,
-                            posted_at: item.applied_at,
-                        }
-                    }
-                };
-
-                let budget =
-                    crate::extractors::budget::parse_efinancialcareers_budget(&detail.salary)
-                        .map(|b| b.to_string())
-                        .or_else(|| Some(detail.salary.clone()).filter(|b| !b.is_empty()));
-
-                let remote = Self::is_remote(&detail);
-                let created_at = detail.posted_at;
-                let description = Some(detail.description.clone()).filter(|d| !d.is_empty());
-                let raw = Data::Efinancialcareers { detail };
-
-                let job = Job {
-                    id: 0,
-                    platform: Platform::Efinancialcareers,
-                    external_id: item.external_id.clone(),
-                    title: item.title.clone(),
-                    description,
-                    url: item.url.clone(),
-                    budget,
-                    tags: Vec::new(),
-                    created_at,
-                    raw,
-                    company: None,
-                    updated_at: Utc::now(),
-                    rating: Rating::Neutral,
-                    note: None,
-                    applied_at: None,
-                    remote,
-                    is_english: true,
-                };
-                let is_english = classify_language(&self.lang, &job).await?;
-                let job = Job { is_english, ..job };
-                db.upsert_job(&job).await?
-            };
+            let job_id = self
+                .ensure_application_job(db, &http, pause_ms, item, &descriptions)
+                .await?;
+            let Some(job_id) = job_id else { continue };
 
             let stored_applied = db
                 .get_job(job_id)
@@ -666,6 +531,213 @@ impl PlatformClient for EfinancialcareersScraper {
         }
 
         Ok(state)
+    }
+}
+
+impl EfinancialcareersScraper {
+    async fn extract_auth(&self, browser: &Browser, pause_ms: u64) -> Result<AuthInfo> {
+        let page_hosts: Vec<_> = browser
+            .get_page_urls()
+            .await?
+            .into_iter()
+            .filter_map(|u| host_of(&u))
+            .collect();
+        if !page_hosts
+            .iter()
+            .any(|h| h.contains("efinancialcareers.com"))
+        {
+            bail!("eFinancialCareers requires open efinancialcareers.com tab in Brave");
+        }
+
+        let page = browser
+            .new_tab("https://www.efinancialcareers.com/myefc/my-jobs")
+            .await?;
+        let _ = wait_for_element(&page, &["efc-my-jobs"], None, None).await;
+        sleep(Duration::from_millis(pause_ms)).await;
+
+        let auth: AuthResult = page.evaluate(EXTRACT_AUTH_JS).await?.into_value()?;
+        page.close().await.ok();
+
+        let auth = match auth {
+            AuthResult::Ok(info) => info,
+            AuthResult::Error { error } => bail!("{error}"),
+        };
+        if auth.token.is_empty() || auth.jobseeker_id.is_empty() {
+            bail!("missing efinancialcareers auth token or jobseeker id");
+        }
+        Ok(auth)
+    }
+
+    async fn fetch_application_items(
+        &self,
+        browser: &Browser,
+        pause_ms: u64,
+        limit: Option<usize>,
+        auth: &AuthInfo,
+    ) -> Result<Vec<ApplicationItem>> {
+        let page = browser
+            .new_tab("https://www.efinancialcareers.com/myefc/my-jobs")
+            .await?;
+        let _ = wait_for_element(&page, &["efc-my-jobs"], None, None).await;
+        sleep(Duration::from_millis(pause_ms)).await;
+
+        let fetch_js = FETCH_APPLICATIONS_JS
+            .replace("__TOKEN__", &serde_json::to_string(&auth.token)?)
+            .replace(
+                "__JOBSEEKER_ID__",
+                &serde_json::to_string(&auth.jobseeker_id)?,
+            );
+        let result: ApplicationsResult = page.evaluate(fetch_js.as_str()).await?.into_value()?;
+        page.close().await.ok();
+
+        let raw_items = match result {
+            ApplicationsResult::Ok { applied } => applied,
+            ApplicationsResult::Error { error } => bail!("{error}"),
+        };
+
+        Ok(raw_items
+            .into_iter()
+            .filter_map(|raw| match raw.try_into() {
+                Ok(item) => Some(item),
+                Err(e) => {
+                    eprintln!("  Warning: skipping malformed application item: {e}");
+                    None
+                }
+            })
+            .take(limit.unwrap_or(usize::MAX))
+            .collect())
+    }
+
+    async fn fetch_batch_descriptions(
+        &self,
+        db: &Db,
+        pause_ms: u64,
+        items: &[ApplicationItem],
+        auth: &AuthInfo,
+    ) -> Result<HashMap<String, String>> {
+        let http = reqwest::Client::new();
+        let mut missing: Vec<&ApplicationItem> = Vec::new();
+        for item in items {
+            if db
+                .find_job_id(&Platform::Efinancialcareers, &item.external_id)
+                .await?
+                .is_none()
+            {
+                missing.push(item);
+            }
+        }
+
+        let mut descriptions: HashMap<String, String> = HashMap::new();
+        if missing.is_empty() {
+            return Ok(descriptions);
+        }
+
+        for chunk in missing.chunks(BATCH_CHUNK_SIZE) {
+            let ids: Vec<&str> = chunk
+                .iter()
+                .map(|i| i.internal_job_id.as_str())
+                .filter(|id| !id.is_empty())
+                .collect();
+            if ids.is_empty() {
+                continue;
+            }
+            sleep(Duration::from_millis(pause_ms)).await;
+            let url = format!(
+                "https://job.efinancialcareers.com/api/v1/jobs/batch?job_ids={}&response_properties=title,summary,description",
+                ids.join(",")
+            );
+            let res = http
+                .get(&url)
+                .header("Authorization", format!("Bearer {}", auth.token))
+                .header("Accept", "application/json")
+                .send()
+                .await?;
+            if !res.status().is_success() {
+                let body = res.text().await.unwrap_or_default();
+                bail!("batch job fetch failed: {body}");
+            }
+            let batch: BatchResponse = res.json().await?;
+            for job in batch.data {
+                if let Some(text) = Self::html_to_text(&job.description) {
+                    descriptions.insert(job.id, text);
+                }
+            }
+        }
+        Ok(descriptions)
+    }
+
+    async fn ensure_application_job(
+        &self,
+        db: &Db,
+        http: &reqwest::Client,
+        pause_ms: u64,
+        item: &ApplicationItem,
+        descriptions: &HashMap<String, String>,
+    ) -> Result<Option<i64>> {
+        if let Some(id) = db
+            .find_job_id(&Platform::Efinancialcareers, &item.external_id)
+            .await?
+        {
+            return Ok(Some(id));
+        }
+
+        sleep(Duration::from_millis(pause_ms)).await;
+
+        let detail = match self.fetch_detail(http, &item.external_id).await {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!(
+                    "\r    Warning: failed to fetch detail for {} (job may be expired): {}",
+                    item.external_id, e
+                );
+                let description = descriptions
+                    .get(&item.internal_job_id)
+                    .cloned()
+                    .unwrap_or_default();
+
+                EfinancialcareersJobDetail {
+                    company: item.company.clone(),
+                    location: item.location.clone(),
+                    employment_type: item.employment_type.clone(),
+                    work_arrangement_type: String::new(),
+                    salary: item.salary.clone(),
+                    description,
+                    posted_at: item.applied_at,
+                }
+            }
+        };
+
+        let budget = crate::extractors::budget::parse_efinancialcareers_budget(&detail.salary)
+            .map(|b| b.to_string())
+            .or_else(|| Some(detail.salary.clone()).filter(|b| !b.is_empty()));
+
+        let remote = Self::is_remote(&detail);
+        let created_at = detail.posted_at;
+        let description = Some(detail.description.clone()).filter(|d| !d.is_empty());
+        let raw = Data::Efinancialcareers { detail };
+
+        let job = Job {
+            id: 0,
+            platform: Platform::Efinancialcareers,
+            external_id: item.external_id.clone(),
+            title: item.title.clone(),
+            description,
+            url: item.url.clone(),
+            budget,
+            tags: Vec::new(),
+            created_at,
+            raw,
+            company: None,
+            updated_at: Utc::now(),
+            rating: Rating::Neutral,
+            note: None,
+            applied_at: None,
+            remote,
+            is_english: true,
+        };
+        let is_english = classify_language(&self.lang, &job).await?;
+        let job = Job { is_english, ..job };
+        Ok(Some(db.upsert_job(&job).await?))
     }
 }
 

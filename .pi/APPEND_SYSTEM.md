@@ -2,7 +2,7 @@
 
 **Keep this file lean.** Each rule = 1–2 lines max. Long explanations belong in `PATTERNS.md` or inline comments, not here. System prompt bloat degrades performance.
 
-Don't relax clippy rules -> as example: #[allow(clippy::too_many_lines)]
+Don't relax clippy rules -> #[allow(clippy::*)]
 
 ## After Code Changes
 

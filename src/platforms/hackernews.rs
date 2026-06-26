@@ -137,6 +137,8 @@ impl HackerNewsScraper {
     }
 
     async fn build_job(&self, hit: CommentHit) -> Result<Option<Job>> {
+        const MAX_TITLE_LEN: usize = 200;
+
         let body = Self::html_to_text(&hit.comment_text);
         let fields = self.extractor.extract(&body).await?;
         if !fields.is_job_ad {
@@ -146,8 +148,6 @@ impl HackerNewsScraper {
         let company = fields.company.filter(|s| !s.is_empty());
         let role = fields.role.filter(|s| !s.is_empty());
         let location = fields.location.filter(|s| !s.is_empty());
-
-        const MAX_TITLE_LEN: usize = 200;
 
         let title = role
             .clone()

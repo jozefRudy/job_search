@@ -12,7 +12,6 @@ use utoipa::ToSchema;
 /// Platform-specific scraped data stored on each job.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 #[serde(tag = "platform", rename_all = "lowercase")]
-#[allow(clippy::large_enum_variant)]
 pub enum Data {
     Upwork { detail: UpworkJobDetail },
     Nofluffjobs { detail: NoFluffJobDetail },
@@ -504,14 +503,15 @@ impl Budget {
 
         let fraction_part = caps.get(2).map(|m| m.as_str());
         let fraction_digits = fraction_part.map_or(0, str::len);
-        let fraction: u32 = fraction_part
-            .map_or(0, |s| {
-                s.chars()
-                    .filter(char::is_ascii_digit)
-                    .collect::<String>()
-                    .parse()
-                    .unwrap_or(0)
-            });
+        let fraction: u32 = fraction_part.map_or(0, |s| {
+            s.chars()
+                .filter(char::is_ascii_digit)
+                .collect::<String>()
+                .parse()
+                .unwrap_or(0)
+        });
+
+        let fraction_digits_u32 = u32::try_from(fraction_digits).unwrap_or(u32::MAX);
 
         let multiplier: u64 = match caps
             .get(3)
@@ -526,7 +526,7 @@ impl Budget {
         if fraction_digits == 0 {
             (u64::from(integer) * multiplier).try_into().ok()
         } else {
-            let scale = 10_u64.pow(fraction_digits as u32);
+            let scale = 10_u64.pow(fraction_digits_u32);
             let value = (u64::from(integer) * scale + u64::from(fraction)) * multiplier / scale;
             value.try_into().ok()
         }

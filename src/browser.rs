@@ -48,17 +48,21 @@ pub fn host_of(url: &str) -> Option<String> {
         .map(|h| h.strip_prefix("www.").unwrap_or(h).to_lowercase())
 }
 
-#[allow(async_fn_in_trait)]
 pub trait BrowserExt {
-    async fn new_blank_tab(&self) -> Result<chromiumoxide::Page>;
-    async fn new_tab(&self, url: &str) -> Result<chromiumoxide::Page>;
-    async fn get_page_urls(&self) -> Result<Vec<String>>;
+    fn new_blank_tab(&self) -> impl Future<Output = Result<chromiumoxide::Page>> + Send;
+    fn new_tab(&self, url: &str) -> impl Future<Output = Result<chromiumoxide::Page>> + Send;
+    fn get_page_urls(&self) -> impl Future<Output = Result<Vec<String>>> + Send;
     /// Return (`target_id`, url) pairs for all page targets.
-    async fn get_page_targets(&self) -> Result<Vec<(TargetId, String)>>;
+    fn get_page_targets(&self) -> impl Future<Output = Result<Vec<(TargetId, String)>>> + Send;
     /// Close page targets whose IDs are not in `keep_ids`.
-    async fn close_pages_except(&self, keep_ids: &[TargetId]) -> Result<()>;
+    fn close_pages_except(&self, keep_ids: &[TargetId]) -> impl Future<Output = Result<()>> + Send;
     /// Set a persistent, lax, root-path cookie for the given domain.
-    async fn set_cookie(&self, name: &str, value: &str, domain: &str) -> Result<()>;
+    fn set_cookie(
+        &self,
+        name: &str,
+        value: &str,
+        domain: &str,
+    ) -> impl Future<Output = Result<()>> + Send;
 }
 
 impl BrowserExt for Browser {
@@ -111,8 +115,9 @@ impl BrowserExt for Browser {
     }
 
     async fn set_cookie(&self, name: &str, value: &str, domain: &str) -> Result<()> {
-        let expires =
-            TimeSinceEpoch::new(chrono::Utc::now().timestamp() as f64 + 365.0 * 24.0 * 60.0 * 60.0);
+        let seconds_per_year = 365.0 * 24.0 * 60.0 * 60.0;
+        let now = chrono::Utc::now().timestamp();
+        let expires = TimeSinceEpoch::new(now as f64 + seconds_per_year);
         let cookie = CookieParam::builder()
             .name(name)
             .value(value)
@@ -229,9 +234,7 @@ pub async fn wait_for_with_challenge_recovery(
                 let url = page.url().await?.unwrap_or_default();
                 notify_user(
                     "Jobsearch bot check",
-                    &format!(
-                        "{url} hit a robot check. Solve it in the browser; test will resume."
-                    ),
+                    &format!("{url} hit a robot check. Solve it in the browser; test will resume."),
                 );
                 eprintln!(
                     "{CLEAR_LINE}Bot check at {}. Waiting up to {}s for user to solve...",
@@ -249,9 +252,7 @@ pub async fn wait_for_with_challenge_recovery(
                 let remaining = deadline
                     .saturating_duration_since(std::time::Instant::now())
                     .as_secs();
-                eprint!(
-                    "{CLEAR_LINE}Bot check still present. {remaining}s remaining..."
-                );
+                eprint!("{CLEAR_LINE}Bot check still present. {remaining}s remaining...");
                 if std::time::Instant::now() >= deadline {
                     bail!(
                         "Bot check still present after {}s. Solve it in the browser and retry.",

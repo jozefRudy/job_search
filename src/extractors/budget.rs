@@ -25,6 +25,22 @@ fn parse_number(s: &str) -> Option<u32> {
     (n * multiplier).try_into().ok()
 }
 
+static UPWORK_RANGE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\$?\s*(\d[\d\s,]*[kKmM]?)\s*(?:–|-|\s+to\s+|and)\s*\$?\s*(\d[\d\s,]*[kKmM]?)\s*(?:/hr|hour|hours)?").unwrap()
+});
+static UPWORK_SINGLE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\$?\s*(\d[\d\s,]*[kKmM]?)\s*(?:/hr|hour|hours)?").unwrap());
+static NOFLUFF_RANGE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(\d[\d\s]*)\s*[–-]\s*(\d[\d\s]*)\s*(EUR|PLN|USD|GBP|CHF)").unwrap()
+});
+static NOFLUFF_SINGLE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)(\d[\d\s]*)\s*(EUR|PLN|USD|GBP|CHF)").unwrap());
+static EFINANCIAL_RANGE_RE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b(USD|EUR|GBP|PLN|CHF)\s*(\d[\d,]*[kKmM]?)\s*-\s*(?:USD|EUR|GBP|PLN|CHF)\s*(\d[\d,]*[kKmM]?)\b").unwrap()
+});
+static EFINANCIAL_SINGLE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)\b(USD|EUR|GBP|PLN|CHF)\s*(\d[\d,]*[kKmM]?)\b").unwrap());
+
 /// Upwork budget strings: "Hourly: $50-$100/hr", "Fixed-price: $5,000", "$125 - $200/hr".
 pub fn parse_upwork_budget(s: &str) -> Option<Budget> {
     let lower = s.to_lowercase();
@@ -43,14 +59,7 @@ pub fn parse_upwork_budget(s: &str) -> Option<Budget> {
         .replace("fixed price:", "");
     let cleaned = normalize(&cleaned);
 
-    static RANGE_RE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"(?i)\$?\s*(\d[\d\s,]*[kKmM]?)\s*(?:–|-|\s+to\s+|and)\s*\$?\s*(\d[\d\s,]*[kKmM]?)\s*(?:/hr|hour|hours)?").unwrap()
-    });
-    static SINGLE_RE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"(?i)\$?\s*(\d[\d\s,]*[kKmM]?)\s*(?:/hr|hour|hours)?").unwrap()
-    });
-
-    if let Some(caps) = RANGE_RE.captures(&cleaned) {
+    if let Some(caps) = UPWORK_RANGE_RE.captures(&cleaned) {
         let min = parse_number(&caps[1])?;
         let max = parse_number(&caps[2])?;
         return Some(if min == max {
@@ -69,7 +78,7 @@ pub fn parse_upwork_budget(s: &str) -> Option<Budget> {
         });
     }
 
-    let caps = SINGLE_RE.captures(&cleaned)?;
+    let caps = UPWORK_SINGLE_RE.captures(&cleaned)?;
     let amount = parse_number(&caps[1])?;
     Some(Budget::Single {
         amount,
@@ -82,13 +91,7 @@ pub fn parse_upwork_budget(s: &str) -> Option<Budget> {
 pub fn parse_nofluff_budget(s: &str) -> Option<Budget> {
     let cleaned = normalize(s).trim().to_string();
 
-    static RANGE_RE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"(?i)(\d[\d\s]*)\s*[–-]\s*(\d[\d\s]*)\s*(EUR|PLN|USD|GBP|CHF)").unwrap()
-    });
-    static SINGLE_RE: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(?i)(\d[\d\s]*)\s*(EUR|PLN|USD|GBP|CHF)").unwrap());
-
-    if let Some(caps) = RANGE_RE.captures(&cleaned) {
+    if let Some(caps) = NOFLUFF_RANGE_RE.captures(&cleaned) {
         let min = parse_number(&caps[1])?;
         let max = parse_number(&caps[2])?;
         let currency = caps[3].to_ascii_uppercase();
@@ -108,7 +111,7 @@ pub fn parse_nofluff_budget(s: &str) -> Option<Budget> {
         });
     }
 
-    let caps = SINGLE_RE.captures(&cleaned)?;
+    let caps = NOFLUFF_SINGLE_RE.captures(&cleaned)?;
     let amount = parse_number(&caps[1])?;
     let currency = caps[2].to_ascii_uppercase();
     Some(Budget::Single {
@@ -122,13 +125,7 @@ pub fn parse_nofluff_budget(s: &str) -> Option<Budget> {
 pub fn parse_efinancialcareers_budget(s: &str) -> Option<Budget> {
     let cleaned = normalize(s);
 
-    static RANGE_RE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"(?i)\b(USD|EUR|GBP|PLN|CHF)\s*(\d[\d,]*[kKmM]?)\s*-\s*(?:USD|EUR|GBP|PLN|CHF)\s*(\d[\d,]*[kKmM]?)\b").unwrap()
-    });
-    static SINGLE_RE: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(?i)\b(USD|EUR|GBP|PLN|CHF)\s*(\d[\d,]*[kKmM]?)\b").unwrap());
-
-    if let Some(caps) = RANGE_RE.captures(&cleaned) {
+    if let Some(caps) = EFINANCIAL_RANGE_RE.captures(&cleaned) {
         let min = parse_number(&caps[2])?;
         let max = parse_number(&caps[3])?;
         let currency = caps[1].to_ascii_uppercase();
@@ -148,7 +145,7 @@ pub fn parse_efinancialcareers_budget(s: &str) -> Option<Budget> {
         });
     }
 
-    let caps = SINGLE_RE.captures(&cleaned)?;
+    let caps = EFINANCIAL_SINGLE_RE.captures(&cleaned)?;
     let currency = caps[1].to_ascii_uppercase();
     let amount = parse_number(&caps[2])?;
     Some(Budget::Single {
