@@ -64,7 +64,7 @@
     '';
 
     test.exec = ''
-      cargo build && cargo clippy --all-targets -- -W clippy::pedantic && cargo test && cargo fmt
+      cargo build && cargo clippy --all-targets && cargo test && cargo fmt
     '';
     test-integration.exec = ''
       cargo test -- --include-ignored

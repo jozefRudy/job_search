@@ -1,12 +1,14 @@
-# ChainSignals Project Rules
+# Project Rules
 
-> **Keep this file lean.** Each rule = 1–2 lines max. Long explanations belong in `PATTERNS.md` or inline comments, not here. System prompt bloat degrades performance.
+**Keep this file lean.** Each rule = 1–2 lines max. Long explanations belong in `PATTERNS.md` or inline comments, not here. System prompt bloat degrades performance.
+
+Don't relax clippy rules -> as example: #[allow(clippy::too_many_lines)]
 
 ## After Code Changes
 
 After completing code changes, run validation:
 ```bash
-cargo build && cargo clippy --all-targets -- -W clippy::pedantic && cargo test && cargo fmt
+cargo build && cargo clippy --all-targets && cargo test && cargo fmt
 ```
 
 Integration tests, run after changes related to api clients
