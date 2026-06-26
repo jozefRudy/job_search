@@ -16,7 +16,7 @@ pub struct ExtractFields {
         description = "location mentioned in the post, if multiple listed, join them with ' + '"
     )]
     pub location: Option<String>,
-    #[schemars(description = "true if the job is fully remote")]
+    #[schemars(description = "true if fully remote from anywhere in the EU")]
     #[serde(default)]
     pub remote: Option<bool>,
     #[schemars(description = "raw compensation snippet (e.g. '$150k-$175k' or 'EUR 80k-100k')")]
