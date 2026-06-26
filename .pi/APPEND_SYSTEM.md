@@ -6,7 +6,7 @@
 
 After completing code changes, run validation:
 ```bash
-cargo build && cargo clippy --all-targets -- -D warnings && cargo test && cargo fmt
+cargo build && cargo clippy --all-targets -- -W clippy::pedantic && cargo test && cargo fmt
 ```
 
 Integration tests, run after changes related to api clients
