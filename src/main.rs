@@ -12,7 +12,7 @@ use jobsearch::models::{JobFilter, Platform, Rating, Sort};
 use jobsearch::platforms::{
     PlatformClient,
     efinancialcareers::{EfinancialcareersConfig, EfinancialcareersScraper},
-    hackernews::HackerNewsScraper,
+    hackernews::{HackerNewsConfig, HackerNewsScraper},
     nofluffjobs::NoFluffJobsScraper,
     upwork::UpworkScraper,
 };
@@ -134,7 +134,10 @@ async fn cmd_update(
             fetch_and_store(db, browser, &scraper, &args.query, args.pause_ms).await?;
         }
         UpdatePlatform::Hackernews(args) => {
-            let scraper = HackerNewsScraper::new(Some(args.llm_cli));
+            let config = HackerNewsConfig {
+                location: args.location,
+            };
+            let scraper = HackerNewsScraper::new(Some(args.llm_cli), &config);
             fetch_and_store(db, browser, &scraper, &args.query, 0).await?;
         }
     }

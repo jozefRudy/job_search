@@ -256,6 +256,10 @@ pub struct HackernewsArgs {
     #[arg(short, long, default_value = "")]
     pub query: String,
 
+    /// Candidate location used to interpret remote work offers (e.g. Europe or US).
+    #[arg(long, default_value = "Europe")]
+    pub location: String,
+
     /// LLM CLI command used to extract structured fields from HN comments.
     #[arg(long, default_value = DEFAULT_LLM_CLI)]
     pub llm_cli: String,

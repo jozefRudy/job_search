@@ -5,5 +5,8 @@ Use null for missing values.
 JSON schema:
 {{ schema }}
 
+Additional context:
+{{ prompt_context }}
+
 Post:
 {{ text }}

@@ -51,7 +51,10 @@ where
 #[tokio::test]
 #[ignore = "requires network access to Hacker News Algolia API"]
 async fn test_hackernews_fetch_comments() {
-    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(None);
+    let config = jobsearch::platforms::hackernews::HackerNewsConfig {
+        location: "Europe".to_string(),
+    };
+    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(None, &config);
     let comments = scraper
         .fetch_top_level_comments("rust", Some(5))
         .await

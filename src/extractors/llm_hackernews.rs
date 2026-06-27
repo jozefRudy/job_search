@@ -16,7 +16,10 @@ pub struct ExtractFields {
         description = "location mentioned in the post, if multiple listed, join them with ' + '"
     )]
     pub location: Option<String>,
-    #[schemars(description = "true if the job is fully remote")]
+    #[schemars(
+        description = "true only if fully remote work is allowed from the candidate's
+    location"
+    )]
     #[serde(default)]
     pub remote: Option<bool>,
     #[schemars(description = "raw compensation snippet (e.g. '$150k-$175k' or 'EUR 80k-100k')")]
@@ -64,13 +67,14 @@ mod tests {
     async fn test_extract_hackernews_job_from_fixture() {
         let text = include_str!("llm/fixtures/hackernews_job.md");
         let fields = LlmExtractor::<ExtractFields>::from_cli(None)
+            .with_prompt_context("Candidate location: Europe".to_string())
             .extract(text)
             .await
             .expect("llm extraction failed");
         assert!(fields.is_job_ad, "expected job ad");
         assert_eq!(fields.company.as_deref(), Some("Stripe"));
         assert_eq!(fields.role.as_deref(), Some("Senior Backend Engineer"));
-        assert_eq!(fields.remote, Some(true), "expected remote");
+        assert_eq!(fields.remote, Some(false), "us only");
         assert!(fields.budget.is_some(), "expected budget");
     }
 
@@ -79,6 +83,7 @@ mod tests {
     async fn test_extract_hackernews_multiple_roles() {
         let text = include_str!("llm/fixtures/hackernews_multiple_roles.md");
         let fields = LlmExtractor::<ExtractFields>::from_cli(None)
+            .with_prompt_context("Candidate location: Europe".to_string())
             .extract(text)
             .await
             .expect("llm extraction failed");
@@ -93,6 +98,6 @@ mod tests {
             role.chars().filter(|c| *c == '+').count() == 3,
             "expected 4 roles joined, got {role:?}"
         );
-        assert_eq!(fields.remote, Some(true), "expected remote");
+        assert_eq!(fields.remote, Some(false), "expected not remote (us only)");
     }
 }

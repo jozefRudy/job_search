@@ -48,6 +48,25 @@ struct CommentSearchResponse {
     nb_hits: usize,
 }
 
+#[derive(Debug, Clone)]
+pub struct HackerNewsConfig {
+    pub location: String,
+}
+
+impl HackerNewsConfig {
+    fn prompt_context(&self) -> String {
+        format!("Candidate location: {}", self.location)
+    }
+}
+
+impl Default for HackerNewsConfig {
+    fn default() -> Self {
+        Self {
+            location: "Europe".to_string(),
+        }
+    }
+}
+
 pub struct HackerNewsScraper {
     client: Client,
     extractor: LlmExtractor<llm_hackernews::ExtractFields>,
@@ -55,13 +74,14 @@ pub struct HackerNewsScraper {
 
 impl HackerNewsScraper {
     #[must_use]
-    pub fn new(llm_cli: Option<String>) -> Self {
+    pub fn new(llm_cli: Option<String>, config: &HackerNewsConfig) -> Self {
         Self {
             client: Client::builder()
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
                 .build()
                 .unwrap_or_else(|_| Client::new()),
-            extractor: LlmExtractor::<llm_hackernews::ExtractFields>::from_cli(llm_cli),
+            extractor: LlmExtractor::<llm_hackernews::ExtractFields>::from_cli(llm_cli)
+                .with_prompt_context(config.prompt_context()),
         }
     }
 
@@ -321,7 +341,7 @@ impl HackerNewsScraper {
 
 impl Default for HackerNewsScraper {
     fn default() -> Self {
-        Self::new(None)
+        Self::new(None, &HackerNewsConfig::default())
     }
 }
 

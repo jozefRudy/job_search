@@ -24,20 +24,32 @@ macro_rules! define_prompts {
             struct $struct<'a> {
                 schema: &'a str,
                 text: &'a str,
+                prompt_context: &'a str,
             }
 
             impl<'a> $struct<'a> {
-                fn render_prompt(schema: &'a str, text: &'a str) -> ::anyhow::Result<String> {
+                fn render_prompt(
+                    schema: &'a str,
+                    text: &'a str,
+                    prompt_context: &'a str,
+                ) -> ::anyhow::Result<String> {
                     use ::askama::Template;
-                    Self { schema, text }.render().map_err(Into::into)
+                    Self { schema, text, prompt_context }
+                        .render()
+                        .map_err(Into::into)
                 }
             }
         )*
 
         impl PromptKind {
-            pub(crate) fn render_prompt(self, schema: &str, text: &str) -> ::anyhow::Result<String> {
+            pub(crate) fn render_prompt(
+                self,
+                schema: &str,
+                text: &str,
+                prompt_context: &str,
+            ) -> ::anyhow::Result<String> {
                 match self {
-                    $(Self::$variant => $struct::render_prompt(schema, text),)*
+                    $(Self::$variant => $struct::render_prompt(schema, text, prompt_context),)*
                 }
             }
         }
@@ -66,6 +78,7 @@ pub trait Extractable: JsonSchema + for<'de> Deserialize<'de> {
 pub struct LlmExtractor<T: Extractable> {
     bin: String,
     args: Vec<String>,
+    prompt_context: String,
     _phantom: PhantomData<T>,
 }
 
@@ -73,8 +86,15 @@ impl<T: Extractable> LlmExtractor<T> {
     pub async fn extract(&self, text: &str) -> Result<T> {
         let schema = serde_json::to_string_pretty(&schema_for!(T))?;
         let truncated = Self::truncate(text);
-        let rendered = T::PROMPT.render_prompt(&schema, &truncated)?;
+        let rendered = T::PROMPT.render_prompt(&schema, &truncated, &self.prompt_context)?;
         self.run_and_parse::<T>(&rendered).await
+    }
+
+    /// Attach dynamic context text rendered into the prompt template.
+    #[must_use]
+    pub fn with_prompt_context(mut self, context: String) -> Self {
+        self.prompt_context = context;
+        self
     }
 
     pub async fn verify(&self) -> Result<()> {
@@ -94,6 +114,7 @@ impl<T: Extractable> LlmExtractor<T> {
         Self {
             bin,
             args,
+            prompt_context: String::new(),
             _phantom: PhantomData,
         }
     }
@@ -168,10 +189,11 @@ mod tests {
     #[test]
     fn test_hackernews_prompt_renders_placeholders() {
         let prompt = PromptKind::HackerNews
-            .render_prompt("{}", "world")
+            .render_prompt("{}", "world", "Candidate location: Europe")
             .expect("missing template variables");
         assert!(prompt.contains("JSON schema:\n{}"));
         assert!(prompt.contains("Post:\nworld"));
+        assert!(prompt.contains("Candidate location: Europe"));
     }
 
     #[test]
