@@ -2,12 +2,7 @@
 
 ## Making code changes ##
 
-When making a code change, follow this phased workflow. Wait for approval before each next phase.
-Remove previous step artifacts (`TODO` comments) before starting the next one.
-
-1. Add `TODO` comments in appropriate code locations.
-2. Create API stubs.
-3. Implement, run tests, then report what changed versus the original plan.
+When making a code change, follow the phased workflow defined in the `hunk-review` skill. Wait for approval before each next phase. Remove previous step artifacts (`TODO` comments) before starting the next one.
 
 
 ## After Code Changes
