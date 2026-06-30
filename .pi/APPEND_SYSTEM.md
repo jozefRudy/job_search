@@ -1,11 +1,18 @@
 # Project Rules
 
-**Keep this file lean.** Each rule = 1–2 lines max. Long explanations belong in `PATTERNS.md` or inline comments, not here. System prompt bloat degrades performance.
+## Making code changes ##
 
-Don't relax clippy rules -> #[allow(clippy::*)]
+When making a code change, follow this phased workflow. Wait for approval before each next phase.
+Remove previous step artifacts (`TODO` comments) before starting the next one.
+
+1. Add `TODO` comments in appropriate code locations.
+2. Create API stubs.
+3. Implement, run tests, then report what changed versus the original plan.
+
 
 ## After Code Changes
 
+Don't relax clippy rules -> #[allow(clippy::*)]
 After completing code changes, run validation:
 ```bash
 cargo build && cargo clippy --all-targets && cargo test && cargo fmt
@@ -53,20 +60,6 @@ cargo test -- --include-ignored
    - Good: Clap subcommands — `list upwork --sort viewed`, `list nofluff` — platform-specific args live only where valid
    - Same for `let-else` / `unreachable!` in caller: push the invariant into the data model (`Job::upwork()` method) so misuse panics at compile time or in one central place
 
-## Imports
-
-Use `use` for repeated paths. No fully-qualified repetition.
-- Bad: `tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;`
-- Good: `use tokio::time::{sleep, Duration};` then `sleep(Duration::from_secs(2)).await;`
-
-## Testing
-
-- Use `?` in async tests — return `Result<()>` instead of `unwrap`. Cleaner error messages, no panic backtraces.
-- **Temp files** — use `tempfile` crate. Auto-deletes on drop, even on panic. Never manual `remove_file` in tests.
-- Run **full** `cargo test` (not `--lib`) before claiming done — integration tests matter
-- When debugging distribution output, check sample count vs bin count (need N >= bins for quantile display)
-- For parser base64: real RPC data is base64 encoded, test fixtures use plain text. Handle both.
-
 ## Documentation
 
 - Check `target/md_docs/` when using unfamiliar APIs, 3rd party crates, or trait/method signature errors
@@ -85,37 +78,12 @@ Use `use` for repeated paths. No fully-qualified repetition.
 - Never use `unwrap` in tests — use `.expect("msg")` or `?`.
 - Fewer comprehensive tests beat many trivial ones.
 
-## Adding a New Job Provider
-
-1. Use browser/Playwright skill to inspect the site first: identify search criteria, job IDs, detail page structure, and applications page if applicable. **Job ID used as `external_id` must be stable and identical between search listings and applications sync** — otherwise duplicate rows appear because DB deduplicates on `(platform, external_id)`. If the site exposes IDs inconsistently, extract a single canonical ID from URLs at the boundary.
-2. Add enum variant to `Platform` and matching `UpdatePlatform`/`SyncPlatform` subcommands.
-3. Create `src/platforms/<provider>.rs` with `Raw*` structs + `TryFrom` normalization at the boundary.
-4. Implement `PlatformClient`. Keep provider-specific config/args in the scraper struct, not in the trait.
-5. For applications sync: follow existing flow — fetch applications list, then fetch job detail, then upsert job and mark applied. Skip if detail unavailable.
-6. Add JS snippets under `src/platforms/<provider>/` and load with `include_str!`.
-    - Keep selectors stable and handle both logged-in and logged-out DOM variants.
-    - Use visible text and stable attributes (e.g. `img[alt]` for company) over framework internals.
-    - `scrape_cards.js` — return array of job cards with IDs, titles, URLs, and visible metadata.
-    - `click_show_more.js` or `click_next_page.js` — pagination/load-more driver.
-    - `count_cards.js` — for verifying new items loaded.
-    - Detail extraction can be done via a small evaluate block or a dedicated `fetch_detail.js` snippet.
-    - Use existing `parse_relative_time` for posted-date strings like "2h ago".
-7. Build search URLs manually when the site uses non-standard encoding (e.g. eFinancialCareers uses literal `+` for spaces and `%7C` for pipes); generic `urlencoding::encode` can produce wrong values.
-7. Update `src/main.rs` match arms for new subcommands.
-8. Add integration tests in `tests/browser_integration.rs` mirroring existing providers: search page loads cards, pagination/load-more works, job detail fetch succeeds, and sync flow writes to DB with `applied_at` set. See `test_nofluffjobs_*` and `test_upwork_*` tests for patterns.
-9. Run `cargo sqlx prepare -- --tests` only if new DB queries introduced.
-10. Prefer HTTP API; use browser only for bot-protected or login-required sites.
-11. Update `display.rs` table and detailed renderers for the new `Data` variant.
-12. Run a live `update` (or ignored integration test) before claiming the provider works end-to-end.
-11. Update `display.rs` table and detailed renderers for the new `Data` variant.
-
 ## Frontend
 
 After frontend changes, run:
 ```bash
 cd frontend && pnpm typecheck && pnpm check && pnpm test run && pnpm build
 ```
-
 - **SolidJS reactivity** — derived values must be functions or inline in JSX. Const assignments stale after first render.
 - **Design system** — reuse primitives in `src/components/ui/` before raw Daisy/Tailwind.
 - **Pattern matching** — prefer `ts-pattern` exhaustive matching over `if/else` chains and `switch`.
@@ -127,22 +95,3 @@ cd frontend && pnpm typecheck && pnpm check && pnpm test run && pnpm build
 - **Frontend** — `orval` with `client: 'fetch'` generates typed fetch functions + schemas from `/api/openapi.json`.
 - **TanStack wrappers** — manual thin wrappers in `api.ts` using `@tanstack/solid-query`. Orval's `solid-query` client is broken for v5 (uses removed `SolidMutationOptions` type).
 - **Regenerate** — `regen-api` script starts backend, waits for `/api/openapi.json`, runs `pnpm orval`. Commit generated files to version control.
-
-## TanStack Query + SolidJS
-
-- **`structuralSharing: false`** on all `createQuery` calls. TanStack v5 mutates objects in place by default — same reference breaks SolidJS reactivity.
-- **`<Show keyed when={data}>`** — never plain `<Show>`. Solid tracks truthiness only; truthy A → truthy B with same ref does NOT recreate children. `keyed` compares by `===`.
-- **Mutations** — use `createMutation` with `onSuccess` invalidation via `useQueryClient()`. Manual `refetch()` no longer needed.
-
-## Presentation Helpers
-
-- **Accept `null | undefined`** in formatting/styling helpers (`fmtRelative`, `ratingEmoji`, `ratingClass`, `cn`, etc.). Three sources of nullability: (1) API optional fields are `T | null` (JSON `null`), (2) TanStack `data` starts `undefined` while loading, (3) Solid signals may start `undefined`.
-- **Return sensible defaults** — empty string, neutral emoji, default CSS class. Never force call sites to add `?? null` / `?? ""` noise.
-- **Business logic stays strict** — parse functions, calculations fail fast on `null | undefined`.
-
-## TypeScript Types
-
-- **API types generated from OpenAPI** — `orval` outputs types to `frontend/src/generated/orval/`. Run `pnpm orval` after backend changes.
-- **Never edit `frontend/src/generated/**/*.ts` manually.** Update Rust handlers/models, regenerate.
-- **Biome ignores `src/generated`** — formatter/linter skip auto-generated files.
-- **Export query structs from Rust, not frontend-only wrappers.** `ListQuery` with `Option<Platform>` / `Option<Rating>` maps to `Platform | null` / `Rating | null` in TS. Single source of truth.

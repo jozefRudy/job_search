@@ -1569,6 +1569,7 @@ dependencies = [
  "lingua-english-language-model",
  "lingua-french-language-model",
  "lingua-german-language-model",
+ "lingua-polish-language-model",
  "lingua-spanish-language-model",
  "maplit",
  "rayon",
@@ -1603,6 +1604,15 @@ name = "lingua-german-language-model"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f584da803e8c135ea22dd3ed321a6b3e2ff3465559606be0a597924ecd465cb2"
+dependencies = [
+ "include_dir",
+]
+
+[[package]]
+name = "lingua-polish-language-model"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72eb03e7940b3178c152138a16976e374ed0a3ddc80dc6f0b56984ab1189cb67"
 dependencies = [
  "include_dir",
 ]

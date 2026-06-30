@@ -34,7 +34,7 @@ shellexpand = { version = "3", features = ["path"] }
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono", "migrate"] }
 tokio = { version = "1", features = ["full"] }
 chromiumoxide = "0.9"
-lingua = { version = "1.8.0", default-features = false, features = ["english", "french", "german", "spanish"] }
+lingua = { version = "1.8.0", default-features = false, features = ["english", "french", "german", "spanish", "polish"] }
 
 [dev-dependencies]
 tempfile = "3"

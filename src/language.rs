@@ -21,8 +21,8 @@ impl LanguageService {
     /// Create new language service. Shares singleton detector across all instances.
     pub fn new() -> Self {
         let detector = DETECTOR.get_or_init(|| {
-            use lingua::Language::{English, French, German, Spanish};
-            let d = LanguageDetectorBuilder::from_languages(&[English, French, German, Spanish])
+            use lingua::Language::{English, French, German, Polish, Spanish};
+            let d = LanguageDetectorBuilder::from_languages(&[English, French, German, Polish, Spanish])
                 .with_minimum_relative_distance(0.4)
                 .with_preloaded_language_models()
                 .build();
@@ -54,6 +54,20 @@ fn detect_one(detector: &LanguageDetector, text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn test_polish_detection() {
+        let svc = LanguageService::new();
+        let text = r#"Mini. 5+ lat doświadczenia w obszarze cloud / architektury IT
+    Doświadczenie w pracy z Microsoft Azure, w szczególności: projektowanie struktury Management Groups, Subscriptions i Resource Groups, znajomość Azure RBAC oraz Azure Policy
+    Doświadczenie w projektowaniu i wdrażaniu architektury chmurowej w środowisku enterprise"#;
+        assert!(
+            !svc.detect(text)
+                .await
+                .expect("language detection should succeed"),
+            "Should NOT detect Polish job ad as English"
+        );
+    }
 
     #[tokio::test]
     async fn test_english_detection() {
