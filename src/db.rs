@@ -459,7 +459,8 @@ pub struct Stats {
 mod tests {
     use super::*;
     use crate::models::{
-        EfinancialcareersJobDetail, Job, NoFluffJobDetail, Platform, UpworkJobDetail,
+        EfinancialcareersJobDetail, Job, LinkedInJobDetail, NoFluffJobDetail, Platform,
+        UpworkJobDetail,
     };
 
     fn temp_db() -> tempfile::NamedTempFile {
@@ -479,6 +480,9 @@ mod tests {
             },
             Platform::Hackernews => Data::Hackernews {
                 detail: crate::models::HackerNewsJobDetail::default(),
+            },
+            Platform::LinkedIn => Data::LinkedIn {
+                detail: LinkedInJobDetail::default(),
             },
         };
         Job {

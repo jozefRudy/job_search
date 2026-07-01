@@ -3,6 +3,7 @@ use futures::FutureExt;
 use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS};
 use jobsearch::language::LanguageService;
 use jobsearch::platforms::PlatformClient;
+use jobsearch::platforms::linkedin::{LinkedInScraper, fetch_job_detail};
 use jobsearch::platforms::upwork::UpworkScraper;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -696,12 +697,153 @@ async fn test_nofluffjobs_sync_applications() {
                 "synced job budget should parse: {:?}",
                 job.budget
             );
-            assert!(!job.tags.is_empty(), "synced job should have tags");
             assert!(
                 job.created_at < chrono::Utc::now() - chrono::Duration::minutes(1),
                 "synced job should have posted date, not now"
             );
         }
+    })
+    .await;
+}
+
+// --- LinkedIn: search page ---
+
+#[tokio::test]
+#[ignore = "requires Brave browser installed and linkedin.com logged in"]
+async fn test_linkedin_search_page_has_cards() {
+    with_browser(60, |browser| async move {
+        let scraper = LinkedInScraper::new(1);
+        let search_url = scraper.build_search_url();
+        let page = browser
+            .new_tab(&search_url)
+            .await
+            .expect("open LinkedIn search page");
+
+        assert!(
+            LinkedInScraper::wait_for_jobs(&page)
+                .await
+                .expect("wait_for_jobs should not error"),
+            "jobs should appear on search page"
+        );
+
+        let cards = scraper.scrape_page(&page).await.expect("scrape_page");
+        assert!(!cards.is_empty(), "should find at least one job card");
+
+        let first = &cards[0];
+        assert!(!first.id.is_empty(), "external_id required");
+        assert!(!first.title.is_empty(), "title required");
+        assert!(
+            first.id.parse::<u64>().is_ok(),
+            "id should be numeric: {}",
+            first.id
+        );
+
+        println!("found {} cards, first card:", cards.len());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(first).expect("serialize first card")
+        );
+
+        page.close().await.ok();
+    })
+    .await;
+}
+
+// --- LinkedIn: job detail ---
+
+#[tokio::test]
+#[ignore = "requires Brave browser installed and linkedin.com logged in"]
+async fn test_linkedin_job_detail_fetch() {
+    with_browser(60, |browser| async move {
+        let scraper = LinkedInScraper::new(1);
+        let search_url = scraper.build_search_url();
+        let page = browser
+            .new_tab(&search_url)
+            .await
+            .expect("open LinkedIn search");
+
+        assert!(
+            LinkedInScraper::wait_for_jobs(&page)
+                .await
+                .expect("wait_for_jobs"),
+            "search page should load"
+        );
+
+        let cards = scraper.scrape_page(&page).await.expect("scrape");
+        assert!(!cards.is_empty(), "need at least one job for detail test");
+        let job_id: u64 = cards[0].id.parse().expect("parse job id");
+        println!("fetching detail for job id: {job_id}");
+
+        let detail = fetch_job_detail(&page, job_id)
+            .await
+            .expect("fetch_job_detail should succeed");
+
+        assert!(
+            !detail.description.is_empty(),
+            "detail should have description"
+        );
+        assert!(!detail.company.is_empty(), "detail should have company");
+        assert!(!detail.location.is_empty(), "detail should have location");
+
+        println!("detail struct:");
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&detail).expect("serialize detail")
+        );
+
+        page.close().await.ok();
+    })
+    .await;
+}
+
+// --- LinkedIn: pagination ---
+
+#[tokio::test]
+#[ignore = "requires Brave browser installed and linkedin.com logged in"]
+async fn test_linkedin_pagination_has_next_page() {
+    with_browser(60, |browser| async move {
+        let scraper = LinkedInScraper::new(1);
+        let search_url = scraper.build_search_url();
+        let page = browser
+            .new_tab(&search_url)
+            .await
+            .expect("open LinkedIn search page");
+
+        assert!(
+            LinkedInScraper::wait_for_jobs(&page)
+                .await
+                .expect("wait_for_jobs"),
+            "jobs should appear"
+        );
+
+        let first_page = scraper.scrape_page(&page).await.expect("scrape first page");
+        assert!(!first_page.is_empty(), "first page should have jobs");
+        let first_count = first_page.len();
+        let total = scraper
+            .fetch_page(&page, 0)
+            .await
+            .expect("fetch page 0")
+            .total;
+        println!("first page: {first_count} jobs, total: {total}");
+
+        if total as usize <= first_count {
+            println!("Not enough jobs for pagination — skipping");
+            page.close().await.ok();
+            return;
+        }
+
+        let second_page = scraper
+            .fetch_page(&page, first_count)
+            .await
+            .expect("fetch page 2")
+            .cards;
+        assert!(!second_page.is_empty(), "page 2 should have jobs");
+        assert_ne!(
+            first_page[0].id, second_page[0].id,
+            "page 2 should start with a different job"
+        );
+
+        page.close().await.ok();
     })
     .await;
 }

@@ -13,6 +13,7 @@ use jobsearch::platforms::{
     PlatformClient,
     efinancialcareers::{EfinancialcareersConfig, EfinancialcareersScraper},
     hackernews::{HackerNewsConfig, HackerNewsScraper},
+    linkedin::LinkedInScraper,
     nofluffjobs::NoFluffJobsScraper,
     upwork::UpworkScraper,
 };
@@ -140,6 +141,10 @@ async fn cmd_update(
             let scraper = HackerNewsScraper::new(Some(args.llm_cli), &config);
             fetch_and_store(db, browser, &scraper, &args.query, 0).await?;
         }
+        UpdatePlatform::LinkedIn(args) => {
+            let scraper = LinkedInScraper::new(args.since_days);
+            fetch_and_store(db, browser, &scraper, "", args.pause_ms).await?;
+        }
     }
     Ok(())
 }
@@ -206,6 +211,20 @@ async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<(
         ListTarget::Hackernews(args) => {
             let filter = JobFilter {
                 platform: Some(Platform::Hackernews),
+                applied: args.common.applied,
+                rating: args.common.rating,
+                remote: args.common.remote,
+                is_english: args.common.english,
+            };
+            let sort = match args.sort {
+                CommonSortBy::Created => Sort::Created,
+                CommonSortBy::Applied => Sort::Applied,
+            };
+            cmd_list(db, filter, sort).await?;
+        }
+        ListTarget::LinkedIn(args) => {
+            let filter = JobFilter {
+                platform: Some(Platform::LinkedIn),
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,

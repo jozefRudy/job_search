@@ -17,6 +17,7 @@ pub enum Data {
     Nofluffjobs { detail: NoFluffJobDetail },
     Efinancialcareers { detail: EfinancialcareersJobDetail },
     Hackernews { detail: HackerNewsJobDetail },
+    LinkedIn { detail: LinkedInJobDetail },
 }
 
 /// Full detail scraped from an individual Hacker News "Who is hiring?" comment.
@@ -50,6 +51,34 @@ impl Default for EfinancialcareersJobDetail {
             work_arrangement_type: String::new(),
             salary: String::new(),
             description: String::new(),
+            posted_at: Utc::now(),
+        }
+    }
+}
+
+/// Full detail scraped from a LinkedIn job posting via Voyager API.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct LinkedInJobDetail {
+    pub company: String,
+    pub location: String,
+    pub employment_type: String,
+    pub job_function: String,
+    pub industries: String,
+    pub description: String,
+    pub salary: String,
+    pub posted_at: DateTime<Utc>,
+}
+
+impl Default for LinkedInJobDetail {
+    fn default() -> Self {
+        Self {
+            company: String::new(),
+            location: String::new(),
+            employment_type: String::new(),
+            job_function: String::new(),
+            industries: String::new(),
+            description: String::new(),
+            salary: String::new(),
             posted_at: Utc::now(),
         }
     }
@@ -176,6 +205,7 @@ pub enum Platform {
     Hackernews,
     NoFluffJobs,
     Upwork,
+    LinkedIn,
 }
 
 impl fmt::Display for Platform {
@@ -185,6 +215,7 @@ impl fmt::Display for Platform {
             Platform::Hackernews => write!(f, "hackernews"),
             Platform::NoFluffJobs => write!(f, "nofluffjobs"),
             Platform::Upwork => write!(f, "upwork"),
+            Platform::LinkedIn => write!(f, "linkedin"),
         }
     }
 }
@@ -196,6 +227,7 @@ impl From<String> for Platform {
             "hackernews" => Platform::Hackernews,
             "nofluffjobs" => Platform::NoFluffJobs,
             "upwork" => Platform::Upwork,
+            "linkedin" => Platform::LinkedIn,
             _ => panic!("unknown platform in db: '{s}'"),
         }
     }
@@ -322,6 +354,10 @@ impl Job {
                 text.push_str(&detail.description);
             }
             Data::Hackernews { .. } => {}
+            Data::LinkedIn { detail } => {
+                text.push(' ');
+                text.push_str(&detail.description);
+            }
         }
         text
     }

@@ -18,9 +18,15 @@ pub const DEFAULT_INIT_URLS: &[&str] = &[
     "https://www.upwork.com/freelancers/~01dba08086390dc196",
     "https://nofluffjobs.com",
     "https://www.efinancialcareers.com",
+    "https://www.linkedin.com/",
 ];
 
-pub const REQUIRED_HOSTS: &[&str] = &["upwork.com", "nofluffjobs.com", "efinancialcareers.com"];
+pub const REQUIRED_HOSTS: &[&str] = &[
+    "upwork.com",
+    "nofluffjobs.com",
+    "efinancialcareers.com",
+    "linkedin.com",
+];
 
 /// Open the given URLs in background tabs for any host that is not already open.
 pub async fn ensure_init_tabs(browser: &Browser, urls: &[&str]) -> Result<()> {

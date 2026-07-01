@@ -44,12 +44,14 @@ pub struct ListCmd {
 }
 
 #[derive(Subcommand)]
+#[command(rename_all = "lower")]
 pub enum ListTarget {
     All(AllListArgs),
     Upwork(UpworkListArgs),
     Nofluff(PlatformListArgs),
     Efinancialcareers(PlatformListArgs),
     Hackernews(PlatformListArgs),
+    LinkedIn(PlatformListArgs),
 }
 
 #[derive(Args)]
@@ -134,6 +136,7 @@ pub struct SyncApplicationsCmd {
 }
 
 #[derive(Subcommand)]
+#[command(rename_all = "lower")]
 pub enum SyncPlatform {
     Upwork(SyncArgs),
     Nofluff(SyncArgs),
@@ -177,6 +180,7 @@ pub enum ReactAction {
 }
 
 #[derive(Subcommand)]
+#[command(rename_all = "lower")]
 pub enum UpdatePlatform {
     /// Fetch Upwork jobs
     Upwork(UpworkArgs),
@@ -189,6 +193,9 @@ pub enum UpdatePlatform {
 
     /// Fetch Hacker News "Who is hiring?" jobs
     Hackernews(HackernewsArgs),
+
+    /// Fetch LinkedIn jobs
+    LinkedIn(LinkedInArgs),
 }
 
 #[derive(Args)]
@@ -263,4 +270,16 @@ pub struct HackernewsArgs {
     /// LLM CLI command used to extract structured fields from HN comments.
     #[arg(long, default_value = DEFAULT_LLM_CLI)]
     pub llm_cli: String,
+}
+
+/// LinkedIn update arguments.
+#[derive(Args)]
+pub struct LinkedInArgs {
+    /// Number of days back to search (default: 30)
+    #[arg(long, default_value = "30")]
+    pub since_days: u32,
+
+    /// Pause between requests in ms
+    #[arg(long, default_value_t = 2000)]
+    pub pause_ms: u64,
 }
