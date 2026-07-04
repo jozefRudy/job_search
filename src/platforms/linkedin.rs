@@ -125,7 +125,6 @@ impl LinkedInScraper {
             .append_pair("geoId", GEO_ID)
             .append_pair("origin", "JOB_SEARCH_PAGE_JOB_FILTER")
             .append_pair("sortBy", SORT_BY_DATE)
-            .append_pair("spellCorrectionEnabled", "true")
             .finish();
         let mut url = Url::parse(LINKEDIN_JOBS_BASE_URL).expect("valid linkedin jobs base URL");
         url.set_query(Some(&params));
@@ -278,7 +277,7 @@ fn build_voyager_query(since_days: u32) -> String {
     let seconds = u64::from(since_days) * 86400;
     let titles = TITLE_IDS.join(",");
     format!(
-        "(origin:JOB_SEARCH_PAGE_JOB_FILTER,locationUnion:(geoId:{GEO_ID}),selectedFilters:(sortBy:List({SORT_BY_DATE}),industry:List({INDUSTRY_ID}),title:List({titles}),timePostedRange:List(r{seconds}),workplaceType:List({WORKPLACE_TYPE_REMOTE})),spellCorrectionEnabled:true)"
+        "(origin:JOB_SEARCH_PAGE_JOB_FILTER,locationUnion:(geoId:{GEO_ID}),selectedFilters:(sortBy:List({SORT_BY_DATE}),industry:List({INDUSTRY_ID}),title:List({titles}),timePostedRange:List(r{seconds}),workplaceType:List({WORKPLACE_TYPE_REMOTE})))"
     )
 }
 

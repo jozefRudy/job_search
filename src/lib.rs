@@ -1,6 +1,8 @@
 pub mod browser;
 pub mod cli;
 pub mod db;
+pub mod embed;
+pub mod embeddings_store;
 pub mod extractors;
 pub mod language;
 pub mod models;

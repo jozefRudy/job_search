@@ -372,6 +372,12 @@ impl Db {
         Ok(row.map(|dt| dt.and_utc()))
     }
 
+    // TODO: add job_embeddings table (job_id, model_id, embedding, created_at)
+    // - primary key (job_id, model_id)
+    // - upsert_embedding(job_id, model_id, embedding)
+    // - get_unvectorized_jobs(model_id, limit: i64) -> Vec<Job>; order by j.created_at ASC
+    // - search_similar(model_id, embedding, limit) -> Vec<(job_id, score)>
+
     pub async fn delete_jobs(&self, ids: &[i64]) -> Result<u64> {
         let ids_json = serde_json::to_string(ids)?;
         let rows = sqlx::query!(

@@ -66,6 +66,7 @@ async fn main() -> Result<()> {
         std::fs::create_dir_all(parent)?;
     }
 
+    // TODO: configure hardcoded embedding model on startup and spawn singleton background vectorizer
     let db = Db::open(&db_path).await?;
     let browser = BrowserManager::new();
 
@@ -94,7 +95,7 @@ async fn main() -> Result<()> {
         Commands::SyncApplications(cmd) => cmd_sync_applications(cmd, &db, &browser).await?,
         Commands::SyncLikes { from, to } => {
             cmd_sync_likes(&from, &to).await?;
-        }
+        } // TODO: handle Search command
     }
 
     // Browser stays alive for reuse

@@ -39,6 +39,7 @@ static STATIC_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/frontend/dist");
 
 pub struct AppState {
     pub db: Db,
+    // TODO: add embedding service and background vectorizer handle
 }
 
 pub fn app(db: Db) -> Router {
@@ -55,6 +56,9 @@ pub fn app(db: Db) -> Router {
     api_router
         .route("/api/openapi.json", get(move || async move { Json(api) }))
         .route("/health", get(|| async { StatusCode::OK }))
+        // TODO: extend list_jobs handler with optional `search` query param
+        // - if search is present, require Sort::Relevance and use Lance vector search
+        // - if search is absent, keep existing SQL filtering + sorting
         .fallback(serve_static)
 }
 
@@ -227,6 +231,7 @@ async fn shutdown_signal() {
 }
 
 pub async fn serve(db: Db, port: u16) -> Result<()> {
+    // TODO: configure hardcoded embedding model on startup and spawn singleton background vectorizer task
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     eprintln!("jobsearch ({VERSION}) listening on http://0.0.0.0:{port}");
     axum::serve(listener, app(db))

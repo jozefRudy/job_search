@@ -97,6 +97,7 @@ pub struct CommonListArgs {
     /// Filter by English-language classification: true/false. Omit for all.
     #[arg(long)]
     pub english: Option<bool>,
+    // TODO: add vector Search as Option<string>
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
