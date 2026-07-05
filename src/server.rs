@@ -56,8 +56,9 @@ pub fn app(db: Db) -> Router {
     api_router
         .route("/api/openapi.json", get(move || async move { Json(api) }))
         .route("/health", get(|| async { StatusCode::OK }))
-        // TODO: extend list_jobs handler with optional `search` query param
-        // - if search is present, require Sort::Relevance and use Lance vector search
+        // TODO: extend ListQuery with `search: Option<String>` and list_jobs handler with vector search path
+        // - if search is present, embed query text, require Sort::Relevance, and use the vector search flow:
+        //       Db::filter_job_ids -> EmbeddingsStore::search -> Db::get_jobs (preserving order)
         // - if search is absent, keep existing SQL filtering + sorting
         .fallback(serve_static)
 }

@@ -97,7 +97,9 @@ pub struct CommonListArgs {
     /// Filter by English-language classification: true/false. Omit for all.
     #[arg(long)]
     pub english: Option<bool>,
-    // TODO: add vector Search as Option<string>
+    // TODO: add `search: Option<String>` to CommonListArgs
+    // - when present, embed query text and use the vector search flow (Db::filter_job_ids + EmbeddingsStore::search + Db::get_jobs)
+    // - when absent, keep existing SQL filtering
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]

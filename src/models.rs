@@ -265,6 +265,7 @@ pub struct Paginated<T> {
  * Sorts available in the API and CLI.
  *
  * All sorts are DB-sortable via generated columns.
+ * TODO: add Sort::Relevance for vector search; not used in SQL order_by_sql
  */
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -301,6 +302,7 @@ pub struct ListQuery {
     pub applied: Option<bool>,
     pub remote: Option<bool>,
     pub is_english: Option<bool>,
+    // TODO: add `search: Option<String>`; when present, use vector search path
     #[serde(default)]
     pub sort_by: Sort,
     #[serde(default = "default_page")]
