@@ -372,12 +372,6 @@ impl Db {
         Ok(row.map(|dt| dt.and_utc()))
     }
 
-    // TODO: add job_embeddings table (job_id, model_id, embedding, created_at)
-    // - primary key (job_id, model_id)
-    // - upsert_embedding(job_id, model_id, embedding)
-    // - get_unvectorized_jobs(model_id, limit: i64) -> Vec<Job>; order by j.created_at ASC
-    // - search_similar(model_id, embedding, limit) -> Vec<(job_id, score)>
-
     pub async fn delete_jobs(&self, ids: &[i64]) -> Result<u64> {
         let ids_json = serde_json::to_string(ids)?;
         let rows = sqlx::query!(
@@ -405,6 +399,20 @@ impl Db {
 
         Ok(Stats { total, by_platform })
     }
+
+    // TODO: add vector-search helper methods
+    // - pub async fn get_job_ids_except(
+    //       &self,
+    //       excluded_ids: &[i64],
+    //       limit: i64,
+    //   ) -> Result<Vec<i64>>
+    //   SQL: SELECT id FROM jobs
+    //        WHERE id NOT IN (SELECT value FROM json_each(?1))
+    //        ORDER BY created_at ASC
+    //        LIMIT ?2
+    // - pub async fn filter_job_ids(&self, filter: &JobFilter) -> Result<Vec<i64>>
+    //   same WHERE clauses as list_jobs_filtered, but SELECT j.id only and no LIMIT/OFFSET
+    // - make get_jobs(ids) preserve input id order for the vector-search ranked page
 }
 
 #[derive(sqlx::FromRow)]
