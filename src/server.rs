@@ -39,7 +39,7 @@ static STATIC_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/frontend/dist");
 
 pub struct AppState {
     pub db: Db,
-    // TODO: add embedding service and background vectorizer handle
+    // TODO: add EmbeddingsStore, Embedder, and VectorizerHandle; vectorizer starts in serve()
 }
 
 pub fn app(db: Db) -> Router {
@@ -232,7 +232,8 @@ async fn shutdown_signal() {
 }
 
 pub async fn serve(db: Db, port: u16) -> Result<()> {
-    // TODO: configure hardcoded embedding model on startup and spawn singleton background vectorizer task
+    // TODO: create Embedder with hardcoded model_id, create EmbeddingsStore wrapping db, spawn background vectorizer task
+    // on shutdown signal, stop vectorizer and flush any pending batch before exiting
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     eprintln!("jobsearch ({VERSION}) listening on http://0.0.0.0:{port}");
     axum::serve(listener, app(db))

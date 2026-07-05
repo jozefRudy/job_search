@@ -66,7 +66,7 @@ async fn main() -> Result<()> {
         std::fs::create_dir_all(parent)?;
     }
 
-    // TODO: configure hardcoded embedding model on startup and spawn singleton background vectorizer
+    // TODO: configure hardcoded embedding model_id constant used by server; do NOT spawn vectorizer here (server-only)
     let db = Db::open(&db_path).await?;
     let browser = BrowserManager::new();
 
