@@ -102,10 +102,6 @@ pub struct CommonListArgs {
     #[arg(long)]
     pub remote: Option<bool>,
 
-    /// Filter by English-language classification: true/false. Omit for all.
-    #[arg(long)]
-    pub english: Option<bool>,
-
     /// Search jobs by semantic query text.
     #[arg(long)]
     pub search: Option<String>,

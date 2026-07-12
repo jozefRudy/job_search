@@ -182,7 +182,6 @@ async fn cmd_list_with_target(
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,
-                is_english: args.common.english,
             };
             let sort = match args.sort {
                 CommonSortBy::Created => Sort::Created,
@@ -196,7 +195,6 @@ async fn cmd_list_with_target(
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,
-                is_english: args.common.english,
             };
             let sort = match args.sort {
                 UpworkSortBy::Created => Sort::Created,
@@ -211,7 +209,6 @@ async fn cmd_list_with_target(
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,
-                is_english: args.common.english,
             };
             let sort = match args.sort {
                 CommonSortBy::Created => Sort::Created,
@@ -225,7 +222,6 @@ async fn cmd_list_with_target(
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,
-                is_english: args.common.english,
             };
             let sort = match args.sort {
                 CommonSortBy::Created => Sort::Created,
@@ -239,7 +235,6 @@ async fn cmd_list_with_target(
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,
-                is_english: args.common.english,
             };
             let sort = match args.sort {
                 CommonSortBy::Created => Sort::Created,
@@ -253,7 +248,6 @@ async fn cmd_list_with_target(
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,
-                is_english: args.common.english,
             };
             let sort = match args.sort {
                 CommonSortBy::Created => Sort::Created,

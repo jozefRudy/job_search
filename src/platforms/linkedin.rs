@@ -228,7 +228,7 @@ impl PlatformClient for LinkedInScraper {
                     .and_then(DateTime::from_timestamp_millis)
                     .unwrap_or_else(Utc::now);
 
-                let mut job = Job {
+                let job = Job {
                     id: 0,
                     platform: Platform::LinkedIn,
                     external_id: card.id,
@@ -245,12 +245,13 @@ impl PlatformClient for LinkedInScraper {
                     rating: Rating::Neutral,
                     applied_at: None,
                     remote: true,
-                    is_english: true,
                 };
-                job.is_english = crate::models::classify_language(&lang, &job).await?;
-                db.upsert_job(&job).await?;
-                state.inc_new();
-                eprint!("{}", state.progress_line(Some(total), &job.title));
+                let is_english = crate::models::classify_language(&lang, &job).await?;
+                if is_english {
+                    db.upsert_job(&job).await?;
+                    state.inc_new();
+                    eprint!("{}", state.progress_line(Some(total), &job.title));
+                }
                 sleep(Duration::from_millis(pause_ms)).await;
             }
 

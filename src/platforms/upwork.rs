@@ -425,7 +425,6 @@ impl UpworkScraper {
                     note: None,
                     applied_at: None,
                     remote: true,
-                    is_english: true,
                 };
                 ctx.db.upsert_job(&job).await?;
 
@@ -635,7 +634,6 @@ impl UpworkScraper {
                         note: None,
                         applied_at: None,
                         remote: true,
-                        is_english: true,
                     };
                     Some(db.upsert_job(&job).await?)
                 }

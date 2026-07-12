@@ -101,8 +101,6 @@ export function JobList() {
     enumSchema(BOOL_FILTERS, "any").parse(searchParams.applied);
   const remote = (): BoolFilter =>
     enumSchema(BOOL_FILTERS, "any").parse(searchParams.remote);
-  const english = (): BoolFilter =>
-    enumSchema(BOOL_FILTERS, "any").parse(searchParams.is_english);
 
   const search = (): string => {
     const s = searchParams.search;
@@ -158,7 +156,6 @@ export function JobList() {
         rating: rating() === "any" ? null : rating(),
         applied: applied() === "any" ? null : applied() === "true",
         remote: remote() === "any" ? null : remote() === "true",
-        is_english: english() === "any" ? null : english() === "true",
         search: search() || undefined,
       },
       isNotNil,
@@ -348,18 +345,6 @@ export function JobList() {
             <option value="any">Remote: any</option>
             <option value="true">Remote</option>
             <option value="false">Not remote</option>
-          </select>
-
-          <select
-            class="select select-sm"
-            value={english()}
-            onChange={(e) =>
-              updateSearch({ is_english: e.currentTarget.value })
-            }
-          >
-            <option value="any">Language: any</option>
-            <option value="true">Language: English</option>
-            <option value="false">Language: non-English</option>
           </select>
 
           <input

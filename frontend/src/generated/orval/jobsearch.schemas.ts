@@ -140,7 +140,6 @@ export interface Job {
   description?: string | null;
   external_id: string;
   id: number;
-  is_english: boolean;
   /** @nullable */
   note?: string | null;
   platform: Platform;
@@ -184,7 +183,6 @@ platform?: Platform;
 rating?: Rating;
 applied?: boolean;
 remote?: boolean;
-is_english?: boolean;
 search?: string;
 sort_by?: Sort;
 /**

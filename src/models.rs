@@ -303,7 +303,6 @@ pub struct ListQuery {
     pub rating: Option<Rating>,
     pub applied: Option<bool>,
     pub remote: Option<bool>,
-    pub is_english: Option<bool>,
     pub search: Option<String>,
     #[serde(default)]
     pub sort_by: Sort,
@@ -331,7 +330,6 @@ pub struct Job {
     pub rating: Rating,
     pub applied_at: Option<DateTime<Utc>>,
     pub remote: bool,
-    pub is_english: bool,
 }
 
 impl Job {
@@ -421,7 +419,6 @@ pub struct JobFilter {
     pub applied: Option<bool>,
     pub rating: Option<Rating>,
     pub remote: Option<bool>,
-    pub is_english: Option<bool>,
 }
 
 /// Parsed budget value with consistent formatting.
@@ -878,7 +875,6 @@ mod tests {
             rating: Rating::Neutral,
             applied_at: None,
             remote: true,
-            is_english: true,
         };
         let en = classify_language(&svc, &job)
             .await

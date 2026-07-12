@@ -28,8 +28,8 @@ impl Db {
 
         let id = sqlx::query_scalar!(
             r#"
-            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at, remote, is_english, rating)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at, remote, rating)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
             ON CONFLICT(platform, external_id) DO UPDATE SET
                 title = excluded.title,
                 description = excluded.description,
@@ -38,7 +38,6 @@ impl Db {
                 tags = excluded.tags,
                 raw = excluded.raw,
                 remote = excluded.remote,
-                is_english = excluded.is_english,
                 rating = excluded.rating,
                 updated_at = CURRENT_TIMESTAMP
             RETURNING id
@@ -53,7 +52,6 @@ impl Db {
             raw,
             created_at,
             job.remote,
-            job.is_english,
             job.rating,
         )
         .fetch_one(&self.pool)
@@ -74,7 +72,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.rating, j.remote, j.is_english, r.note, r.applied_at
+                j.rating, j.remote, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
@@ -107,13 +105,11 @@ impl Db {
               AND (?2 IS NULL OR j.rating = ?2)
               AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
-              AND (?5 IS NULL OR j.is_english = ?5)
             "#,
             filter.platform,
             filter.rating,
             filter.applied,
             filter.remote,
-            filter.is_english,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -122,15 +118,14 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.rating, j.remote, j.is_english, r.note, r.applied_at
+                j.rating, j.remote, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE (?1 IS NULL OR j.platform = ?1)
               AND (?2 IS NULL OR j.rating = ?2)
               AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
-              AND (?5 IS NULL OR j.is_english = ?5)
-            ORDER BY {order_by} LIMIT ?6 OFFSET ?7
+            ORDER BY {order_by} LIMIT ?5 OFFSET ?6
             "
         );
         let rows = sqlx::query_as::<_, JobRow>(&sql)
@@ -138,7 +133,6 @@ impl Db {
             .bind(filter.rating)
             .bind(filter.applied)
             .bind(filter.remote)
-            .bind(filter.is_english)
             .bind(limit)
             .bind(offset)
             .fetch_all(&self.pool)
@@ -159,7 +153,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.rating, j.remote, j.is_english, r.note, r.applied_at
+                j.rating, j.remote, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE j.id IN (SELECT value FROM json_each(?1))
@@ -183,7 +177,7 @@ impl Db {
             SELECT
                 j.id, j.platform, j.external_id, j.title, j.description,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
-                j.rating, j.remote, j.is_english, r.note, r.applied_at
+                j.rating, j.remote, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
             WHERE j.id = ?1
@@ -433,14 +427,12 @@ impl Db {
               AND (?2 IS NULL OR j.rating = ?2)
               AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
-              AND (?5 IS NULL OR j.is_english = ?5)
             ORDER BY j.id
             "#,
             filter.platform,
             filter.rating,
             filter.applied,
             filter.remote,
-            filter.is_english,
         )
         .fetch_all(&self.pool)
         .await?;
@@ -464,7 +456,6 @@ struct JobRow {
     updated_at: chrono::NaiveDateTime,
     rating: Rating,
     remote: bool,
-    is_english: bool,
     note: Option<String>,
     applied_at: Option<chrono::NaiveDateTime>,
 }
@@ -491,7 +482,6 @@ impl From<JobRow> for Job {
             rating: r.rating,
             remote: r.remote,
             applied_at: r.applied_at.map(|dt| dt.and_utc()),
-            is_english: r.is_english,
         }
     }
 }
@@ -549,7 +539,6 @@ mod tests {
             note: None,
             applied_at: None,
             remote: true,
-            is_english: true,
         }
     }
 
@@ -608,7 +597,6 @@ mod tests {
             note: None,
             applied_at: None,
             remote: true,
-            is_english: true,
         };
 
         let id = db.upsert_job(&job).await?;
@@ -662,7 +650,6 @@ mod tests {
             note: None,
             applied_at: None,
             remote: true,
-            is_english: true,
         };
 
         let id = db.upsert_job(&job).await?;
@@ -800,7 +787,6 @@ mod tests {
             note: None,
             applied_at: None,
             remote: true,
-            is_english: true,
         };
 
         db.upsert_job(&job("hn-1", "Acme", "Senior Rust Engineer", 70))

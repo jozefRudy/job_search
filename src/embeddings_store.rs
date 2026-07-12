@@ -315,7 +315,6 @@ mod tests {
             note: None,
             applied_at: None,
             remote: true,
-            is_english: true,
         }
     }
 
