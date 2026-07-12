@@ -38,11 +38,12 @@ impl EmbeddingsStore {
     ) -> Result<Self> {
         let base = sqlite_db_path.parent().unwrap_or_else(|| Path::new("."));
         tokio::fs::create_dir_all(base).await?;
+        let model_dir = model_id.replace('/', "-");
         let uri = base
-            .join(format!("embeddings-{model_id}.lance"))
+            .join(format!("embeddings-{model_dir}.lance"))
             .to_string_lossy()
             .to_string();
-        let dim = embedder.dim;
+        let dim = embedder.dim();
 
         if Dataset::open(&uri).await.is_err() {
             let schema = Arc::new(arrow_schema(dim));
@@ -274,7 +275,8 @@ fn embeddings_to_batch(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::embed::{DEFAULT_EMBEDDING_MODEL, EMBEDDING_DIM};
+    use crate::embed::DEFAULT_EMBEDDING_MODEL;
+    const TEST_DIM: usize = 768;
     use crate::models::{
         Data, EfinancialcareersJobDetail, LinkedInJobDetail, NoFluffJobDetail, Platform, Rating,
         UpworkJobDetail,
@@ -322,7 +324,7 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let db_path = tmp.path().join("test.db");
         let db = Db::open(&db_path).await.unwrap();
-        let embedder = Embedder::new(DEFAULT_EMBEDDING_MODEL, EMBEDDING_DIM);
+        let embedder = Embedder::fake(TEST_DIM);
         let store = EmbeddingsStore::open(&db_path, DEFAULT_EMBEDDING_MODEL, db.clone(), embedder)
             .await
             .unwrap();
@@ -373,11 +375,11 @@ mod tests {
             .await
             .unwrap();
 
-        let mut query = vec![0.0f32; EMBEDDING_DIM];
+        let mut query = vec![0.0f32; TEST_DIM];
         query[0] = 1.0;
-        let mut emb1 = vec![0.0f32; EMBEDDING_DIM];
+        let mut emb1 = vec![0.0f32; TEST_DIM];
         emb1[0] = 1.0;
-        let mut emb2 = vec![0.0f32; EMBEDDING_DIM];
+        let mut emb2 = vec![0.0f32; TEST_DIM];
         emb2[1] = 1.0;
         store
             .upsert_batch(&[id1, id2], &[emb1, emb2])
@@ -405,11 +407,11 @@ mod tests {
             .await
             .unwrap();
 
-        let mut query = vec![0.0f32; EMBEDDING_DIM];
+        let mut query = vec![0.0f32; TEST_DIM];
         query[0] = 1.0;
-        let mut emb1 = vec![0.0f32; EMBEDDING_DIM];
+        let mut emb1 = vec![0.0f32; TEST_DIM];
         emb1[0] = 1.0;
-        let mut emb2 = vec![0.0f32; EMBEDDING_DIM];
+        let mut emb2 = vec![0.0f32; TEST_DIM];
         emb2[1] = 1.0;
         store
             .upsert_batch(&[id1, id2], &[emb1, emb2])

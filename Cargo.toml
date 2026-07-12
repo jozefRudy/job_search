@@ -6,6 +6,9 @@ edition = "2024"
 [profile.release]
 strip = true
 
+[features]
+metal = ["candle-core/metal", "candle-nn/metal"]
+
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
@@ -37,13 +40,13 @@ chromiumoxide = "0.9"
 lingua = { version = "1.8.0", default-features = false, features = ["english", "french", "german", "spanish", "polish"] }
 
 
-candle-core = "0.8"
-candle-nn = "0.8"
-candle-transformers = "0.8"
-hf-hub = "0.4"
+candle-core = "0.11"
+candle-nn = "0.11"
+candle-transformers = "0.11"
+hf-hub = "1.0"
 tokenizers = "0.21"
 
-lance = "8.0"
+lance = { version = "8.0", default-features = false }
 arrow = "58"
 arrow-array = "58"
 arrow-schema = "58"

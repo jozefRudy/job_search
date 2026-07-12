@@ -7,7 +7,7 @@ use jobsearch::cli::{
     UpworkSortBy,
 };
 use jobsearch::db::Db;
-use jobsearch::embed::{DEFAULT_EMBEDDING_MODEL, EMBEDDING_DIM, Embedder};
+use jobsearch::embed::{DEFAULT_EMBEDDING_MODEL, Embedder};
 use jobsearch::embeddings_store::EmbeddingsStore;
 use jobsearch::language::LanguageService;
 use jobsearch::models::{JobFilter, Platform, Rating, Sort};
@@ -107,7 +107,10 @@ async fn main() -> Result<()> {
 }
 
 async fn open_embeddings_store(db: &Db, db_path: &std::path::Path) -> Result<EmbeddingsStore> {
-    let embedder = Embedder::new(DEFAULT_EMBEDDING_MODEL, EMBEDDING_DIM);
+    let cache_dir = db_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."));
+    let embedder = Embedder::load(cache_dir).await?;
     EmbeddingsStore::open(db_path, DEFAULT_EMBEDDING_MODEL, db.clone(), embedder).await
 }
 
