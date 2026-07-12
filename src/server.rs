@@ -39,7 +39,6 @@ static STATIC_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/frontend/dist");
 
 pub struct AppState {
     pub db: Db,
-    // TODO: add EmbeddingsStore, Embedder, and VectorizerHandle; vectorizer starts in serve()
 }
 
 pub fn app(db: Db) -> Router {
@@ -56,10 +55,6 @@ pub fn app(db: Db) -> Router {
     api_router
         .route("/api/openapi.json", get(move || async move { Json(api) }))
         .route("/health", get(|| async { StatusCode::OK }))
-        // TODO: extend ListQuery with `search: Option<String>` and list_jobs handler with vector search path
-        // - if search is present, embed query text, require Sort::Relevance, and use the vector search flow:
-        //       Db::filter_job_ids -> EmbeddingsStore::search -> Db::get_jobs (preserving order)
-        // - if search is absent, keep existing SQL filtering + sorting
         .fallback(serve_static)
 }
 
@@ -98,6 +93,10 @@ async fn list_jobs(
     let page_size = query.page_size.clamp(1, 100);
     let offset = i64::try_from((page - 1) * page_size).unwrap_or(i64::MAX);
     let limit = i64::try_from(page_size).unwrap_or(i64::MAX);
+
+    if query.search.as_deref().is_some_and(|s| !s.is_empty()) {
+        return Err(StatusCode::NOT_IMPLEMENTED);
+    }
 
     let filter = JobFilter {
         platform: query.platform,
@@ -232,8 +231,6 @@ async fn shutdown_signal() {
 }
 
 pub async fn serve(db: Db, port: u16) -> Result<()> {
-    // TODO: create Embedder with hardcoded model_id, create EmbeddingsStore wrapping db, spawn background vectorizer task
-    // on shutdown signal, stop vectorizer and flush any pending batch before exiting
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     eprintln!("jobsearch ({VERSION}) listening on http://0.0.0.0:{port}");
     axum::serve(listener, app(db))

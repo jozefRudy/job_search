@@ -35,6 +35,14 @@ pub enum Commands {
         from: std::path::PathBuf,
         to: std::path::PathBuf,
     },
+    Embed(EmbedCmd),
+}
+
+#[derive(Parser)]
+pub struct EmbedCmd {
+    /// Number of jobs to embed in one batch.
+    #[arg(long, default_value = "16")]
+    pub batch_size: usize,
 }
 
 #[derive(Parser)]
@@ -97,9 +105,10 @@ pub struct CommonListArgs {
     /// Filter by English-language classification: true/false. Omit for all.
     #[arg(long)]
     pub english: Option<bool>,
-    // TODO: add `search: Option<String>` to CommonListArgs
-    // - when present, embed query text and use the vector search flow (Db::filter_job_ids + EmbeddingsStore::search + Db::get_jobs)
-    // - when absent, keep existing SQL filtering
+
+    /// Search jobs by semantic query text.
+    #[arg(long)]
+    pub search: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]

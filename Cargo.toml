@@ -36,7 +36,6 @@ tokio = { version = "1", features = ["full"] }
 chromiumoxide = "0.9"
 lingua = { version = "1.8.0", default-features = false, features = ["english", "french", "german", "spanish", "polish"] }
 
-# TODO: semantic search embedding dependencies (candle + lance, no text-splitter)
 
 candle-core = "0.8"
 candle-nn = "0.8"

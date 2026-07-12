@@ -264,8 +264,7 @@ pub struct Paginated<T> {
 /**
  * Sorts available in the API and CLI.
  *
- * All sorts are DB-sortable via generated columns.
- * TODO: add Sort::Relevance for vector search; not used in SQL order_by_sql
+ * `Relevance` is used only by the vector search path and is not DB-sortable.
  */
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -274,6 +273,7 @@ pub enum Sort {
     Created,
     UpworkViewed,
     Applied,
+    Relevance,
 }
 
 impl Sort {
@@ -283,6 +283,8 @@ impl Sort {
             Sort::Created => "j.created_at DESC",
             Sort::UpworkViewed => "j.upwork_last_viewed_at DESC NULLS LAST",
             Sort::Applied => "r.applied_at DESC NULLS LAST",
+            // `Relevance` is handled by the vector search path, not SQL.
+            Sort::Relevance => unreachable!("Relevance sort is not SQL-sortable"),
         }
     }
 }
@@ -302,7 +304,7 @@ pub struct ListQuery {
     pub applied: Option<bool>,
     pub remote: Option<bool>,
     pub is_english: Option<bool>,
-    // TODO: add `search: Option<String>`; when present, use vector search path
+    pub search: Option<String>,
     #[serde(default)]
     pub sort_by: Sort,
     #[serde(default = "default_page")]

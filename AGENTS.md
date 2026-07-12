@@ -1,10 +1,5 @@
 # Project Rules
 
-## Making code changes ##
-
-When making a code change, follow the phased workflow defined in the `hunk-review` skill. Wait for approval before each next phase. Remove previous step artifacts (`TODO` comments) before starting the next one.
-
-
 ## After Code Changes
 
 Don't relax clippy rules -> #[allow(clippy::*)]

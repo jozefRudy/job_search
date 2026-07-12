@@ -3,6 +3,7 @@ use anyhow::Result;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
 use std::str::FromStr;
 
+#[derive(Clone)]
 pub struct Db {
     pool: SqlitePool,
 }
@@ -400,19 +401,13 @@ impl Db {
         Ok(Stats { total, by_platform })
     }
 
-    // TODO: add vector-search helper methods
-    // - pub async fn get_job_ids_except(
-    //       &self,
-    //       excluded_ids: &[i64],
-    //       limit: i64,
-    //   ) -> Result<Vec<i64>>
-    //   SQL: SELECT id FROM jobs
-    //        WHERE id NOT IN (SELECT value FROM json_each(?1))
-    //        ORDER BY created_at ASC
-    //        LIMIT ?2
-    // - pub async fn filter_job_ids(&self, filter: &JobFilter) -> Result<Vec<i64>>
-    //   same WHERE clauses as list_jobs_filtered, but SELECT j.id only and no LIMIT/OFFSET
-    // - make get_jobs(ids) preserve input id order for the vector-search ranked page
+    pub async fn get_job_ids_except(&self, _excluded_ids: &[i64], _limit: i64) -> Result<Vec<i64>> {
+        todo!()
+    }
+
+    pub async fn filter_job_ids(&self, _filter: &JobFilter) -> Result<Vec<i64>> {
+        todo!()
+    }
 }
 
 #[derive(sqlx::FromRow)]

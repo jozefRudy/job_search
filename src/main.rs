@@ -66,7 +66,6 @@ async fn main() -> Result<()> {
         std::fs::create_dir_all(parent)?;
     }
 
-    // TODO: configure hardcoded embedding model_id constant used by server; do NOT spawn vectorizer here (server-only)
     let db = Db::open(&db_path).await?;
     let browser = BrowserManager::new();
 
@@ -95,11 +94,22 @@ async fn main() -> Result<()> {
         Commands::SyncApplications(cmd) => cmd_sync_applications(cmd, &db, &browser).await?,
         Commands::SyncLikes { from, to } => {
             cmd_sync_likes(&from, &to).await?;
-        } // TODO: handle Search command
+        }
+        Commands::Embed(cmd) => {
+            cmd_embed(cmd, &db, &db_path).await?;
+        }
     }
 
     // Browser stays alive for reuse
     Ok(())
+}
+
+async fn cmd_embed(
+    _cmd: jobsearch::cli::EmbedCmd,
+    _db: &Db,
+    _db_path: &std::path::Path,
+) -> Result<()> {
+    todo!()
 }
 
 async fn cmd_update(
@@ -164,7 +174,7 @@ async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<(
                 CommonSortBy::Created => Sort::Created,
                 CommonSortBy::Applied => Sort::Applied,
             };
-            cmd_list(db, filter, sort).await?;
+            cmd_list(db, filter, sort, args.common.search).await?;
         }
         ListTarget::Upwork(args) => {
             let filter = JobFilter {
@@ -179,7 +189,7 @@ async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<(
                 UpworkSortBy::UpworkViewed => Sort::UpworkViewed,
                 UpworkSortBy::Applied => Sort::Applied,
             };
-            cmd_list(db, filter, sort).await?;
+            cmd_list(db, filter, sort, args.common.search).await?;
         }
         ListTarget::Nofluff(args) => {
             let filter = JobFilter {
@@ -193,7 +203,7 @@ async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<(
                 CommonSortBy::Created => Sort::Created,
                 CommonSortBy::Applied => Sort::Applied,
             };
-            cmd_list(db, filter, sort).await?;
+            cmd_list(db, filter, sort, args.common.search).await?;
         }
         ListTarget::Efinancialcareers(args) => {
             let filter = JobFilter {
@@ -207,7 +217,7 @@ async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<(
                 CommonSortBy::Created => Sort::Created,
                 CommonSortBy::Applied => Sort::Applied,
             };
-            cmd_list(db, filter, sort).await?;
+            cmd_list(db, filter, sort, args.common.search).await?;
         }
         ListTarget::Hackernews(args) => {
             let filter = JobFilter {
@@ -221,7 +231,7 @@ async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<(
                 CommonSortBy::Created => Sort::Created,
                 CommonSortBy::Applied => Sort::Applied,
             };
-            cmd_list(db, filter, sort).await?;
+            cmd_list(db, filter, sort, args.common.search).await?;
         }
         ListTarget::LinkedIn(args) => {
             let filter = JobFilter {
@@ -235,7 +245,7 @@ async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<(
                 CommonSortBy::Created => Sort::Created,
                 CommonSortBy::Applied => Sort::Applied,
             };
-            cmd_list(db, filter, sort).await?;
+            cmd_list(db, filter, sort, args.common.search).await?;
         }
     }
     Ok(())
@@ -333,7 +343,11 @@ async fn fetch_and_store(
     Ok(())
 }
 
-async fn cmd_list(db: &Db, filter: JobFilter, sort: Sort) -> Result<()> {
+async fn cmd_list(db: &Db, filter: JobFilter, sort: Sort, search: Option<String>) -> Result<()> {
+    if search.as_deref().is_some_and(|s| !s.is_empty()) {
+        todo!();
+    }
+
     let jobs = db.list_jobs_filtered(&filter, sort, i64::MAX, 0).await?;
     println!("{}", serde_json::to_string_pretty(&jobs.items)?);
     Ok(())

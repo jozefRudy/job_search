@@ -1,9 +1,24 @@
-// TODO: implement fake embedding module
-// - model_id: &'static str set on startup
-// - struct Embedder { model_id: &'static str, dim: usize }
-// - impl Embedder:
-//     - new(model_id: &'static str, dim: usize) -> Self
-//     - async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>>
-//         returns deterministic Vec<f32> of length `dim` per input
-//     - async fn embed(&self, text: &str) -> Result<Vec<f32>>
-// - enough to wire up search/DB plumbing; replace with real candle model later
+use anyhow::Result;
+
+pub const DEFAULT_EMBEDDING_MODEL: &str = "fake";
+pub const EMBEDDING_DIM: usize = 384;
+
+pub struct Embedder {
+    pub model_id: &'static str,
+    pub dim: usize,
+}
+
+impl Embedder {
+    #[must_use]
+    pub fn new(model_id: &'static str, dim: usize) -> Self {
+        Self { model_id, dim }
+    }
+
+    pub async fn embed_batch(&self, _texts: &[&str]) -> Result<Vec<Vec<f32>>> {
+        todo!()
+    }
+
+    pub async fn embed(&self, _text: &str) -> Result<Vec<f32>> {
+        todo!()
+    }
+}
