@@ -364,7 +364,7 @@ async fn cmd_list(
     if let Some(query) = search.filter(|s| !s.is_empty()) {
         let store = open_embeddings_store(db, db_path).await?;
         let candidate_ids = db.filter_job_ids(&filter).await?;
-        let query_embedding = store.embedder().embed(&query).await?;
+        let query_embedding = store.embedder().embed_query(&query).await?;
         let ranked = store
             .search(&query_embedding, &candidate_ids, 1000, 0)
             .await?;

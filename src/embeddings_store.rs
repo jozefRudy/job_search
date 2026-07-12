@@ -186,8 +186,7 @@ impl EmbeddingsStore {
                 break;
             }
             let owned_texts: Vec<String> = jobs.iter().map(Job::advert_text).collect();
-            let texts: Vec<&str> = owned_texts.iter().map(String::as_str).collect();
-            let embeddings = self.embedder.embed_batch(&texts).await?;
+            let embeddings = self.embedder.embed_batch_documents(&owned_texts).await?;
             let ids: Vec<i64> = jobs.iter().map(|job| job.id).collect();
             self.upsert_batch(&ids, &embeddings).await?;
             total += ids.len();

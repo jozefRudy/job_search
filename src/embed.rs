@@ -1,71 +1,40 @@
+use std::sync::{Arc, Mutex};
+
 use anyhow::Result;
-use candle_core::{DType, Device, Module, Tensor};
-use candle_nn::VarBuilder;
-use candle_transformers::models::jina_bert::{BertModel, Config};
-use hf_hub::{HFClient, split_id};
-use tokenizers::{PaddingParams, PaddingStrategy, Tokenizer, TruncationParams};
+use fastembed::{EmbeddingModel, ExecutionProviderDispatch, TextEmbedding, TextInitOptions};
+use ort::ep::coreml::CoreML;
 
-pub const DEFAULT_EMBEDDING_MODEL: &str = "jinaai/jina-embeddings-v2-base-en";
-pub const MAX_SEQ_LEN: usize = 2048;
-
-pub struct ModelState {
-    model: BertModel,
-    tokenizer: Tokenizer,
-    device: Device,
-    dim: usize,
-}
+pub const DEFAULT_EMBEDDING_MODEL: &str = "nomic-ai/nomic-embed-text-v1.5";
 
 pub enum Embedder {
-    Fake { dim: usize },
-    Jina(Box<ModelState>),
+    Fake {
+        dim: usize,
+    },
+    FastEmbed {
+        model: Arc<Mutex<TextEmbedding>>,
+        dim: usize,
+    },
 }
 
 impl Embedder {
-    pub async fn load(cache_dir: &std::path::Path) -> Result<Self> {
-        let client = HFClient::builder()
-            .cache_dir(cache_dir.to_path_buf())
-            .build()?;
-        let (owner, name) = split_id(DEFAULT_EMBEDDING_MODEL);
-        let repo = client.model(owner, name);
+    pub async fn load(base_dir: &std::path::Path) -> Result<Self> {
+        let cache_dir = base_dir.join("models");
+        tokio::fs::create_dir_all(&cache_dir).await?;
+        let model = tokio::task::spawn_blocking(move || {
+            let options = TextInitOptions::new(EmbeddingModel::NomicEmbedTextV15)
+                .with_cache_dir(cache_dir)
+                .with_show_download_progress(true)
+                .with_execution_providers(vec![ExecutionProviderDispatch::from(CoreML::default())]);
+            TextEmbedding::try_new(options)
+        })
+        .await??;
 
-        let config_path = repo.download_file().filename("config.json").send().await?;
-        let tokenizer_path = repo
-            .download_file()
-            .filename("tokenizer.json")
-            .send()
-            .await?;
-        let model_path = repo
-            .download_file()
-            .filename("model.safetensors")
-            .send()
-            .await?;
+        let dim = TextEmbedding::get_model_info(&EmbeddingModel::NomicEmbedTextV15)?.dim;
 
-        let config: Config = serde_json::from_str(&tokio::fs::read_to_string(&config_path).await?)?;
-        let mut tokenizer = Tokenizer::from_file(&tokenizer_path)
-            .map_err(|e| anyhow::anyhow!("failed to load tokenizer: {e}"))?;
-        tokenizer
-            .with_truncation(Some(TruncationParams {
-                max_length: MAX_SEQ_LEN,
-                ..Default::default()
-            }))
-            .map_err(|e| anyhow::anyhow!("failed to set truncation: {e}"))?;
-        tokenizer.with_padding(Some(PaddingParams {
-            strategy: PaddingStrategy::BatchLongest,
-            ..Default::default()
-        }));
-
-        let device = default_device();
-        let vb =
-            unsafe { VarBuilder::from_mmaped_safetensors(&[model_path], DType::F32, &device)? };
-        let model = BertModel::new(vb, &config)?;
-        let dim = config.hidden_size;
-
-        Ok(Self::Jina(Box::new(ModelState {
-            model,
-            tokenizer,
-            device,
+        Ok(Self::FastEmbed {
+            model: Arc::new(Mutex::new(model)),
             dim,
-        })))
+        })
     }
 
     #[must_use]
@@ -76,64 +45,52 @@ impl Embedder {
     #[must_use]
     pub fn dim(&self) -> usize {
         match self {
-            Self::Fake { dim } => *dim,
-            Self::Jina(state) => state.dim,
+            Self::Fake { dim } | Self::FastEmbed { dim, .. } => *dim,
         }
     }
 
-    pub async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
+    async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         match self {
             Self::Fake { dim } => {
                 let () = std::future::ready(()).await;
                 Ok(texts.iter().map(|t| embedding_for(t, *dim)).collect())
             }
-            Self::Jina(state) => embed_jina(state, texts),
+            Self::FastEmbed { model, .. } => {
+                let model = Arc::clone(model);
+                let texts: Vec<String> = texts.iter().map(|s| (*s).to_string()).collect();
+                tokio::task::spawn_blocking(move || {
+                    let mut model = model.lock().unwrap();
+                    let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
+                    model.embed(&refs, None)
+                })
+                .await?
+            }
         }
     }
 
-    pub async fn embed(&self, text: &str) -> Result<Vec<f32>> {
+    async fn embed(&self, text: &str) -> Result<Vec<f32>> {
         let mut batch = self.embed_batch(&[text]).await?;
         batch
             .pop()
             .ok_or_else(|| anyhow::anyhow!("expected one embedding, got none"))
     }
-}
 
-fn embed_jina(state: &ModelState, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
-    let encodings = state
-        .tokenizer
-        .encode_batch(texts.to_vec(), true)
-        .map_err(|e| anyhow::anyhow!("tokenization failed: {e}"))?;
+    pub async fn embed_query(&self, text: &str) -> Result<Vec<f32>> {
+        self.embed(&format!("search_query: {text}")).await
+    }
 
-    let token_ids: Vec<Tensor> = encodings
-        .iter()
-        .map(|e| Tensor::new(e.get_ids(), &state.device))
-        .collect::<candle_core::Result<Vec<_>>>()?;
-    let input_ids = Tensor::stack(&token_ids, 0)?;
+    pub async fn embed_document(&self, text: &str) -> Result<Vec<f32>> {
+        self.embed(&format!("search_document: {text}")).await
+    }
 
-    let attention_masks: Vec<Tensor> = encodings
-        .iter()
-        .map(|e| Tensor::new(e.get_attention_mask(), &state.device))
-        .collect::<candle_core::Result<Vec<_>>>()?;
-    let attention_mask = Tensor::stack(&attention_masks, 0)?;
-
-    let outputs = state.model.forward(&input_ids)?;
-    let pooled = mean_pool(&outputs, &attention_mask)?;
-    let normalized = l2_normalize(&pooled)?;
-    Ok(normalized.to_vec2::<f32>()?)
-}
-
-fn mean_pool(output: &Tensor, mask: &Tensor) -> Result<Tensor> {
-    let mask = mask.to_dtype(DType::F32)?;
-    let mask = mask.unsqueeze(2)?;
-    let masked = output.broadcast_mul(&mask)?;
-    let sum = masked.sum(&[1usize][..])?;
-    let mask_sum = mask.sum(&[1usize][..])?;
-    Ok(sum.broadcast_div(&mask_sum)?)
-}
-
-fn l2_normalize(x: &Tensor) -> Result<Tensor> {
-    Ok(x.broadcast_div(&x.sqr()?.sum_keepdim(1)?.sqrt()?)?)
+    pub async fn embed_batch_documents(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+        let prefixed: Vec<String> = texts
+            .iter()
+            .map(|text| format!("search_document: {text}"))
+            .collect();
+        let refs: Vec<&str> = prefixed.iter().map(String::as_str).collect();
+        self.embed_batch(&refs).await
+    }
 }
 
 fn fnv1a(text: &str) -> u64 {
@@ -163,23 +120,17 @@ fn embedding_for(text: &str, dim: usize) -> Vec<f32> {
         .collect()
 }
 
-fn default_device() -> Device {
-    try_metal().unwrap_or(Device::Cpu)
-}
-
-#[cfg(feature = "metal")]
-fn try_metal() -> Option<Device> {
-    Device::new_metal(0).ok()
-}
-
-#[cfg(not(feature = "metal"))]
-fn try_metal() -> Option<Device> {
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    static EMBEDDER: tokio::sync::OnceCell<Embedder> = tokio::sync::OnceCell::const_new();
+
+    async fn test_embedder() -> &'static Embedder {
+        EMBEDDER
+            .get_or_init(|| async { Embedder::load(&test_cache_dir()).await.unwrap() })
+            .await
+    }
 
     #[tokio::test]
     async fn embed_is_deterministic_and_correct_dim() {
@@ -204,14 +155,6 @@ mod tests {
         assert_eq!(batch, vec![a, b, c]);
     }
 
-    static EMBEDDER: tokio::sync::OnceCell<Embedder> = tokio::sync::OnceCell::const_new();
-
-    async fn test_embedder() -> &'static Embedder {
-        EMBEDDER
-            .get_or_init(|| async { Embedder::load(&test_cache_dir()).await.unwrap() })
-            .await
-    }
-
     #[tokio::test]
     #[ignore = "downloads model"]
     async fn load_returns_expected_dim() {
@@ -232,9 +175,18 @@ mod tests {
     #[ignore = "downloads model"]
     async fn real_similar_texts_score_higher() {
         let embedder = test_embedder().await;
-        let a = embedder.embed("rust backend developer").await.unwrap();
-        let b = embedder.embed("senior rust engineer").await.unwrap();
-        let c = embedder.embed("python data scientist").await.unwrap();
+        let a = embedder
+            .embed_document("rust backend developer")
+            .await
+            .unwrap();
+        let b = embedder
+            .embed_document("senior rust engineer")
+            .await
+            .unwrap();
+        let c = embedder
+            .embed_document("python data scientist")
+            .await
+            .unwrap();
 
         let sim_close = cosine_similarity(&a, &b);
         let sim_far = cosine_similarity(&a, &c);

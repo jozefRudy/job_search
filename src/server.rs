@@ -122,7 +122,7 @@ async fn list_jobs(
         let query_embedding = state
             .embeddings
             .embedder()
-            .embed(query_text)
+            .embed_query(query_text)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         let top_n = usize::try_from(limit + offset).unwrap_or(usize::MAX);
