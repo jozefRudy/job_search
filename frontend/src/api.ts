@@ -1,5 +1,9 @@
 import { useNavigate } from "@solidjs/router";
-import { createQuery, useQueryClient } from "@tanstack/solid-query";
+import {
+  createQuery,
+  keepPreviousData,
+  useQueryClient,
+} from "@tanstack/solid-query";
 import {
   getGetJobQueryKey,
   getJob,
@@ -29,6 +33,7 @@ export function useListJobs(params: () => ListJobsParams) {
     queryFn: () => listJobs(params()).then((res) => res.data),
     retry: false,
     structuralSharing: false,
+    placeholderData: keepPreviousData,
   }));
 }
 
