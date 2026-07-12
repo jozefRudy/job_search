@@ -50,7 +50,7 @@
             path = "/health";
           };
           initial_delay_seconds = 5;
-          period_seconds = 2;
+          period_seconds = 5;
         };
       };
     };

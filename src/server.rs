@@ -1,5 +1,7 @@
 use crate::cli::VERSION;
 use crate::db::Db;
+use crate::embed::{DEFAULT_EMBEDDING_MODEL, EMBEDDING_DIM, Embedder};
+use crate::embeddings_store::EmbeddingsStore;
 use crate::models::{
     ApplyRequest, Data, HackerNewsJobDetail, Job, JobFilter, JobListResponse, ListQuery,
     NoFluffJobDetail, Platform, RateRequest, Rating, Sort, UpworkJobDetail,
@@ -39,10 +41,11 @@ static STATIC_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/frontend/dist");
 
 pub struct AppState {
     pub db: Db,
+    pub embeddings: Arc<EmbeddingsStore>,
 }
 
-pub fn app(db: Db) -> Router {
-    let state = Arc::new(AppState { db });
+pub fn app(db: Db, embeddings: Arc<EmbeddingsStore>) -> Router {
+    let state = Arc::new(AppState { db, embeddings });
 
     let (api_router, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(list_jobs))
@@ -94,10 +97,6 @@ async fn list_jobs(
     let offset = i64::try_from((page - 1) * page_size).unwrap_or(i64::MAX);
     let limit = i64::try_from(page_size).unwrap_or(i64::MAX);
 
-    if query.search.as_deref().is_some_and(|s| !s.is_empty()) {
-        return Err(StatusCode::NOT_IMPLEMENTED);
-    }
-
     let filter = JobFilter {
         platform: query.platform,
         rating: query.rating,
@@ -105,9 +104,52 @@ async fn list_jobs(
         remote: query.remote,
         is_english: query.is_english,
     };
+
+    let search = query.search.as_deref().filter(|s| !s.is_empty());
+    let sort_by = if search.is_some() {
+        Sort::Relevance
+    } else if query.sort_by == Sort::Relevance {
+        Sort::Created
+    } else {
+        query.sort_by
+    };
+
+    if let Some(query_text) = search {
+        let candidate_ids = state
+            .db
+            .filter_job_ids(&filter)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let query_embedding = state
+            .embeddings
+            .embedder()
+            .embed(query_text)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let top_n = usize::try_from(limit + offset).unwrap_or(usize::MAX);
+        let ranked = state
+            .embeddings
+            .search(&query_embedding, &candidate_ids, top_n, 0)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        let ids: Vec<i64> = ranked
+            .into_iter()
+            .map(|(id, _)| id)
+            .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+            .take(usize::try_from(limit).unwrap_or(usize::MAX))
+            .collect();
+        let total = candidate_ids.len();
+        let jobs = state
+            .db
+            .get_jobs(&ids)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        return Ok(Json(JobListResponse { jobs, total }));
+    }
+
     let paginated = state
         .db
-        .list_jobs_filtered(&filter, query.sort_by, limit, offset)
+        .list_jobs_filtered(&filter, sort_by, limit, offset)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -230,10 +272,14 @@ async fn shutdown_signal() {
     }
 }
 
-pub async fn serve(db: Db, port: u16) -> Result<()> {
+pub async fn serve(db: Db, db_path: &std::path::Path, port: u16) -> Result<()> {
+    let embedder = Embedder::new(DEFAULT_EMBEDDING_MODEL, EMBEDDING_DIM);
+    let embeddings = Arc::new(
+        EmbeddingsStore::open(db_path, DEFAULT_EMBEDDING_MODEL, db.clone(), embedder).await?,
+    );
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     eprintln!("jobsearch ({VERSION}) listening on http://0.0.0.0:{port}");
-    axum::serve(listener, app(db))
+    axum::serve(listener, app(db, embeddings))
         .with_graceful_shutdown(async {
             shutdown_signal().await;
             eprintln!("jobsearch ({VERSION}) shutting down");

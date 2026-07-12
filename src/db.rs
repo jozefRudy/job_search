@@ -1,6 +1,7 @@
 use crate::models::{Data, Job, JobFilter, Paginated, Platform, Rating, Sort};
 use anyhow::Result;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
+use std::collections::HashMap;
 use std::str::FromStr;
 
 #[derive(Clone)]
@@ -169,7 +170,10 @@ impl Db {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(std::convert::Into::into).collect())
+        // we need to maintain original order, so this just re-orders
+        let by_id: HashMap<i64, Job> = rows.into_iter().map(|r: JobRow| (r.id, r.into())).collect();
+        let jobs: Vec<Job> = ids.iter().filter_map(|id| by_id.get(id).cloned()).collect();
+        Ok(jobs)
     }
 
     pub async fn get_job(&self, id: i64) -> Result<Option<Job>> {
@@ -401,12 +405,46 @@ impl Db {
         Ok(Stats { total, by_platform })
     }
 
-    pub async fn get_job_ids_except(&self, _excluded_ids: &[i64], _limit: i64) -> Result<Vec<i64>> {
-        todo!()
+    pub async fn get_job_ids_except(&self, excluded_ids: &[i64], limit: i64) -> Result<Vec<i64>> {
+        let ids_json = serde_json::to_string(excluded_ids)?;
+        let ids = sqlx::query_scalar!(
+            r#"
+            SELECT id
+            FROM jobs
+            WHERE id NOT IN (SELECT value FROM json_each(?1))
+            ORDER BY created_at ASC
+            LIMIT ?2
+            "#,
+            ids_json,
+            limit
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(ids.into_iter().flatten().collect())
     }
 
-    pub async fn filter_job_ids(&self, _filter: &JobFilter) -> Result<Vec<i64>> {
-        todo!()
+    pub async fn filter_job_ids(&self, filter: &JobFilter) -> Result<Vec<i64>> {
+        let ids = sqlx::query_scalar!(
+            r#"
+            SELECT j.id
+            FROM jobs j
+            LEFT JOIN reactions r ON r.job_id = j.id
+            WHERE (?1 IS NULL OR j.platform = ?1)
+              AND (?2 IS NULL OR j.rating = ?2)
+              AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)
+              AND (?4 IS NULL OR j.remote = ?4)
+              AND (?5 IS NULL OR j.is_english = ?5)
+            ORDER BY j.id
+            "#,
+            filter.platform,
+            filter.rating,
+            filter.applied,
+            filter.remote,
+            filter.is_english,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(ids)
     }
 }
 
@@ -980,6 +1018,79 @@ mod tests {
             )
             .await?;
         assert_eq!(all.items.len(), 2);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_jobs_preserves_order() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let id1 = db
+            .upsert_job(&test_job(Platform::Upwork, "order1", "A"))
+            .await?;
+        let id2 = db
+            .upsert_job(&test_job(Platform::Upwork, "order2", "B"))
+            .await?;
+        let id3 = db
+            .upsert_job(&test_job(Platform::Upwork, "order3", "C"))
+            .await?;
+
+        let jobs = db.get_jobs(&[id3, id1, id2]).await?;
+        assert_eq!(jobs.len(), 3);
+        assert_eq!(jobs[0].id, id3);
+        assert_eq!(jobs[1].id, id1);
+        assert_eq!(jobs[2].id, id2);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_job_ids_except() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let id1 = db
+            .upsert_job(&test_job(Platform::Upwork, "u1", "A"))
+            .await?;
+        let _id2 = db
+            .upsert_job(&test_job(Platform::Upwork, "u2", "B"))
+            .await?;
+        let id3 = db
+            .upsert_job(&test_job(Platform::Upwork, "u3", "C"))
+            .await?;
+
+        let ids = db.get_job_ids_except(&[id1], 10).await?;
+        assert!(ids.contains(&id3));
+        assert!(!ids.contains(&id1));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_filter_job_ids() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let id1 = db
+            .upsert_job(&test_job(Platform::Upwork, "u1", "A"))
+            .await?;
+        let id2 = db
+            .upsert_job(&test_job(Platform::NoFluffJobs, "n1", "B"))
+            .await?;
+
+        let upwork = db
+            .filter_job_ids(&JobFilter {
+                platform: Some(Platform::Upwork),
+                ..Default::default()
+            })
+            .await?;
+        assert_eq!(upwork, vec![id1]);
+
+        let all = db.filter_job_ids(&JobFilter::default()).await?;
+        assert_eq!(all.len(), 2);
+        assert!(all.contains(&id2));
 
         Ok(())
     }

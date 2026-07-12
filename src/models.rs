@@ -266,7 +266,7 @@ pub struct Paginated<T> {
  *
  * `Relevance` is used only by the vector search path and is not DB-sortable.
  */
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Sort {
     #[default]
@@ -335,8 +335,9 @@ pub struct Job {
 }
 
 impl Job {
-    /// Single text blob from all available advert text for language detection.
-    fn advert_text(&self) -> String {
+    /// Single text blob from all available advert text for language detection and embedding.
+    #[must_use]
+    pub fn advert_text(&self) -> String {
         let mut text = self.title.clone();
         if let Some(d) = &self.description {
             text.push(' ');
