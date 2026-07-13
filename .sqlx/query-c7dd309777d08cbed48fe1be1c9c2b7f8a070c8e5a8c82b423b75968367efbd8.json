@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT id\n            FROM jobs\n            WHERE id NOT IN (SELECT value FROM json_each(?1))\n            ORDER BY created_at ASC\n            LIMIT ?2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "c7dd309777d08cbed48fe1be1c9c2b7f8a070c8e5a8c82b423b75968367efbd8"
+}

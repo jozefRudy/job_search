@@ -7,11 +7,13 @@
     self,
     nixpkgs,
   }: let
-    supportedSystems = ["x86_64-linux" "aarch64-darwin"];
+    supportedSystems = ["aarch64-darwin"];
     forEachSupportedSystem = f:
       nixpkgs.lib.genAttrs supportedSystems (
-        system:
-          f {pkgs = import nixpkgs {inherit system;};}
+        system: let
+          pkgs = import nixpkgs {inherit system;};
+        in
+          f {inherit pkgs;}
       );
   in {
     packages = forEachSupportedSystem ({pkgs}: let
@@ -46,13 +48,37 @@
         '';
       });
 
+      onnxruntime-bin = let
+        version = "1.24.2";
+        src = pkgs.fetchurl {
+          url = "https://github.com/microsoft/onnxruntime/releases/download/v${version}/onnxruntime-osx-arm64-${version}.tgz";
+          hash = "sha256-CvT6UD6OooUkW0fuQtCnRhuBVqgScIV9oMHU7PhYq94=";
+        };
+      in
+        pkgs.stdenvNoCC.mkDerivation {
+          inherit src version;
+          pname = "onnxruntime-bin";
+          dontBuild = true;
+          installPhase = ''
+            mkdir -p $out
+            cp -r lib $out/lib
+            cp -r include $out/include
+          '';
+        };
+
       job-search = pkgs.rustPlatform.buildRustPackage {
         pname = "job-search";
         version = self.shortRev or "dirty";
         src = self;
         cargoLock.lockFile = ./Cargo.lock;
-        nativeBuildInputs = with pkgs; [pkg-config];
-        env.GIT_HASH = self.shortRev or "dirty";
+        nativeBuildInputs = with pkgs; [pkg-config protobuf];
+        buildInputs = [onnxruntime-bin];
+        env = {
+          GIT_HASH = self.shortRev or "dirty";
+          SQLX_OFFLINE = "true";
+          ORT_PREFER_DYNAMIC_LINK = "1";
+          ORT_LIB_PATH = "${onnxruntime-bin}/lib";
+        };
         preBuild = ''
           mkdir -p frontend/dist
           cp -r ${frontend}/* frontend/dist/
