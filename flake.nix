@@ -107,7 +107,9 @@
         '';
       };
 
-      cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+      cargoArtifacts = craneLib.buildDepsOnly (commonArgs // {
+        src = craneLib.cleanCargoSource (craneLib.path ./.);
+      });
       job-search = craneLib.buildPackage (commonArgs // {inherit cargoArtifacts;});
     in {
       inherit frontend job-search;
