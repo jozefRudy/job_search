@@ -31,10 +31,6 @@ pub enum Commands {
     },
     Diagnose,
     SyncApplications(SyncApplicationsCmd),
-    SyncLikes {
-        from: std::path::PathBuf,
-        to: std::path::PathBuf,
-    },
     Embed(EmbedCmd),
 }
 

@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use anyhow::Result;
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs};
@@ -94,9 +94,6 @@ async fn main() -> Result<()> {
             cmd_diagnose(&db, &db_path).await?;
         }
         Commands::SyncApplications(cmd) => cmd_sync_applications(cmd, &db, &browser).await?,
-        Commands::SyncLikes { from, to } => {
-            cmd_sync_likes(&from, &to).await?;
-        }
         Commands::Embed(cmd) => {
             cmd_embed(cmd, &db, &db_path).await?;
         }
@@ -120,13 +117,12 @@ async fn cmd_embed(
     db_path: &std::path::Path,
 ) -> Result<()> {
     let store = open_embeddings_store(db, db_path).await?;
-    let indexed = store
+    let _indexed = store
         .index_unvectorized(cmd.batch_size, |total| {
             eprint!("\r    Indexed {total:>5} jobs");
         })
         .await?;
     eprintln!();
-    println!("Indexed {indexed} jobs");
     Ok(())
 }
 
@@ -291,25 +287,6 @@ async fn cmd_sync_applications(
             .await?;
         }
     }
-    Ok(())
-}
-
-async fn cmd_sync_likes(from: &std::path::Path, to: &std::path::Path) -> Result<()> {
-    if !from.exists() {
-        bail!("source file does not exist: {}", from.display());
-    }
-    if !to.exists() {
-        bail!("target file does not exist: {}", to.display());
-    }
-    let target = Db::open(to).await?;
-    let synced = target
-        .sync_likes(from.to_str().context("invalid source path")?)
-        .await?;
-    println!(
-        "Synced {} like{}",
-        synced,
-        if synced == 1 { "" } else { "s" }
-    );
     Ok(())
 }
 
