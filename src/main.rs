@@ -450,6 +450,37 @@ fn log_base(n: u64, base: u32) -> f64 {
     (n as f64).log(f64::from(base))
 }
 
+async fn dir_size(path: &std::path::Path) -> Result<u64> {
+    let mut total = 0u64;
+    let mut stack = vec![path.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let mut entries = tokio::fs::read_dir(&dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let meta = entry.metadata().await?;
+            if meta.is_file() {
+                total += meta.len();
+            } else if meta.is_dir() {
+                stack.push(entry.path());
+            }
+        }
+    }
+    Ok(total)
+}
+
+async fn subdir_sizes(path: &std::path::Path) -> Result<Vec<(String, u64)>> {
+    let mut result = Vec::new();
+    let mut entries = tokio::fs::read_dir(path).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        let meta = entry.metadata().await?;
+        if meta.is_dir() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let size = dir_size(&entry.path()).await?;
+            result.push((name, size));
+        }
+    }
+    Ok(result)
+}
+
 async fn cmd_diagnose(db: &Db, db_path: &std::path::Path) -> Result<()> {
     let file_size = std::fs::metadata(db_path).ok().map(|m| m.len());
     let stats = db.stats().await?;
@@ -467,6 +498,23 @@ async fn cmd_diagnose(db: &Db, db_path: &std::path::Path) -> Result<()> {
     println!("\nBy platform:");
     for (p, c) in &stats.by_platform {
         println!("  {p}: {c}");
+    }
+
+    let base_dir = db_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."));
+    let models_dir = base_dir.join("models");
+    if models_dir.exists() {
+        for (name, size) in subdir_sizes(&models_dir).await? {
+            println!("  {name}: {}", format_bytes(size));
+        }
+    }
+
+    let lance_dir = base_dir.join("lance");
+    if lance_dir.exists() {
+        for (name, size) in subdir_sizes(&lance_dir).await? {
+            println!("  {name}: {}", format_bytes(size));
+        }
     }
 
     Ok(())
