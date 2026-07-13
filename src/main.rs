@@ -473,9 +473,9 @@ async fn subdir_sizes(path: &std::path::Path) -> Result<Vec<(String, u64)>> {
     while let Some(entry) = entries.next_entry().await? {
         let meta = entry.metadata().await?;
         if meta.is_dir() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            let size = dir_size(&entry.path()).await?;
-            result.push((name, size));
+            let full_path = entry.path();
+            let size = dir_size(&full_path).await?;
+            result.push((full_path.to_string_lossy().to_string(), size));
         }
     }
     Ok(result)
@@ -495,25 +495,22 @@ async fn cmd_diagnose(db: &Db, db_path: &std::path::Path) -> Result<()> {
         file_size.map_or("unknown".to_string(), format_bytes)
     );
     println!("Total jobs: {}", stats.total);
-    println!("\nBy platform:");
-    for (p, c) in &stats.by_platform {
-        println!("  {p}: {c}");
-    }
 
     let base_dir = db_path
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."));
+
     let models_dir = base_dir.join("models");
     if models_dir.exists() {
         for (name, size) in subdir_sizes(&models_dir).await? {
-            println!("  {name}: {}", format_bytes(size));
+            println!("{name}: {}", format_bytes(size));
         }
     }
 
     let lance_dir = base_dir.join("lance");
     if lance_dir.exists() {
         for (name, size) in subdir_sizes(&lance_dir).await? {
-            println!("  {name}: {}", format_bytes(size));
+            println!("{name}: {}", format_bytes(size));
         }
     }
 
