@@ -117,6 +117,7 @@ async fn cmd_embed(
     db_path: &std::path::Path,
 ) -> Result<()> {
     let store = open_embeddings_store(db, db_path).await?;
+
     let _indexed = store
         .index_unvectorized(cmd.batch_size, |total| {
             eprint!("\r    Indexed {total:>5} jobs");
