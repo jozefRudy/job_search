@@ -3,27 +3,36 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    crane.url = "github:ipetkov/crane";
   };
 
   outputs = {
     self,
     nixpkgs,
+    crane,
   }: let
     supportedSystems = ["aarch64-darwin"];
     forEachSupportedSystem = f:
       nixpkgs.lib.genAttrs supportedSystems (
         system: let
           pkgs = import nixpkgs {inherit system;};
+          craneLib = crane.mkLib pkgs;
         in
-          f {inherit pkgs;}
+          f {inherit pkgs craneLib;}
       );
   in {
-    packages = forEachSupportedSystem ({pkgs}: let
+    packages = forEachSupportedSystem ({
+      pkgs,
+      craneLib,
+    }: let
       pnpm = pkgs.pnpm_10;
+
+      frontendVersion = (builtins.fromJSON (builtins.readFile ./frontend/package.json)).version;
+      cargoVersion = (fromTOML (builtins.readFile ./Cargo.toml)).package.version;
 
       frontend = pkgs.stdenv.mkDerivation (finalAttrs: {
         pname = "jobsearch-frontend";
-        version = self.shortRev or "dirty";
+        version = frontendVersion;
         src = ./frontend;
 
         nativeBuildInputs = [
@@ -68,42 +77,58 @@
           '';
         };
 
-      job-search = pkgs.rustPlatform.buildRustPackage {
+      srcForPackage = pkgs.lib.cleanSourceWith {
+        src = ./.;
+        filter = path: type: let
+          base = baseNameOf path;
+        in
+          !(
+            base
+            == ".git"
+            || base == ".devenv"
+            || base == ".direnv"
+            || base == "frontend"
+            || base == "models"
+            || base == "lance"
+            || base == "target"
+            || base == "jobsearch.db"
+            || base == "providers.md"
+          );
+      };
+
+      srcForDeps = craneLib.cleanCargoSource (craneLib.path ./.);
+
+      commonArgs = {
         pname = "job-search";
-        version = self.shortRev or "dirty";
-        src = pkgs.lib.cleanSourceWith {
-          src = ./.;
-          filter = path: type: let
-            base = baseNameOf path;
-          in
-            !(
-              base
-              == ".git"
-              || base == ".devenv"
-              || base == ".direnv"
-              || base == "frontend"
-              || base == "models"
-              || base == "lance"
-              || base == "target"
-              || base == "jobsearch.db"
-              || base == "providers.md"
-            );
-        };
-        cargoLock.lockFile = ./Cargo.lock;
+        version = cargoVersion;
+        src = srcForDeps;
         nativeBuildInputs = [pkgs.pkg-config pkgs.protobuf];
         buildInputs = [onnxruntime-bin];
         env = {
-          GIT_HASH = self.shortRev or "dirty";
           SQLX_OFFLINE = "true";
           ORT_PREFER_DYNAMIC_LINK = "1";
           ORT_LIB_PATH = "${onnxruntime-bin}/lib";
           RUSTFLAGS = "-Clink-arg=-Wl,-rpath,${onnxruntime-bin}/lib";
         };
-        preBuild = ''
-          mkdir -p frontend/dist
-          cp -r ${frontend}/* frontend/dist/
-        '';
       };
+
+      cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+
+      job-search = craneLib.buildPackage (commonArgs
+        // {
+          inherit cargoArtifacts;
+          src = srcForPackage;
+          version = self.shortRev or "dirty";
+          env =
+            commonArgs.env
+            // {
+              GIT_HASH = self.shortRev or "dirty";
+            };
+          preBuild = ''
+            mkdir -p frontend/dist
+            cp -r ${frontend}/* frontend/dist/
+          '';
+        });
     in {
       inherit frontend job-search;
       default = job-search;
