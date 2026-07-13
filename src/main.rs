@@ -7,6 +7,8 @@ use jobsearch::cli::{
     UpworkSortBy,
 };
 use jobsearch::db::Db;
+use jobsearch::embed::{DEFAULT_EMBEDDING_MODEL, Embedder};
+use jobsearch::embeddings_store::EmbeddingsStore;
 use jobsearch::language::LanguageService;
 use jobsearch::models::{JobFilter, Platform, Rating, Sort};
 use jobsearch::platforms::{
@@ -74,7 +76,7 @@ async fn main() -> Result<()> {
             cmd_init(&browser, DEFAULT_INIT_URLS).await?;
         }
         Commands::Update(update_cmd) => cmd_update(update_cmd, &db, &browser).await?,
-        Commands::List(cmd) => cmd_list_with_target(cmd, &db).await?,
+        Commands::List(cmd) => cmd_list_with_target(cmd, &db, &db_path).await?,
         Commands::Show(args) => {
             let jobs = db.get_jobs(&args.ids).await?;
             println!("{}", serde_json::to_string_pretty(&jobs)?);
@@ -86,7 +88,7 @@ async fn main() -> Result<()> {
             cmd_react(&db, cmd.action).await?;
         }
         Commands::Serve { port } => {
-            server::serve(db, port).await?;
+            server::serve(db, &db_path, port).await?;
         }
         Commands::Diagnose => {
             cmd_diagnose(&db, &db_path).await?;
@@ -95,9 +97,31 @@ async fn main() -> Result<()> {
         Commands::SyncLikes { from, to } => {
             cmd_sync_likes(&from, &to).await?;
         }
+        Commands::Embed(cmd) => {
+            cmd_embed(cmd, &db, &db_path).await?;
+        }
     }
 
     // Browser stays alive for reuse
+    Ok(())
+}
+
+async fn open_embeddings_store(db: &Db, db_path: &std::path::Path) -> Result<EmbeddingsStore> {
+    let cache_dir = db_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."));
+    let embedder = Embedder::load(cache_dir).await?;
+    EmbeddingsStore::open(db_path, DEFAULT_EMBEDDING_MODEL, db.clone(), embedder).await
+}
+
+async fn cmd_embed(
+    cmd: jobsearch::cli::EmbedCmd,
+    db: &Db,
+    db_path: &std::path::Path,
+) -> Result<()> {
+    let store = open_embeddings_store(db, db_path).await?;
+    let indexed = store.index_unvectorized(cmd.batch_size).await?;
+    println!("Indexed {indexed} jobs");
     Ok(())
 }
 
@@ -149,7 +173,11 @@ async fn cmd_update(
     Ok(())
 }
 
-async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<()> {
+async fn cmd_list_with_target(
+    cmd: jobsearch::cli::ListCmd,
+    db: &Db,
+    db_path: &std::path::Path,
+) -> Result<()> {
     match cmd.target {
         ListTarget::All(args) => {
             let filter = JobFilter {
@@ -157,13 +185,12 @@ async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<(
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,
-                is_english: args.common.english,
             };
             let sort = match args.sort {
                 CommonSortBy::Created => Sort::Created,
                 CommonSortBy::Applied => Sort::Applied,
             };
-            cmd_list(db, filter, sort).await?;
+            cmd_list(db, filter, sort, args.common.search, db_path).await?;
         }
         ListTarget::Upwork(args) => {
             let filter = JobFilter {
@@ -171,14 +198,13 @@ async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<(
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,
-                is_english: args.common.english,
             };
             let sort = match args.sort {
                 UpworkSortBy::Created => Sort::Created,
                 UpworkSortBy::UpworkViewed => Sort::UpworkViewed,
                 UpworkSortBy::Applied => Sort::Applied,
             };
-            cmd_list(db, filter, sort).await?;
+            cmd_list(db, filter, sort, args.common.search, db_path).await?;
         }
         ListTarget::Nofluff(args) => {
             let filter = JobFilter {
@@ -186,13 +212,12 @@ async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<(
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,
-                is_english: args.common.english,
             };
             let sort = match args.sort {
                 CommonSortBy::Created => Sort::Created,
                 CommonSortBy::Applied => Sort::Applied,
             };
-            cmd_list(db, filter, sort).await?;
+            cmd_list(db, filter, sort, args.common.search, db_path).await?;
         }
         ListTarget::Efinancialcareers(args) => {
             let filter = JobFilter {
@@ -200,13 +225,12 @@ async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<(
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,
-                is_english: args.common.english,
             };
             let sort = match args.sort {
                 CommonSortBy::Created => Sort::Created,
                 CommonSortBy::Applied => Sort::Applied,
             };
-            cmd_list(db, filter, sort).await?;
+            cmd_list(db, filter, sort, args.common.search, db_path).await?;
         }
         ListTarget::Hackernews(args) => {
             let filter = JobFilter {
@@ -214,13 +238,12 @@ async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<(
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,
-                is_english: args.common.english,
             };
             let sort = match args.sort {
                 CommonSortBy::Created => Sort::Created,
                 CommonSortBy::Applied => Sort::Applied,
             };
-            cmd_list(db, filter, sort).await?;
+            cmd_list(db, filter, sort, args.common.search, db_path).await?;
         }
         ListTarget::LinkedIn(args) => {
             let filter = JobFilter {
@@ -228,13 +251,12 @@ async fn cmd_list_with_target(cmd: jobsearch::cli::ListCmd, db: &Db) -> Result<(
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,
-                is_english: args.common.english,
             };
             let sort = match args.sort {
                 CommonSortBy::Created => Sort::Created,
                 CommonSortBy::Applied => Sort::Applied,
             };
-            cmd_list(db, filter, sort).await?;
+            cmd_list(db, filter, sort, args.common.search, db_path).await?;
         }
     }
     Ok(())
@@ -332,7 +354,26 @@ async fn fetch_and_store(
     Ok(())
 }
 
-async fn cmd_list(db: &Db, filter: JobFilter, sort: Sort) -> Result<()> {
+async fn cmd_list(
+    db: &Db,
+    filter: JobFilter,
+    sort: Sort,
+    search: Option<String>,
+    db_path: &std::path::Path,
+) -> Result<()> {
+    if let Some(query) = search.filter(|s| !s.is_empty()) {
+        let store = open_embeddings_store(db, db_path).await?;
+        let candidate_ids = db.filter_job_ids(&filter).await?;
+        let query_embedding = store.embedder().embed_query(&query).await?;
+        let ranked = store
+            .search(&query_embedding, &candidate_ids, 1000, 0)
+            .await?;
+        let ids: Vec<i64> = ranked.into_iter().map(|(id, _)| id).collect();
+        let jobs = db.get_jobs(&ids).await?;
+        println!("{}", serde_json::to_string_pretty(&jobs)?);
+        return Ok(());
+    }
+
     let jobs = db.list_jobs_filtered(&filter, sort, i64::MAX, 0).await?;
     println!("{}", serde_json::to_string_pretty(&jobs.items)?);
     Ok(())

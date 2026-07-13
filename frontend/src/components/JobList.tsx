@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from "@solidjs/router";
-import { isNotNil, pickBy } from "es-toolkit";
-import { createMemo, Show } from "solid-js";
+import { debounce, isNotNil, pickBy } from "es-toolkit";
+import { createMemo, onCleanup, Show } from "solid-js";
 import { z } from "zod";
 import {
   type Job,
@@ -51,6 +51,18 @@ const PLATFORM_SORTS: Record<
     { value: "created", label: "Created" },
     { value: "applied", label: "Applied" },
   ],
+  linkedin: [
+    { value: "created", label: "Created" },
+    { value: "applied", label: "Applied" },
+  ],
+};
+
+const PLATFORM_LABELS: Record<Platform, string> = {
+  upwork: "Upwork",
+  nofluffjobs: "NoFluffJobs",
+  efinancialcareers: "eFinancialCareers",
+  hackernews: "Hacker News",
+  linkedin: "LinkedIn",
 };
 
 type WithAny<T extends string> = T | "any";
@@ -89,12 +101,23 @@ export function JobList() {
     enumSchema(BOOL_FILTERS, "any").parse(searchParams.applied);
   const remote = (): BoolFilter =>
     enumSchema(BOOL_FILTERS, "any").parse(searchParams.remote);
-  const english = (): BoolFilter =>
-    enumSchema(BOOL_FILTERS, "any").parse(searchParams.is_english);
+
+  const search = (): string => {
+    const s = searchParams.search;
+
+    // useSearchParams returns string | string[] | undefined for each param. duplicate keys like ?search=a&search=b become arrays
+    if (Array.isArray(s)) {
+      return s[0] ?? "";
+    }
+    return s ?? "";
+  };
 
   const sortBy = (): Sort => {
     const key = platform();
     const supported = PLATFORM_SORTS[key].map((s) => s.value);
+    if (search()) {
+      return "relevance";
+    }
     return z
       .enum(supported as [Sort, ...Sort[]])
       .catch(supported[0])
@@ -103,6 +126,25 @@ export function JobList() {
 
   const page = (): number =>
     z.coerce.number().int().positive().catch(1).parse(searchParams.page);
+
+  const debouncedUpdateSearch = debounce((value: string) => {
+    if (value !== search()) {
+      updateSearch({ search: value });
+    }
+  }, 400);
+
+  onCleanup(() => debouncedUpdateSearch.cancel());
+
+  const handleSearchInput = (
+    e: InputEvent & {
+      currentTarget: HTMLInputElement;
+      target: HTMLInputElement;
+    },
+  ) => {
+    debouncedUpdateSearch(e.currentTarget.value);
+  };
+
+  const isSearchActive = () => search() !== "";
 
   const params = (): ListJobsParams =>
     pickBy(
@@ -114,7 +156,7 @@ export function JobList() {
         rating: rating() === "any" ? null : rating(),
         applied: applied() === "any" ? null : applied() === "true",
         remote: remote() === "any" ? null : remote() === "true",
-        is_english: english() === "any" ? null : english() === "true",
+        search: search() || undefined,
       },
       isNotNil,
     ) as ListJobsParams;
@@ -269,10 +311,9 @@ export function JobList() {
             onChange={(e) => updateSearch({ platform: e.currentTarget.value })}
           >
             <option value="any">Platforms: any</option>
-            <option value="upwork">Upwork</option>
-            <option value="nofluffjobs">NoFluffJobs</option>
-            <option value="efinancialcareers">eFinancialCareers</option>
-            <option value="hackernews">Hacker News</option>
+            {Object.values(PlatformEnum).map((p) => (
+              <option value={p}>{PLATFORM_LABELS[p]}</option>
+            ))}
           </select>
 
           <select
@@ -306,31 +347,32 @@ export function JobList() {
             <option value="false">Not remote</option>
           </select>
 
+          <input
+            ref={(el) => {
+              el.value = search();
+            }}
+            type="text"
+            class="input input-sm"
+            placeholder="Search..."
+            onInput={handleSearchInput}
+          />
+
           <select
             class="select select-sm"
-            value={english()}
-            onChange={(e) =>
-              updateSearch({ is_english: e.currentTarget.value })
-            }
+            value={sortBy()}
+            disabled={isSearchActive()}
+            onChange={(e) => updateSearch({ sort_by: e.currentTarget.value })}
           >
-            <option value="any">Language: any</option>
-            <option value="true">Language: English</option>
-            <option value="false">Language: non-English</option>
-          </select>
-
-          <Show when={PLATFORM_SORTS[platform()].length > 1}>
-            <select
-              class="select select-sm"
-              value={sortBy()}
-              onChange={(e) => updateSearch({ sort_by: e.currentTarget.value })}
-            >
-              {PLATFORM_SORTS[platform()].map(
+            {isSearchActive() ? (
+              <option value="relevance">Relevance</option>
+            ) : (
+              PLATFORM_SORTS[platform()].map(
                 (s: { value: Sort; label: string }) => (
                   <option value={s.value}>{s.label}</option>
                 ),
-              )}
-            </select>
-          </Show>
+              )
+            )}
+          </select>
         </Row>
 
         <Stack gap="md">

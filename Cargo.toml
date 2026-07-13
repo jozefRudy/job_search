@@ -36,6 +36,17 @@ tokio = { version = "1", features = ["full"] }
 chromiumoxide = "0.9"
 lingua = { version = "1.8.0", default-features = false, features = ["english", "french", "german", "spanish", "polish"] }
 
+
+fastembed = { version = "5", features = ["ort-download-binaries-native-tls", "hf-hub-native-tls"] }
+ort = { version = "=2.0.0-rc.12", features = ["coreml"] }
+
+lance = { version = "8.0", default-features = false }
+arrow = "58"
+arrow-array = "58"
+arrow-schema = "58"
+lance-linalg = "8.0"
+lance-index = "8.0"
+
 [dev-dependencies]
 tempfile = "3"
 

@@ -116,14 +116,6 @@ export function JobDetailContent(props: { job: Job }) {
             >
               {j.remote ? "remote" : "not remote"}
             </span>
-            <span
-              class={cn(
-                "badge badge-sm",
-                j.is_english ? "badge-success" : "badge-neutral",
-              )}
-            >
-              {j.is_english ? "English" : "non-English"}
-            </span>
           </Row>
         </div>
       </div>

@@ -49,8 +49,9 @@
             port = 8080;
             path = "/health";
           };
-          initial_delay_seconds = 5;
-          period_seconds = 2;
+          initial_delay_seconds = 10;
+          period_seconds = 5;
+          failure_threshold = 10;
         };
       };
     };

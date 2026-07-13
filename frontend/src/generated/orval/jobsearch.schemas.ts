@@ -30,7 +30,7 @@ export interface UpworkJobDetail {
 }
 
 /**
- * Full detail scraped from an individual NoFluffJobs job page.
+ * Full detail scraped from an individual `NoFluffJobs` job page.
  */
 export interface NoFluffJobDetail {
   company: string;
@@ -75,6 +75,20 @@ export interface HackerNewsJobDetail {
 }
 
 /**
+ * Full detail scraped from a LinkedIn job posting via Voyager API.
+ */
+export interface LinkedInJobDetail {
+  company: string;
+  description: string;
+  employment_type: string;
+  industries: string;
+  job_function: string;
+  location: string;
+  posted_at: string;
+  salary: string;
+}
+
+/**
  * Platform-specific scraped data stored on each job.
  */
 export type Data = {
@@ -89,6 +103,9 @@ export type Data = {
 } | {
   detail: HackerNewsJobDetail;
   platform: 'hackernews';
+} | {
+  detail: LinkedInJobDetail;
+  platform: 'linkedin';
 };
 
 export type Platform = typeof Platform[keyof typeof Platform];
@@ -99,6 +116,7 @@ export const Platform = {
   hackernews: 'hackernews',
   nofluffjobs: 'nofluffjobs',
   upwork: 'upwork',
+  linkedin: 'linkedin',
 } as const;
 
 export type Rating = typeof Rating[keyof typeof Rating];
@@ -122,7 +140,6 @@ export interface Job {
   description?: string | null;
   external_id: string;
   id: number;
-  is_english: boolean;
   /** @nullable */
   note?: string | null;
   platform: Platform;
@@ -149,7 +166,7 @@ export interface RateRequest {
  *
  *  * Sorts available in the API and CLI.
  *  *
- *  * All sorts are DB-sortable via generated columns.
+ *  * `Relevance` is used only by the vector search path and is not DB-sortable.
  */
 export type Sort = typeof Sort[keyof typeof Sort];
 
@@ -158,6 +175,7 @@ export const Sort = {
   created: 'created',
   upwork_viewed: 'upwork_viewed',
   applied: 'applied',
+  relevance: 'relevance',
 } as const;
 
 export type ListJobsParams = {
@@ -165,7 +183,7 @@ platform?: Platform;
 rating?: Rating;
 applied?: boolean;
 remote?: boolean;
-is_english?: boolean;
+search?: string;
 sort_by?: Sort;
 /**
  * @minimum 0

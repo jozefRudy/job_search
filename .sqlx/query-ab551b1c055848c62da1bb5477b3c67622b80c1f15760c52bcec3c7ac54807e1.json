@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT COUNT(*)\n            FROM jobs j\n            LEFT JOIN reactions r ON r.job_id = j.id\n            WHERE (?1 IS NULL OR j.platform = ?1)\n              AND (?2 IS NULL OR j.rating = ?2)\n              AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)\n              AND (?4 IS NULL OR j.remote = ?4)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "COUNT(*)",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ab551b1c055848c62da1bb5477b3c67622b80c1f15760c52bcec3c7ac54807e1"
+}

@@ -125,7 +125,6 @@ impl LinkedInScraper {
             .append_pair("geoId", GEO_ID)
             .append_pair("origin", "JOB_SEARCH_PAGE_JOB_FILTER")
             .append_pair("sortBy", SORT_BY_DATE)
-            .append_pair("spellCorrectionEnabled", "true")
             .finish();
         let mut url = Url::parse(LINKEDIN_JOBS_BASE_URL).expect("valid linkedin jobs base URL");
         url.set_query(Some(&params));
@@ -229,7 +228,7 @@ impl PlatformClient for LinkedInScraper {
                     .and_then(DateTime::from_timestamp_millis)
                     .unwrap_or_else(Utc::now);
 
-                let mut job = Job {
+                let job = Job {
                     id: 0,
                     platform: Platform::LinkedIn,
                     external_id: card.id,
@@ -246,12 +245,13 @@ impl PlatformClient for LinkedInScraper {
                     rating: Rating::Neutral,
                     applied_at: None,
                     remote: true,
-                    is_english: true,
                 };
-                job.is_english = crate::models::classify_language(&lang, &job).await?;
-                db.upsert_job(&job).await?;
-                state.inc_new();
-                eprint!("{}", state.progress_line(Some(total), &job.title));
+                let is_english = crate::models::classify_language(&lang, &job).await?;
+                if is_english {
+                    db.upsert_job(&job).await?;
+                    state.inc_new();
+                    eprint!("{}", state.progress_line(Some(total), &job.title));
+                }
                 sleep(Duration::from_millis(pause_ms)).await;
             }
 
@@ -278,7 +278,7 @@ fn build_voyager_query(since_days: u32) -> String {
     let seconds = u64::from(since_days) * 86400;
     let titles = TITLE_IDS.join(",");
     format!(
-        "(origin:JOB_SEARCH_PAGE_JOB_FILTER,locationUnion:(geoId:{GEO_ID}),selectedFilters:(sortBy:List({SORT_BY_DATE}),industry:List({INDUSTRY_ID}),title:List({titles}),timePostedRange:List(r{seconds}),workplaceType:List({WORKPLACE_TYPE_REMOTE})),spellCorrectionEnabled:true)"
+        "(origin:JOB_SEARCH_PAGE_JOB_FILTER,locationUnion:(geoId:{GEO_ID}),selectedFilters:(sortBy:List({SORT_BY_DATE}),industry:List({INDUSTRY_ID}),title:List({titles}),timePostedRange:List(r{seconds}),workplaceType:List({WORKPLACE_TYPE_REMOTE})))"
     )
 }
 

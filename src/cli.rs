@@ -35,6 +35,14 @@ pub enum Commands {
         from: std::path::PathBuf,
         to: std::path::PathBuf,
     },
+    Embed(EmbedCmd),
+}
+
+#[derive(Parser)]
+pub struct EmbedCmd {
+    /// Number of jobs to embed in one batch.
+    #[arg(long, default_value = "16")]
+    pub batch_size: usize,
 }
 
 #[derive(Parser)]
@@ -94,9 +102,9 @@ pub struct CommonListArgs {
     #[arg(long)]
     pub remote: Option<bool>,
 
-    /// Filter by English-language classification: true/false. Omit for all.
+    /// Search jobs by semantic query text.
     #[arg(long)]
-    pub english: Option<bool>,
+    pub search: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]

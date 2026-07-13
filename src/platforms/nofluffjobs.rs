@@ -568,13 +568,13 @@ impl NoFluffJobsScraper {
                             note: None,
                             applied_at: None,
                             remote: true,
-                            is_english: true,
                         };
                         let is_english = classify_language(&self.lang, &job).await?;
-                        let job = Job { is_english, ..job };
-                        db.upsert_job(&job).await?;
-                        state.inc_new();
-                        all_jobs.push(job);
+                        if is_english {
+                            db.upsert_job(&job).await?;
+                            state.inc_new();
+                            all_jobs.push(job);
+                        }
                     }
                     Err(e) => {
                         eprintln!(
@@ -842,10 +842,11 @@ impl NoFluffJobsScraper {
             note: None,
             applied_at: None,
             remote: true,
-            is_english: true,
         };
         let is_english = classify_language(&self.lang, &job).await?;
-        let job = Job { is_english, ..job };
+        if !is_english {
+            return Ok(None);
+        }
         Ok(Some(db.upsert_job(&job).await?))
     }
 

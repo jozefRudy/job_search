@@ -1,6 +1,7 @@
 /target
 jobsearch.db*
 *.db
+lance/
 
 # Frontend
 frontend/node_modules
@@ -16,3 +17,4 @@ devenv.local.yaml
 
 # pre-commit
 .pre-commit-config.yaml
+/models

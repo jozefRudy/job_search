@@ -267,8 +267,10 @@ impl EfinancialcareersScraper {
         };
 
         let job = self.build_job(card, detail).await?;
-        db.upsert_job(&job).await?;
-        state.inc_new();
+        if let Some(job) = job {
+            db.upsert_job(&job).await?;
+            state.inc_new();
+        }
 
         eprint!("{}", state.progress_line(Some(total_jobs), &card.title));
         Ok(())
@@ -368,7 +370,7 @@ impl EfinancialcareersScraper {
         &self,
         card: &EfinancialcareersJobCard,
         detail: EfinancialcareersJobDetail,
-    ) -> Result<Job> {
+    ) -> Result<Option<Job>> {
         let created_at = detail.posted_at;
         let salary = if detail.salary.is_empty() {
             card.salary.clone()
@@ -403,10 +405,12 @@ impl EfinancialcareersScraper {
             note: None,
             applied_at: None,
             remote,
-            is_english: true,
         };
         let is_english = classify_language(&self.lang, &job).await?;
-        Ok(Job { is_english, ..job })
+        if !is_english {
+            return Ok(None);
+        }
+        Ok(Some(job))
     }
 
     fn is_remote(detail: &EfinancialcareersJobDetail) -> bool {
@@ -733,10 +737,11 @@ impl EfinancialcareersScraper {
             note: None,
             applied_at: None,
             remote,
-            is_english: true,
         };
         let is_english = classify_language(&self.lang, &job).await?;
-        let job = Job { is_english, ..job };
+        if !is_english {
+            return Ok(None);
+        }
         Ok(Some(db.upsert_job(&job).await?))
     }
 }

@@ -264,15 +264,16 @@ pub struct Paginated<T> {
 /**
  * Sorts available in the API and CLI.
  *
- * All sorts are DB-sortable via generated columns.
+ * `Relevance` is used only by the vector search path and is not DB-sortable.
  */
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Sort {
     #[default]
     Created,
     UpworkViewed,
     Applied,
+    Relevance,
 }
 
 impl Sort {
@@ -282,6 +283,8 @@ impl Sort {
             Sort::Created => "j.created_at DESC",
             Sort::UpworkViewed => "j.upwork_last_viewed_at DESC NULLS LAST",
             Sort::Applied => "r.applied_at DESC NULLS LAST",
+            // `Relevance` is handled by the vector search path, not SQL.
+            Sort::Relevance => unreachable!("Relevance sort is not SQL-sortable"),
         }
     }
 }
@@ -300,7 +303,7 @@ pub struct ListQuery {
     pub rating: Option<Rating>,
     pub applied: Option<bool>,
     pub remote: Option<bool>,
-    pub is_english: Option<bool>,
+    pub search: Option<String>,
     #[serde(default)]
     pub sort_by: Sort,
     #[serde(default = "default_page")]
@@ -327,12 +330,12 @@ pub struct Job {
     pub rating: Rating,
     pub applied_at: Option<DateTime<Utc>>,
     pub remote: bool,
-    pub is_english: bool,
 }
 
 impl Job {
-    /// Single text blob from all available advert text for language detection.
-    fn advert_text(&self) -> String {
+    /// Single text blob from all available advert text for language detection and embedding.
+    #[must_use]
+    pub fn advert_text(&self) -> String {
         let mut text = self.title.clone();
         if let Some(d) = &self.description {
             text.push(' ');
@@ -416,7 +419,6 @@ pub struct JobFilter {
     pub applied: Option<bool>,
     pub rating: Option<Rating>,
     pub remote: Option<bool>,
-    pub is_english: Option<bool>,
 }
 
 /// Parsed budget value with consistent formatting.
@@ -873,7 +875,6 @@ mod tests {
             rating: Rating::Neutral,
             applied_at: None,
             remote: true,
-            is_english: true,
         };
         let en = classify_language(&svc, &job)
             .await
