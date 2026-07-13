@@ -84,10 +84,10 @@
                 || base == ".direnv"
                 || base == "frontend"
                 || base == "models"
+                || base == "lance"
                 || base == "target"
                 || base == "jobsearch.db"
                 || base == "providers.md"
-                || hasPrefix "embeddings-" base
               );
         };
         pname = "job-search";

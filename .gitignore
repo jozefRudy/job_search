@@ -1,7 +1,7 @@
 /target
 jobsearch.db*
 *.db
-embeddings-*.lance/
+lance/
 
 # Frontend
 frontend/node_modules

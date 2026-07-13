@@ -39,8 +39,10 @@ impl EmbeddingsStore {
         let base = sqlite_db_path.parent().unwrap_or_else(|| Path::new("."));
         tokio::fs::create_dir_all(base).await?;
         let model_dir = model_id.replace('/', "-");
-        let uri = base
-            .join(format!("embeddings-{model_dir}.lance"))
+        let lance_dir = base.join("lance");
+        tokio::fs::create_dir_all(&lance_dir).await?;
+        let uri = lance_dir
+            .join(format!("embeddings-{model_dir}"))
             .to_string_lossy()
             .to_string();
         let dim = embedder.dim();
@@ -335,6 +337,16 @@ mod tests {
         let (_tmp, _db, store) = test_store().await;
         let dataset = Dataset::open(&store.uri).await.unwrap();
         assert_eq!(dataset.schema().fields.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn open_uses_lance_subdirectory() {
+        let (tmp, _db, store) = test_store().await;
+        let expected = tmp
+            .path()
+            .join("lance")
+            .join("embeddings-nomic-ai-nomic-embed-text-v1.5");
+        assert_eq!(store.uri, expected.to_string_lossy().to_string());
     }
 
     #[tokio::test]
