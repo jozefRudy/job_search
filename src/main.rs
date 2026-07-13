@@ -489,12 +489,11 @@ async fn cmd_diagnose(db: &Db, db_path: &std::path::Path) -> Result<()> {
         .canonicalize()
         .unwrap_or_else(|_| db_path.to_path_buf());
 
-    println!("DB path: {}", abs_path.display());
     println!(
-        "DB file size: {}",
+        "{}: {}",
+        abs_path.display(),
         file_size.map_or("unknown".to_string(), format_bytes)
     );
-    println!("Total jobs: {}", stats.total);
 
     let base_dir = db_path
         .parent()
@@ -513,6 +512,7 @@ async fn cmd_diagnose(db: &Db, db_path: &std::path::Path) -> Result<()> {
             println!("{name}: {}", format_bytes(size));
         }
     }
+    println!("Total jobs: {}", stats.total);
 
     Ok(())
 }
