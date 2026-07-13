@@ -178,7 +178,14 @@ impl EmbeddingsStore {
         Ok(())
     }
 
-    pub async fn index_unvectorized(&self, batch_size: usize) -> Result<usize> {
+    pub async fn index_unvectorized<F>(
+        &self,
+        batch_size: usize,
+        mut on_progress: F,
+    ) -> Result<usize>
+    where
+        F: FnMut(usize),
+    {
         let mut total = 0;
         loop {
             let jobs = self
@@ -192,6 +199,7 @@ impl EmbeddingsStore {
             let ids: Vec<i64> = jobs.iter().map(|job| job.id).collect();
             self.upsert_batch(&ids, &embeddings).await?;
             total += ids.len();
+            on_progress(total);
         }
         self.maintenance().await?;
         Ok(total)
@@ -363,7 +371,12 @@ mod tests {
         .await
         .unwrap();
 
-        let indexed = store.index_unvectorized(16).await.unwrap();
+        let indexed = store
+            .index_unvectorized(16, |_total| {
+                // no-op progress callback in test
+            })
+            .await
+            .unwrap();
         assert_eq!(indexed, 2);
 
         let vectorized = store.list_vectorized_ids().await.unwrap();

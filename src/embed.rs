@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use fastembed::{EmbeddingModel, ExecutionProviderDispatch, TextEmbedding, TextInitOptions};
-use ort::ep::coreml::CoreML;
+use ort::ep::cpu::CPU;
 
 pub const DEFAULT_EMBEDDING_MODEL: &str = "nomic-ai/nomic-embed-text-v1.5";
 
@@ -24,7 +24,7 @@ impl Embedder {
             let options = TextInitOptions::new(EmbeddingModel::NomicEmbedTextV15)
                 .with_cache_dir(cache_dir)
                 .with_show_download_progress(true)
-                .with_execution_providers(vec![ExecutionProviderDispatch::from(CoreML::default())]);
+                .with_execution_providers(vec![ExecutionProviderDispatch::from(CPU::default())]);
             TextEmbedding::try_new(options)
         })
         .await??;

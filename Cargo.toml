@@ -38,7 +38,7 @@ lingua = { version = "1.8.0", default-features = false, features = ["english", "
 
 
 fastembed = { version = "5", features = ["ort-download-binaries-native-tls", "hf-hub-native-tls"] }
-ort = { version = "=2.0.0-rc.12", features = ["coreml"] }
+ort = { version = "=2.0.0-rc.12" }
 
 lance = { version = "8.0", default-features = false }
 arrow = "58"
