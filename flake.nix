@@ -3,25 +3,22 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    crane.url = "github:ipetkov/crane";
   };
 
   outputs = {
     self,
     nixpkgs,
-    crane,
   }: let
     supportedSystems = ["aarch64-darwin"];
     forEachSupportedSystem = f:
       nixpkgs.lib.genAttrs supportedSystems (
         system: let
           pkgs = import nixpkgs {inherit system;};
-          craneLib = crane.mkLib pkgs;
         in
-          f {inherit pkgs craneLib;}
+          f {inherit pkgs;}
       );
   in {
-    packages = forEachSupportedSystem ({pkgs, craneLib}: let
+    packages = forEachSupportedSystem ({pkgs}: let
       pnpm = pkgs.pnpm_10;
 
       frontend = pkgs.stdenv.mkDerivation (finalAttrs: {
@@ -71,15 +68,18 @@
           '';
         };
 
-      commonArgs = {
+      job-search = pkgs.rustPlatform.buildRustPackage {
+        pname = "job-search";
+        version = self.shortRev or "dirty";
         src = pkgs.lib.cleanSourceWith {
-          src = craneLib.path ./.;
+          src = ./.;
           filter = path: type:
             with pkgs.lib; let
               base = baseNameOf path;
             in
               !(
-                base == ".git"
+                base
+                == ".git"
                 || base == ".devenv"
                 || base == ".direnv"
                 || base == "frontend"
@@ -90,8 +90,7 @@
                 || base == "providers.md"
               );
         };
-        pname = "job-search";
-        version = self.shortRev or "dirty";
+        cargoLock.lockFile = ./Cargo.lock;
         nativeBuildInputs = [pkgs.pkg-config pkgs.protobuf];
         buildInputs = [onnxruntime-bin];
         env = {
@@ -106,11 +105,6 @@
           cp -r ${frontend}/* frontend/dist/
         '';
       };
-
-      cargoArtifacts = craneLib.buildDepsOnly (commonArgs // {
-        src = craneLib.cleanCargoSource (craneLib.path ./.);
-      });
-      job-search = craneLib.buildPackage (commonArgs // {inherit cargoArtifacts;});
     in {
       inherit frontend job-search;
       default = job-search;
