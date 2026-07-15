@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs};
+// TODO(phase1): Import `jobsearch::config::Settings` and drop per-provider `*Config` imports.
 use jobsearch::cli::{
     Cli, Commands, CommonSortBy, ListTarget, ReactAction, SyncPlatform, UpdatePlatform,
     UpworkSortBy,
@@ -22,6 +23,7 @@ use jobsearch::platforms::{
 use jobsearch::server;
 
 async fn cmd_init(manager: &BrowserManager, urls: &[&str]) -> Result<()> {
+    // TODO(phase1): Also create a sample `jobsearch.toml` config file.
     eprintln!("Launching Brave browser with {} tabs...", urls.len());
 
     let browser = manager.browser().await?;
@@ -69,6 +71,7 @@ async fn main() -> Result<()> {
     }
 
     let db = Db::open(&db_path).await?;
+    // TODO(phase1): Load `Settings` from config file (e.g. `~/.config/jobsearch/jobsearch.toml`).
     let browser = BrowserManager::new();
 
     match cli.command {
@@ -93,6 +96,7 @@ async fn main() -> Result<()> {
         Commands::Diagnose => {
             cmd_diagnose(&db, &db_path).await?;
         }
+        // TODO(phase1): Remove `SyncApplications` command handling.
         Commands::SyncApplications(cmd) => cmd_sync_applications(cmd, &db, &browser).await?,
         Commands::Embed(cmd) => {
             cmd_embed(cmd, &db, &db_path).await?;
@@ -132,24 +136,29 @@ async fn cmd_update(
     db: &Db,
     browser: &BrowserManager,
 ) -> Result<()> {
+    // TODO(phase1): For each provider, iterate `settings.providers.{name}.urls` and call `fetch_and_store` per URL.
     match update_cmd.platform {
         UpdatePlatform::Upwork(args) => {
+            // TODO(phase1): Use `UpworkScraper::new()`; search params move into the URL in `jobsearch.toml`.
             let scraper = UpworkScraper::with_config(args.tier, args.min_rate, args.client_hires);
             fetch_and_store(db, browser, &scraper, &args.query, args.pause).await?;
         }
         UpdatePlatform::Nofluff(args) => {
+            // TODO(phase1): Use `NoFluffJobsScraper::new(lang)`; remove `NoFluffJobsConfig` (all fields are in the URL now).
             let lang = LanguageService::new();
             let config = jobsearch::platforms::nofluffjobs::NoFluffJobsConfig {
                 path: "remote".to_string(),
                 min_salary_eur: args.min_salary,
                 employment: args.employment,
                 language: args.lang,
+                // TODO(phase1): Remove `salary_currency` from config.
                 salary_currency: "EUR".to_string(),
             };
             let scraper = NoFluffJobsScraper::with_config(config, lang);
             fetch_and_store(db, browser, &scraper, &args.query, args.pause).await?;
         }
         UpdatePlatform::Efinancialcareers(args) => {
+            // TODO(phase1): Use `EfinancialcareersScraper::new(lang)`; remove `EfinancialcareersConfig` (all fields are in the URL now).
             let lang = LanguageService::new();
             let config = EfinancialcareersConfig {
                 work_arrangement: "REMOTE".to_string(),
@@ -161,6 +170,7 @@ async fn cmd_update(
             fetch_and_store(db, browser, &scraper, &args.query, args.pause_ms).await?;
         }
         UpdatePlatform::Hackernews(args) => {
+            // TODO(phase1): Construct `HackerNewsScraper` with `settings.location` directly.
             let config = HackerNewsConfig {
                 location: args.location,
             };
@@ -168,6 +178,7 @@ async fn cmd_update(
             fetch_and_store(db, browser, &scraper, &args.query, 0).await?;
         }
         UpdatePlatform::LinkedIn(args) => {
+            // TODO(phase1): Construct `LinkedInScraper::new(url)` from config URL; it parses URL params for Voyager.
             let scraper = LinkedInScraper::new(args.since_days);
             fetch_and_store(db, browser, &scraper, "", args.pause_ms).await?;
         }
@@ -269,6 +280,7 @@ async fn cmd_sync_applications(
     db: &Db,
     browser: &BrowserManager,
 ) -> Result<()> {
+    // TODO(phase1): Remove this function (sync applications feature removed).
     match cmd.platform {
         SyncPlatform::Upwork(args) => {
             sync_apps(&UpworkScraper::new(), browser, db, args.pause_ms).await?;
@@ -297,6 +309,7 @@ async fn sync_apps(
     db: &Db,
     pause_ms: u64,
 ) -> Result<()> {
+    // TODO(phase1): Remove this function (sync applications feature removed).
     let browser = manager.browser().await?;
     eprintln!("Syncing applications from {}...", client.name());
     match client.sync_applications(&browser, db, pause_ms, None).await {
@@ -322,6 +335,7 @@ async fn fetch_and_store(
     query: &str,
     pause_ms: u64,
 ) -> Result<()> {
+    // TODO(phase1): Change parameter `query: &str` to `url: &str`.
     eprintln!("Fetching from {}...", client.name());
     match client
         .fetch_with_manager(manager, db, query, pause_ms)

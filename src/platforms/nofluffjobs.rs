@@ -427,6 +427,7 @@ impl PlatformClient for NoFluffJobsScraper {
         if !page_hosts.iter().any(|h| h.contains("nofluffjobs.com")) {
             bail!("NoFluffJobs requires open nofluffjobs.com tab in Brave");
         }
+        // TODO(phase1): Verify user is logged in (e.g. profile/auth cookie present); bail if not.
 
         self.fetch_jobs_via_browser(browser, db, query, pause_ms)
             .await
@@ -439,6 +440,7 @@ impl PlatformClient for NoFluffJobsScraper {
         pause_ms: u64,
         limit: Option<usize>,
     ) -> Result<FetchState> {
+        // TODO(phase1): Remove this trait implementation (sync applications feature removed).
         NoFluffJobsScraper::sync_applications(self, browser, db, pause_ms, limit).await
     }
 }
@@ -469,6 +471,7 @@ impl NoFluffJobsScraper {
     }
 
     async fn set_currency_cookie(&self, browser: &Browser) -> Result<()> {
+        // TODO(phase1): Remove currency cookie handling; use user's NoFluffJobs session default.
         browser
             .set_cookie(
                 "nfj_ui_settings_currency",
@@ -488,7 +491,10 @@ impl NoFluffJobsScraper {
         query: &str,
         pause_ms: u64,
     ) -> Result<FetchState> {
+        // TODO(phase1): Validate `url` host is nofluffjobs.com subdomain before using it.
+        // TODO(phase1): Use `url: &str` directly as the search URL; remove `build_search_url`.
         let search_url = self.build_search_url(query);
+        // TODO(phase1): Remove currency cookie call.
         self.set_currency_cookie(browser).await?;
         let page = browser.new_tab(&search_url).await?;
 
@@ -541,6 +547,7 @@ impl NoFluffJobsScraper {
                             let normalized = b.replace(['\u{00a0}', '\u{2007}', '\u{202f}'], " ");
                             if normalized.trim() == "Salary Match" {
                                 self.config.min_salary_eur.map(|min| {
+                                    // TODO(phase1): Remove currency from fallback budget text.
                                     let text = format!("{} {}", min, self.config.salary_currency);
                                     crate::extractors::budget::parse_nofluff_budget(&text)
                                         .map(|b| b.to_string())
@@ -661,6 +668,7 @@ impl NoFluffJobsScraper {
         let envelope: RawPostingEnvelope = self
             .client
             .get(&url)
+            // TODO(phase1): Remove `salaryCurrency` query param; use user's session default.
             .query(&[
                 ("salaryCurrency", self.config.salary_currency.as_str()),
                 ("salaryPeriod", "month"),
@@ -674,6 +682,7 @@ impl NoFluffJobsScraper {
     }
 
     /// Sync submitted applications from the `NoFluffJobs` profile page.
+    // TODO(phase1): Remove this method (sync applications feature removed).
     pub async fn sync_applications(
         &self,
         browser: &Browser,
@@ -691,6 +700,7 @@ impl NoFluffJobsScraper {
             bail!("NoFluffJobs requires open nofluffjobs.com tab in Brave");
         }
 
+        // TODO(phase1): Remove this method (sync applications feature removed).
         self.set_currency_cookie(browser).await?;
         let page = browser
             .new_tab("https://nofluffjobs.com/profile/my-applications")
@@ -887,11 +897,13 @@ impl Default for NoFluffJobsScraper {
 }
 
 #[derive(Debug, Clone)]
+// TODO(phase1): Remove `NoFluffJobsConfig`; all fields move into the URL in `jobsearch.toml`.
 pub struct NoFluffJobsConfig {
     pub path: String,
     pub min_salary_eur: Option<u32>,
     pub employment: Option<String>,
     pub language: Option<String>,
+    // TODO(phase1): Remove `salary_currency` field.
     pub salary_currency: String,
 }
 
@@ -956,6 +968,7 @@ fn dedupe_latest_by_posting(items: Vec<ApplicationItem>) -> Vec<ApplicationItem>
 #[cfg(test)]
 mod tests {
     use super::*;
+    // TODO(phase1): Update tests to assert URL parsing/host validation instead of URL building.
 
     #[test]
     fn test_build_search_url_default_with_query() {

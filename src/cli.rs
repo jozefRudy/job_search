@@ -1,4 +1,5 @@
 use crate::extractors::llm::DEFAULT_LLM_CLI;
+// TODO(phase1): Remove `UpworkTier` import; tier moves into the URL in `jobsearch.toml`.
 use crate::platforms::upwork::UpworkTier;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
@@ -30,6 +31,7 @@ pub enum Commands {
         port: u16,
     },
     Diagnose,
+    // TODO(phase1): Remove `SyncApplications` command and its related types.
     SyncApplications(SyncApplicationsCmd),
     Embed(EmbedCmd),
 }
@@ -134,11 +136,13 @@ pub struct UpdateCmd {
 }
 
 #[derive(Parser)]
+// TODO(phase1): Remove `SyncApplicationsCmd`.
 pub struct SyncApplicationsCmd {
     #[command(subcommand)]
     pub platform: SyncPlatform,
 }
 
+// TODO(phase1): Remove `SyncPlatform` enum entirely.
 #[derive(Subcommand)]
 #[command(rename_all = "lower")]
 pub enum SyncPlatform {
@@ -147,6 +151,7 @@ pub enum SyncPlatform {
     Efinancialcareers(SyncArgs),
 }
 
+// TODO(phase1): Remove `SyncArgs` (sync applications feature removed).
 #[derive(Args)]
 pub struct SyncArgs {
     /// Pause between interactions in ms (default: 2000)
@@ -202,6 +207,10 @@ pub enum UpdatePlatform {
     LinkedIn(LinkedInArgs),
 }
 
+// TODO(phase1): Simplify `UpdatePlatform` to unit variants: `Upwork`, `Nofluff`, `Efinancialcareers`, `Hackernews`, `LinkedIn`.
+// Per-provider args move to `jobsearch.toml`.
+
+// TODO(phase1): Remove `UpworkArgs`; all fields move to `jobsearch.toml`.
 #[derive(Args)]
 pub struct UpworkArgs {
     #[arg(short, long, default_value = "")]
@@ -224,6 +233,7 @@ pub struct UpworkArgs {
     pub pause: u64,
 }
 
+// TODO(phase1): Remove `NofluffArgs`; all fields move to `jobsearch.toml`.
 #[derive(Args)]
 pub struct NofluffArgs {
     #[arg(short, long, default_value = "")]
@@ -246,6 +256,7 @@ pub struct NofluffArgs {
     pub pause: u64,
 }
 
+// TODO(phase1): Remove `EfinancialcareersArgs`; all fields move to `jobsearch.toml`.
 #[derive(Args)]
 pub struct EfinancialcareersArgs {
     /// Job title/keyword to search.
@@ -261,6 +272,7 @@ pub struct EfinancialcareersArgs {
     pub pause_ms: u64,
 }
 
+// TODO(phase1): Remove `HackernewsArgs`; location is stored in `HackerNewsScraper` at construction, llm_cli stays as env or default.
 #[derive(Args)]
 pub struct HackernewsArgs {
     /// Keyword search passed to Algolia (default: empty = all job posts).
@@ -277,6 +289,7 @@ pub struct HackernewsArgs {
 }
 
 /// LinkedIn update arguments.
+// TODO(phase1): Remove `LinkedInArgs`; all fields move to `jobsearch.toml`.
 #[derive(Args)]
 pub struct LinkedInArgs {
     /// Number of days back to search (default: 30)

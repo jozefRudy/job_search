@@ -67,6 +67,7 @@ impl Default for HackerNewsConfig {
     }
 }
 
+// TODO(phase1): Move `location` storage into `HackerNewsScraper`; remove `HackerNewsConfig`.
 pub struct HackerNewsScraper {
     client: Client,
     extractor: LlmExtractor<llm_hackernews::ExtractFields>,
@@ -75,6 +76,7 @@ pub struct HackerNewsScraper {
 impl HackerNewsScraper {
     #[must_use]
     pub fn new(llm_cli: Option<String>, config: &HackerNewsConfig) -> Self {
+        // TODO(phase1): Replace `config: &HackerNewsConfig` with `location: &str` and store it in `self`.
         Self {
             client: Client::builder()
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
@@ -357,6 +359,8 @@ impl PlatformClient for HackerNewsScraper {
         query: &str,
         _pause_ms: u64,
     ) -> Result<FetchState> {
+        // TODO(phase1): HN no longer takes a per-run keyword. Ignore `query`/`url` and use
+        // `self.location` (stored in the scraper at construction).
         let jobs = self.fetch_new_jobs(db, query);
         self.store_jobs(db, jobs).await
     }

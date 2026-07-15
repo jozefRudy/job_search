@@ -437,6 +437,8 @@ impl PlatformClient for EfinancialcareersScraper {
     ) -> Result<FetchState> {
         self.ensure_efinancialcareers_tab(browser).await?;
 
+        // TODO(phase1): Validate `url` host is efinancialcareers.com subdomain before using it.
+        // TODO(phase1): Use `url: &str` directly as the search URL; remove `build_search_url`.
         let search_url = self.build_search_url(query);
         let page = browser.new_tab(&search_url).await?;
 
@@ -493,6 +495,7 @@ impl PlatformClient for EfinancialcareersScraper {
         pause_ms: u64,
         limit: Option<usize>,
     ) -> Result<FetchState> {
+        // TODO(phase1): Remove this implementation (sync applications feature removed).
         let auth = self.extract_auth(browser, pause_ms).await?;
         let items = self
             .fetch_application_items(browser, pause_ms, limit, &auth)
@@ -753,6 +756,7 @@ impl Default for EfinancialcareersScraper {
 }
 
 #[derive(Debug, Clone)]
+// TODO(phase1): Remove `EfinancialcareersConfig`; all fields move into the URL in `jobsearch.toml`.
 pub struct EfinancialcareersConfig {
     pub work_arrangement: String,
     pub min_salary: u32,
@@ -774,6 +778,7 @@ impl Default for EfinancialcareersConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // TODO(phase1): Update tests to assert URL parsing/host validation instead of URL building.
 
     #[test]
     fn test_build_search_url_with_keyword() {

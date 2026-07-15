@@ -128,6 +128,7 @@ pub struct UpworkSearchParams {
 }
 
 #[derive(Debug, Clone, Copy, Default, ValueEnum)]
+// TODO(phase1): Remove `UpworkTier` enum; tier is encoded in the configured URL.
 #[clap(rename_all = "kebab")]
 pub enum UpworkTier {
     #[default]
@@ -210,6 +211,7 @@ impl UpworkSearchParams {
 
 #[derive(Debug, Clone, Default)]
 pub struct UpworkScraper {
+    // TODO(phase1): Remove `tier`, `hourly_rate_min`, `client_hires`; all move into the URL in `jobsearch.toml`.
     pub tier: Option<UpworkTier>,
     pub hourly_rate_min: Option<u32>,
     pub client_hires: Option<String>,
@@ -460,6 +462,8 @@ impl PlatformClient for UpworkScraper {
     ) -> Result<FetchState> {
         self.ensure_upwork_tab(browser).await?;
 
+        // TODO(phase1): Validate `url` host is upwork.com subdomain before using it.
+        // TODO(phase1): Use `url: &str` directly as the search URL; remove UpworkSearchParams builder.
         let base_params = UpworkSearchParams::new(query)
             .tier(self.tier)
             .hourly_rate_min(self.hourly_rate_min)
@@ -523,6 +527,7 @@ impl PlatformClient for UpworkScraper {
         pause_ms: u64,
         limit: Option<usize>,
     ) -> Result<FetchState> {
+        // TODO(phase1): Remove this implementation (sync applications feature removed).
         let page_hosts: Vec<_> = browser
             .get_page_urls()
             .await?
@@ -699,6 +704,7 @@ impl UpworkScraper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // TODO(phase1): Update tests to assert URL parsing/host validation instead of URL building.
 
     #[test]
     fn test_build_search_url() {

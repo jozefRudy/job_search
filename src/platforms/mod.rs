@@ -15,6 +15,8 @@ pub trait PlatformClient: Send + Sync {
         pause_ms: u64,
     ) -> Result<FetchState>;
 
+    // TODO(phase1): Update `fetch_with_browser` signature: `query: &str` -> `url: &str`.
+    // Browser-based providers treat it as a URL; HN ignores it and uses `self.location`.
     async fn fetch_with_manager(
         &self,
         manager: &BrowserManager,
@@ -33,6 +35,7 @@ pub trait PlatformClient: Send + Sync {
         _pause_ms: u64,
         _limit: Option<usize>,
     ) -> Result<FetchState> {
+        // TODO(phase1): Remove `sync_applications` from the trait (feature removed).
         Err(anyhow::anyhow!(
             "sync_applications not implemented for {}",
             self.name()

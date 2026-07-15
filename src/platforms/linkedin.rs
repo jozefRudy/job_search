@@ -54,6 +54,7 @@ const PAGE_SIZE: usize = 25;
 const JOB_CARD_PRESENT_JS: &str = "!!document.querySelector('[data-job-id]')";
 
 pub struct LinkedInScraper {
+    // TODO(phase1): Parse search parameters from configured URL at construction; remove CLI `since_days`.
     since_days: u32,
 }
 
@@ -176,6 +177,10 @@ impl PlatformClient for LinkedInScraper {
     ) -> Result<FetchState> {
         self.ensure_linkedin_tab(browser).await?;
 
+        // TODO(phase1): Validate `url` host is linkedin.com subdomain before using it.
+        // TODO(phase1): Use `url: &str` as the LinkedIn search URL. Parse only these query params:
+        //   geoId, f_T, f_I, f_TPR, f_WT. Bail on unknown params. Ignore sortBy (hardcoded to most recent).
+        // Translate them into the Voyager search query. Voyager remains used for cards and details.
         let search_url = self.build_search_url();
         let page = browser.new_tab(&search_url).await?;
         let loaded = Self::wait_for_jobs(&page).await?;
@@ -304,6 +309,8 @@ pub async fn fetch_job_detail(page: &Page, job_id: u64) -> Result<LinkedInJobDet
 #[cfg(test)]
 mod tests {
     use super::*;
+    // TODO(phase1): Update tests to assert URL parsing or keep Voyager query builder tests.
+    // TODO(phase1): Add integration test for LinkedIn URL param -> Voyager query translation.
     use std::collections::HashMap;
 
     fn query_pairs(url: &str) -> HashMap<String, String> {
