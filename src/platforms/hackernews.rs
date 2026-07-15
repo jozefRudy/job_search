@@ -17,6 +17,7 @@ use std::pin::pin;
 
 const ALGOLIA_BASE: &str = "https://hn.algolia.com/api/v1";
 const THREAD_QUERY: &str = "Ask HN: Who is hiring";
+const DEFAULT_LOCATION: &str = "Europe";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct StoryHit {
@@ -48,26 +49,6 @@ struct CommentSearchResponse {
     nb_hits: usize,
 }
 
-#[derive(Debug, Clone)]
-pub struct HackerNewsConfig {
-    pub location: String,
-}
-
-impl HackerNewsConfig {
-    fn prompt_context(&self) -> String {
-        format!("Candidate location: {}", self.location)
-    }
-}
-
-impl Default for HackerNewsConfig {
-    fn default() -> Self {
-        Self {
-            location: "Europe".to_string(),
-        }
-    }
-}
-
-// TODO(phase1): Move `location` storage into `HackerNewsScraper`; remove `HackerNewsConfig`.
 pub struct HackerNewsScraper {
     client: Client,
     extractor: LlmExtractor<llm_hackernews::ExtractFields>,
@@ -75,15 +56,14 @@ pub struct HackerNewsScraper {
 
 impl HackerNewsScraper {
     #[must_use]
-    pub fn new(llm_cli: Option<String>, config: &HackerNewsConfig) -> Self {
-        // TODO(phase1): Replace `config: &HackerNewsConfig` with `location: &str` and store it in `self`.
+    pub fn new(llm_cli: Option<String>, location: &str) -> Self {
         Self {
             client: Client::builder()
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
                 .build()
                 .unwrap_or_else(|_| Client::new()),
             extractor: LlmExtractor::<llm_hackernews::ExtractFields>::from_cli(llm_cli)
-                .with_prompt_context(config.prompt_context()),
+                .with_prompt_context(format!("Candidate location: {location}")),
         }
     }
 
@@ -342,7 +322,7 @@ impl HackerNewsScraper {
 
 impl Default for HackerNewsScraper {
     fn default() -> Self {
-        Self::new(None, &HackerNewsConfig::default())
+        Self::new(None, DEFAULT_LOCATION)
     }
 }
 
@@ -356,12 +336,10 @@ impl PlatformClient for HackerNewsScraper {
         &self,
         _browser: &Browser,
         db: &Db,
-        query: &str,
+        _url: &str,
         _pause_ms: u64,
     ) -> Result<FetchState> {
-        // TODO(phase1): HN no longer takes a per-run keyword. Ignore `query`/`url` and use
-        // `self.location` (stored in the scraper at construction).
-        let jobs = self.fetch_new_jobs(db, query);
+        let jobs = self.fetch_new_jobs(db, "");
         self.store_jobs(db, jobs).await
     }
 }

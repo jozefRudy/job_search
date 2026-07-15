@@ -2,28 +2,40 @@ use anyhow::Result;
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs};
-// TODO(phase1): Import `jobsearch::config::Settings` and drop per-provider `*Config` imports.
 use jobsearch::cli::{
-    Cli, Commands, CommonSortBy, ListTarget, ReactAction, SyncPlatform, UpdatePlatform,
-    UpworkSortBy,
+    Cli, Commands, CommonSortBy, ListTarget, ReactAction, UpdatePlatform, UpworkSortBy,
 };
+use jobsearch::config::Settings;
 use jobsearch::db::Db;
 use jobsearch::embed::{DEFAULT_EMBEDDING_MODEL, Embedder};
 use jobsearch::embeddings_store::EmbeddingsStore;
 use jobsearch::language::LanguageService;
 use jobsearch::models::{JobFilter, Platform, Rating, Sort};
 use jobsearch::platforms::{
-    PlatformClient,
-    efinancialcareers::{EfinancialcareersConfig, EfinancialcareersScraper},
-    hackernews::{HackerNewsConfig, HackerNewsScraper},
-    linkedin::LinkedInScraper,
-    nofluffjobs::NoFluffJobsScraper,
-    upwork::UpworkScraper,
+    PlatformClient, efinancialcareers::EfinancialcareersScraper, hackernews::HackerNewsScraper,
+    linkedin::LinkedInScraper, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper,
 };
 use jobsearch::server;
 
+fn config_path() -> std::path::PathBuf {
+    ProjectDirs::from("", "", "jobsearch")
+        .expect("project dirs")
+        .config_dir()
+        .join("jobsearch.toml")
+}
+
 async fn cmd_init(manager: &BrowserManager, urls: &[&str]) -> Result<()> {
-    // TODO(phase1): Also create a sample `jobsearch.toml` config file.
+    let path = config_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    if !path.exists() {
+        let sample = Settings::sample();
+        let text = toml::to_string_pretty(&sample)?;
+        std::fs::write(&path, text)?;
+        eprintln!("Created sample config at {}", path.display());
+    }
+
     eprintln!("Launching Brave browser with {} tabs...", urls.len());
 
     let browser = manager.browser().await?;
@@ -71,14 +83,14 @@ async fn main() -> Result<()> {
     }
 
     let db = Db::open(&db_path).await?;
-    // TODO(phase1): Load `Settings` from config file (e.g. `~/.config/jobsearch/jobsearch.toml`).
+    let settings = Settings::load(&config_path())?;
     let browser = BrowserManager::new();
 
     match cli.command {
         Commands::Init => {
             cmd_init(&browser, DEFAULT_INIT_URLS).await?;
         }
-        Commands::Update(update_cmd) => cmd_update(update_cmd, &db, &browser).await?,
+        Commands::Update(update_cmd) => cmd_update(update_cmd, &db, &browser, &settings).await?,
         Commands::List(cmd) => cmd_list_with_target(cmd, &db, &db_path).await?,
         Commands::Show(args) => {
             let jobs = db.get_jobs(&args.ids).await?;
@@ -96,14 +108,11 @@ async fn main() -> Result<()> {
         Commands::Diagnose => {
             cmd_diagnose(&db, &db_path).await?;
         }
-        // TODO(phase1): Remove `SyncApplications` command handling.
-        Commands::SyncApplications(cmd) => cmd_sync_applications(cmd, &db, &browser).await?,
         Commands::Embed(cmd) => {
             cmd_embed(cmd, &db, &db_path).await?;
         }
     }
 
-    // Browser stays alive for reuse
     Ok(())
 }
 
@@ -135,52 +144,66 @@ async fn cmd_update(
     update_cmd: jobsearch::cli::UpdateCmd,
     db: &Db,
     browser: &BrowserManager,
+    settings: &Settings,
 ) -> Result<()> {
-    // TODO(phase1): For each provider, iterate `settings.providers.{name}.urls` and call `fetch_and_store` per URL.
+    let lang = LanguageService::new();
     match update_cmd.platform {
-        UpdatePlatform::Upwork(args) => {
-            // TODO(phase1): Use `UpworkScraper::new()`; search params move into the URL in `jobsearch.toml`.
-            let scraper = UpworkScraper::with_config(args.tier, args.min_rate, args.client_hires);
-            fetch_and_store(db, browser, &scraper, &args.query, args.pause).await?;
+        UpdatePlatform::Upwork => {
+            let scraper = UpworkScraper::new();
+            for url in &settings.providers.upwork.urls {
+                fetch_and_store(
+                    db,
+                    browser,
+                    &scraper,
+                    url,
+                    settings.provider_pause_ms("upwork"),
+                )
+                .await?;
+            }
         }
-        UpdatePlatform::Nofluff(args) => {
-            // TODO(phase1): Use `NoFluffJobsScraper::new(lang)`; remove `NoFluffJobsConfig` (all fields are in the URL now).
-            let lang = LanguageService::new();
-            let config = jobsearch::platforms::nofluffjobs::NoFluffJobsConfig {
-                path: "remote".to_string(),
-                min_salary_eur: args.min_salary,
-                employment: args.employment,
-                language: args.lang,
-                // TODO(phase1): Remove `salary_currency` from config.
-                salary_currency: "EUR".to_string(),
-            };
-            let scraper = NoFluffJobsScraper::with_config(config, lang);
-            fetch_and_store(db, browser, &scraper, &args.query, args.pause).await?;
+        UpdatePlatform::Nofluff => {
+            let scraper = NoFluffJobsScraper::new(lang);
+            for url in &settings.providers.nofluffjobs.urls {
+                fetch_and_store(
+                    db,
+                    browser,
+                    &scraper,
+                    url,
+                    settings.provider_pause_ms("nofluffjobs"),
+                )
+                .await?;
+            }
         }
-        UpdatePlatform::Efinancialcareers(args) => {
-            // TODO(phase1): Use `EfinancialcareersScraper::new(lang)`; remove `EfinancialcareersConfig` (all fields are in the URL now).
-            let lang = LanguageService::new();
-            let config = EfinancialcareersConfig {
-                work_arrangement: "REMOTE".to_string(),
-                min_salary: args.min_salary,
-                currency_code: "USD".to_string(),
-                language: "en".to_string(),
-            };
-            let scraper = EfinancialcareersScraper::with_config(config, lang);
-            fetch_and_store(db, browser, &scraper, &args.query, args.pause_ms).await?;
+        UpdatePlatform::Efinancialcareers => {
+            let scraper = EfinancialcareersScraper::new(lang);
+            for url in &settings.providers.efinancialcareers.urls {
+                fetch_and_store(
+                    db,
+                    browser,
+                    &scraper,
+                    url,
+                    settings.provider_pause_ms("efinancialcareers"),
+                )
+                .await?;
+            }
         }
-        UpdatePlatform::Hackernews(args) => {
-            // TODO(phase1): Construct `HackerNewsScraper` with `settings.location` directly.
-            let config = HackerNewsConfig {
-                location: args.location,
-            };
-            let scraper = HackerNewsScraper::new(Some(args.llm_cli), &config);
-            fetch_and_store(db, browser, &scraper, &args.query, 0).await?;
+        UpdatePlatform::Hackernews => {
+            let llm_cli = std::env::var("LLM_CLI").ok();
+            let scraper = HackerNewsScraper::new(llm_cli, &settings.location);
+            fetch_and_store(db, browser, &scraper, "", 0).await?;
         }
-        UpdatePlatform::LinkedIn(args) => {
-            // TODO(phase1): Construct `LinkedInScraper::new(url)` from config URL; it parses URL params for Voyager.
-            let scraper = LinkedInScraper::new(args.since_days);
-            fetch_and_store(db, browser, &scraper, "", args.pause_ms).await?;
+        UpdatePlatform::LinkedIn => {
+            for url in &settings.providers.linkedin.urls {
+                let scraper = LinkedInScraper::new(url);
+                fetch_and_store(
+                    db,
+                    browser,
+                    &scraper,
+                    url,
+                    settings.provider_pause_ms("linkedin"),
+                )
+                .await?;
+            }
         }
     }
     Ok(())
@@ -275,72 +298,15 @@ async fn cmd_list_with_target(
     Ok(())
 }
 
-async fn cmd_sync_applications(
-    cmd: jobsearch::cli::SyncApplicationsCmd,
-    db: &Db,
-    browser: &BrowserManager,
-) -> Result<()> {
-    // TODO(phase1): Remove this function (sync applications feature removed).
-    match cmd.platform {
-        SyncPlatform::Upwork(args) => {
-            sync_apps(&UpworkScraper::new(), browser, db, args.pause_ms).await?;
-        }
-        SyncPlatform::Nofluff(args) => {
-            let lang = LanguageService::new();
-            sync_apps(&NoFluffJobsScraper::new(lang), browser, db, args.pause_ms).await?;
-        }
-        SyncPlatform::Efinancialcareers(args) => {
-            let lang = LanguageService::new();
-            sync_apps(
-                &EfinancialcareersScraper::new(lang),
-                browser,
-                db,
-                args.pause_ms,
-            )
-            .await?;
-        }
-    }
-    Ok(())
-}
-
-async fn sync_apps(
-    client: &impl PlatformClient,
-    manager: &BrowserManager,
-    db: &Db,
-    pause_ms: u64,
-) -> Result<()> {
-    // TODO(phase1): Remove this function (sync applications feature removed).
-    let browser = manager.browser().await?;
-    eprintln!("Syncing applications from {}...", client.name());
-    match client.sync_applications(&browser, db, pause_ms, None).await {
-        Ok(state) => {
-            eprintln!("    {}", state.summary());
-        }
-        Err(e) => {
-            eprintln!();
-            eprintln!(
-                "\r    Error syncing applications from {}: {}",
-                client.name(),
-                e
-            );
-        }
-    }
-    Ok(())
-}
-
 async fn fetch_and_store(
     db: &Db,
     manager: &BrowserManager,
     client: &impl PlatformClient,
-    query: &str,
+    url: &str,
     pause_ms: u64,
 ) -> Result<()> {
-    // TODO(phase1): Change parameter `query: &str` to `url: &str`.
     eprintln!("Fetching from {}...", client.name());
-    match client
-        .fetch_with_manager(manager, db, query, pause_ms)
-        .await
-    {
+    match client.fetch_with_manager(manager, db, url, pause_ms).await {
         Ok(state) => {
             eprintln!("    {}", state.summary());
         }
