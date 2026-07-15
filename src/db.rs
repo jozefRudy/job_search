@@ -1,6 +1,6 @@
 use crate::models::{Data, Job, JobFilter, Paginated, Platform, Rating, Sort};
 use anyhow::Result;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePool};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSynchronous};
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -13,7 +13,13 @@ impl Db {
     pub async fn open(path: &std::path::Path) -> Result<Self> {
         let options = SqliteConnectOptions::from_str(&format!("sqlite:{}", path.display()))?
             .create_if_missing(true)
-            .foreign_keys(true);
+            .foreign_keys(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .synchronous(SqliteSynchronous::Normal)
+            .pragma("temp_store", "MEMORY")
+            .pragma("mmap_size", "134217728")
+            .pragma("journal_size_limit", "67108864")
+            .pragma("cache_size", "2000");
 
         let pool = SqlitePool::connect_with(options).await?;
         sqlx::migrate!("./migrations").run(&pool).await?;
