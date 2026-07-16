@@ -46,6 +46,14 @@ where
     .expect("test should complete within timeout");
 }
 
+fn efc_search_url(keyword: &str) -> String {
+    let keyword = keyword.trim();
+    let encoded = keyword.replace(' ', "+");
+    format!(
+        "https://www.efinancialcareers.com/jobs/remote?radius=50&radiusUnit=mi&pageSize=10&filters.workArrangementType=REMOTE&currencyCode=USD&filters.minSalary=100000&language=en&q={encoded}&includeUnspecifiedSalary=true&enableVectorSearch=true",
+    )
+}
+
 // --- Hacker News: fetch jobs via Algolia (no browser) ---
 
 #[tokio::test]
@@ -336,8 +344,11 @@ async fn test_efinancialcareers_search_page_has_cards_and_details() {
         let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new(
             LanguageService::new(),
         );
-        let search_url = "https://www.efinancialcareers.com/jobs/technology/developer";
-        let page = browser.new_tab(search_url).await.expect("open search page");
+        let search_url = efc_search_url("developer");
+        let page = browser
+            .new_tab(&search_url)
+            .await
+            .expect("open search page");
 
         let ok =
             jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::wait_for_jobs(&page)
@@ -409,8 +420,11 @@ async fn test_efinancialcareers_search_page_has_cards_and_details() {
 #[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
 async fn test_efinancialcareers_show_more_adds_jobs() {
     with_browser(60, |browser| async move {
-        let search_url = "https://www.efinancialcareers.com/jobs/technology";
-        let page = browser.new_tab(search_url).await.expect("open search page");
+        let search_url = efc_search_url("");
+        let page = browser
+            .new_tab(&search_url)
+            .await
+            .expect("open search page");
 
         assert!(
             jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::wait_for_jobs(&page)
@@ -460,9 +474,9 @@ async fn test_efinancialcareers_show_more_adds_jobs() {
 #[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
 async fn test_efinancialcareers_zero_results_returns_count_zero() {
     with_browser(45, |browser| async move {
-        let search_url = "https://www.efinancialcareers.com/jobs/technology/xyznonexistent12345thisshouldreturnnojobs";
+        let search_url = efc_search_url("xyznonexistent12345thisshouldreturnnojobs");
         let page = browser
-            .new_tab(search_url)
+            .new_tab(&search_url)
             .await
             .expect("open search page");
 
