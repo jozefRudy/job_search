@@ -18,10 +18,16 @@ use jobsearch::platforms::{
 use jobsearch::server;
 
 fn config_path() -> std::path::PathBuf {
-    ProjectDirs::from("", "", "jobsearch")
-        .expect("project dirs")
-        .config_dir()
-        .join("jobsearch.toml")
+    match std::env::var_os("JOBSEARCH_CONFIG_DIR") {
+        Some(dir) => {
+            let dir = shellexpand::path::tilde(&dir).into_owned();
+            dir.join("jobsearch.toml")
+        }
+        None => ProjectDirs::from("", "", "jobsearch")
+            .expect("project dirs")
+            .config_dir()
+            .join("jobsearch.toml"),
+    }
 }
 
 async fn cmd_init(manager: &BrowserManager, urls: &[&str]) -> Result<()> {
@@ -70,27 +76,32 @@ async fn cmd_init(manager: &BrowserManager, urls: &[&str]) -> Result<()> {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let db_path = std::env::var("DATABASE_URL")
+    let db_path = std::env::var("JOBSEARCH_DATABASE_URL")
         .ok()
         .and_then(|url| url.strip_prefix("sqlite:").map(std::path::PathBuf::from))
-        .unwrap_or_else(|| {
-            let dirs = ProjectDirs::from("", "", "jobsearch").expect("project dirs");
-            dirs.data_dir().join("jobsearch.db")
-        });
+        .map_or_else(
+            || {
+                let dirs = ProjectDirs::from("", "", "jobsearch").expect("project dirs");
+                dirs.data_dir().join("jobsearch.db")
+            },
+            |p| shellexpand::path::tilde(&p).into_owned(),
+        );
 
     if let Some(parent) = db_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
 
     let db = Db::open(&db_path).await?;
-    let settings = Settings::load(&config_path())?;
     let browser = BrowserManager::new();
 
     match cli.command {
         Commands::Init => {
             cmd_init(&browser, DEFAULT_INIT_URLS).await?;
         }
-        Commands::Update(update_cmd) => cmd_update(update_cmd, &db, &browser, &settings).await?,
+        Commands::Update(update_cmd) => {
+            let settings = Settings::load(&config_path())?;
+            cmd_update(update_cmd, &db, &browser, &settings).await?;
+        }
         Commands::List(cmd) => cmd_list_with_target(cmd, &db, &db_path).await?,
         Commands::Show(args) => {
             let jobs = db.get_jobs(&args.ids).await?;
