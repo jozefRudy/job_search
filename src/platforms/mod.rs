@@ -11,7 +11,7 @@ pub trait PlatformClient: Send + Sync {
         &self,
         browser: &Browser,
         db: &Db,
-        query: &str,
+        url: &str,
         pause_ms: u64,
     ) -> Result<FetchState>;
 
@@ -19,24 +19,11 @@ pub trait PlatformClient: Send + Sync {
         &self,
         manager: &BrowserManager,
         db: &Db,
-        query: &str,
+        url: &str,
         pause_ms: u64,
     ) -> Result<FetchState> {
         let browser = manager.browser().await?;
-        self.fetch_with_browser(&browser, db, query, pause_ms).await
-    }
-
-    async fn sync_applications(
-        &self,
-        _browser: &Browser,
-        _db: &Db,
-        _pause_ms: u64,
-        _limit: Option<usize>,
-    ) -> Result<FetchState> {
-        Err(anyhow::anyhow!(
-            "sync_applications not implemented for {}",
-            self.name()
-        ))
+        self.fetch_with_browser(&browser, db, url, pause_ms).await
     }
 }
 

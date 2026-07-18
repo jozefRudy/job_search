@@ -8,11 +8,12 @@
   packages = [pkgs.git pkgs.sqlx-cli];
   env = {
     SQLX_OFFLINE = "true";
-    DATABASE_URL = "sqlite:./jobsearch.db";
+    JOBSEARCH_DATABASE_URL = "sqlite:./jobsearch.db";
+    JOBSEARCH_CONFIG_DIR = "./";
   };
   enterShell = ''
-    cargo sqlx database create 2>/dev/null || true
-    cargo sqlx migrate run && cargo sqlx prepare -- --tests
+    cargo sqlx database create --database-url "$JOBSEARCH_DATABASE_URL" 2>/dev/null || true
+    cargo sqlx migrate run --database-url "$JOBSEARCH_DATABASE_URL" && cargo sqlx prepare --database-url "$JOBSEARCH_DATABASE_URL" -- --tests
   '';
 
   languages = {

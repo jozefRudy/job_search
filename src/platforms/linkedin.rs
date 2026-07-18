@@ -2,12 +2,14 @@ use crate::browser::{BrowserExt, wait_for_with_challenge_recovery};
 use crate::db::Db;
 use crate::models::{Budget, Data, Job, LinkedInJobDetail, Platform, Rating};
 use crate::platforms::{FetchState, PlatformClient};
+use crate::term::CursorGuard;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
 use chromiumoxide::Page;
 use chromiumoxide::browser::Browser;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
 use url::Url;
@@ -15,21 +17,11 @@ use url::Url;
 const VOYAGER_FETCH_JS: &str = include_str!("linkedin/voyager_fetch.js");
 const JOB_DETAIL_FETCH_JS: &str = include_str!("linkedin/job_detail_fetch.js");
 
-// Search filters
-const GEO_ID: &str = "92000000";
-const INDUSTRY_ID: &str = "4";
-const TITLE_IDS: &[&str] = &["9", "25201", "30128"];
-const WORKPLACE_TYPE_REMOTE: &str = "2";
-const SORT_BY_DATE: &str = "DD";
-
-// URL routes
-const LINKEDIN_JOBS_BASE_URL: &str = "https://www.linkedin.com/jobs/search/";
 const VOYAGER_BASE_URL: &str = "https://www.linkedin.com/voyager/api/voyagerJobsDashJobCards";
 const VOYAGER_GRAPHQL_BASE_URL: &str = "https://www.linkedin.com/voyager/api/graphql";
 const JOB_VIEW_BASE_URL: &str = "https://www.linkedin.com/jobs/view/";
 const JOB_POSTING_URN_PREFIX: &str = "urn:li:fsd_jobPosting:";
 
-// Voyager API identifiers
 const VOYAGER_DECORATION_ID: &str =
     "com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-220";
 const VOYAGER_JOB_DETAIL_QUERY_ID: &str =
@@ -43,19 +35,20 @@ const VOYAGER_JOB_DETAIL_CARDS: &[&str] = &[
     "SALARY_CARD",
 ];
 
-// JS placeholders
-const VOYAGER_URL_PLACEHOLDER: &str = "__VOYAGER_URL__";
+const JS_URL_PLACEHOLDER: &str = "__VOYAGER_URL__";
 const JOB_CONFIG_PLACEHOLDER: &str = "__JOB_CONFIG__";
 
-// Pagination
 const PAGE_SIZE: usize = 25;
-
-// DOM checks
 const JOB_CARD_PRESENT_JS: &str = "!!document.querySelector('[data-job-id]')";
 
-pub struct LinkedInScraper {
-    since_days: u32,
-}
+const DEFAULT_GEO_ID: &str = "92000000";
+const DEFAULT_INDUSTRY_ID: &str = "4";
+const DEFAULT_TITLE_IDS: &[&str] = &["9", "25201", "30128"];
+const DEFAULT_WORKPLACE_TYPE: &str = "2";
+const DEFAULT_SORT_BY: &str = "DD";
+const DEFAULT_TIME_POSTED_RANGE: &str = "r2592000";
+
+const SUPPORTED_PARAMS: &[&str] = &["geoId", "f_T", "f_I", "f_WT", "f_TPR", "sortBy"];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LinkedInJobCard {
@@ -108,27 +101,109 @@ impl From<LinkedInJobDetailJs> for LinkedInJobDetail {
     }
 }
 
-impl LinkedInScraper {
-    #[must_use]
-    pub fn new(since_days: u32) -> Self {
-        Self { since_days }
+#[derive(Debug, Clone)]
+struct LinkedInParams {
+    geo_id: String,
+    title_ids: Vec<String>,
+    industry_ids: Vec<String>,
+    workplace_types: Vec<String>,
+    time_posted_range: String,
+}
+
+impl Default for LinkedInParams {
+    fn default() -> Self {
+        Self {
+            geo_id: DEFAULT_GEO_ID.to_string(),
+            title_ids: DEFAULT_TITLE_IDS
+                .iter()
+                .copied()
+                .map(String::from)
+                .collect(),
+            industry_ids: vec![DEFAULT_INDUSTRY_ID.to_string()],
+            workplace_types: vec![DEFAULT_WORKPLACE_TYPE.to_string()],
+            time_posted_range: DEFAULT_TIME_POSTED_RANGE.to_string(),
+        }
+    }
+}
+
+impl LinkedInParams {
+    fn parse_url(url: &str) -> Result<Self> {
+        let parsed = Url::parse(url).map_err(|e| anyhow::anyhow!("invalid LinkedIn URL: {e}"))?;
+        let query: HashMap<String, String> = parsed.query_pairs().into_owned().collect();
+
+        for key in query.keys() {
+            if !SUPPORTED_PARAMS.contains(&key.as_str()) {
+                bail!("unsupported LinkedIn URL parameter: {key}");
+            }
+        }
+
+        let geo_id = query
+            .get("geoId")
+            .map_or_else(|| DEFAULT_GEO_ID.to_string(), String::clone);
+        let title_ids = query.get("f_T").map_or_else(
+            || {
+                DEFAULT_TITLE_IDS
+                    .iter()
+                    .copied()
+                    .map(String::from)
+                    .collect()
+            },
+            |s| s.split(',').map(String::from).collect(),
+        );
+        let industry_ids = query.get("f_I").map_or_else(
+            || vec![DEFAULT_INDUSTRY_ID.to_string()],
+            |s| s.split(',').map(String::from).collect(),
+        );
+        let workplace_types = query.get("f_WT").map_or_else(
+            || vec![DEFAULT_WORKPLACE_TYPE.to_string()],
+            |s| s.split(',').map(String::from).collect(),
+        );
+        let time_posted_range = query
+            .get("f_TPR")
+            .map_or_else(|| DEFAULT_TIME_POSTED_RANGE.to_string(), String::clone);
+
+        if !time_posted_range.starts_with('r') {
+            bail!("f_TPR must start with 'r' (e.g. r2592000)");
+        }
+
+        Ok(Self {
+            geo_id,
+            title_ids,
+            industry_ids,
+            workplace_types,
+            time_posted_range,
+        })
     }
 
+    fn build_voyager_query(&self) -> String {
+        format!(
+            "(origin:JOB_SEARCH_PAGE_JOB_FILTER,locationUnion:(geoId:{}),selectedFilters:(sortBy:List({}),industry:List({}),title:List({}),timePostedRange:List({}),workplaceType:List({})))",
+            self.geo_id,
+            DEFAULT_SORT_BY,
+            self.industry_ids.join(","),
+            self.title_ids.join(","),
+            self.time_posted_range,
+            self.workplace_types.join(",")
+        )
+    }
+
+    fn build_voyager_search_url(&self, start: usize) -> String {
+        let query = self.build_voyager_query();
+        format!(
+            "{VOYAGER_BASE_URL}?decorationId={VOYAGER_DECORATION_ID}&count={PAGE_SIZE}&q=jobSearch&query={query}&start={start}"
+        )
+    }
+}
+
+pub struct LinkedInScraper {
+    params: LinkedInParams,
+}
+
+impl LinkedInScraper {
     #[must_use]
-    pub fn build_search_url(&self) -> String {
-        let seconds = u64::from(self.since_days) * 86400;
-        let params = url::form_urlencoded::Serializer::new(String::new())
-            .append_pair("f_I", INDUSTRY_ID)
-            .append_pair("f_T", &TITLE_IDS.join(","))
-            .append_pair("f_TPR", &format!("r{seconds}"))
-            .append_pair("f_WT", WORKPLACE_TYPE_REMOTE)
-            .append_pair("geoId", GEO_ID)
-            .append_pair("origin", "JOB_SEARCH_PAGE_JOB_FILTER")
-            .append_pair("sortBy", SORT_BY_DATE)
-            .finish();
-        let mut url = Url::parse(LINKEDIN_JOBS_BASE_URL).expect("valid linkedin jobs base URL");
-        url.set_query(Some(&params));
-        url.to_string()
+    pub fn new(url: &str) -> Self {
+        let params = LinkedInParams::parse_url(url).unwrap_or_default();
+        Self { params }
     }
 
     async fn ensure_linkedin_tab(&self, browser: &Browser) -> Result<()> {
@@ -150,8 +225,8 @@ impl LinkedInScraper {
     }
 
     pub async fn fetch_page(&self, page: &Page, start: usize) -> Result<VoyagerCardsResult> {
-        let voyager_url = build_voyager_search_url(start, self.since_days);
-        let js = VOYAGER_FETCH_JS.replace(VOYAGER_URL_PLACEHOLDER, &voyager_url);
+        let voyager_url = self.params.build_voyager_search_url(start);
+        let js = VOYAGER_FETCH_JS.replace(JS_URL_PLACEHOLDER, &voyager_url);
         let result: VoyagerCardsResult = page.evaluate(js.as_str()).await?.into_value()?;
         Ok(result)
     }
@@ -171,13 +246,18 @@ impl PlatformClient for LinkedInScraper {
         &self,
         browser: &Browser,
         db: &Db,
-        _query: &str,
+        url: &str,
         pause_ms: u64,
     ) -> Result<FetchState> {
         self.ensure_linkedin_tab(browser).await?;
 
-        let search_url = self.build_search_url();
-        let page = browser.new_tab(&search_url).await?;
+        let parsed = Url::parse(url).map_err(|e| anyhow::anyhow!("invalid LinkedIn URL: {e}"))?;
+        let host = parsed.host_str().unwrap_or_default();
+        if !host.ends_with("linkedin.com") {
+            bail!("LinkedIn URL must be on linkedin.com subdomain");
+        }
+
+        let page = browser.new_tab(url).await?;
         let loaded = Self::wait_for_jobs(&page).await?;
         if !loaded {
             bail!("LinkedIn search page did not load. Ensure you are logged in at linkedin.com.");
@@ -186,7 +266,7 @@ impl PlatformClient for LinkedInScraper {
         let lang = crate::language::LanguageService::new();
         let mut no_cards_fetched = 0;
         let mut state = FetchState::new();
-        let _guard = crate::term::CursorGuard::new();
+        let _guard = CursorGuard::new();
 
         'pages: loop {
             let result = self.fetch_page(&page, no_cards_fetched).await?;
@@ -267,21 +347,6 @@ impl PlatformClient for LinkedInScraper {
     }
 }
 
-fn build_voyager_search_url(start: usize, since_days: u32) -> String {
-    let query = build_voyager_query(since_days);
-    format!(
-        "{VOYAGER_BASE_URL}?decorationId={VOYAGER_DECORATION_ID}&count={PAGE_SIZE}&q=jobSearch&query={query}&start={start}"
-    )
-}
-
-fn build_voyager_query(since_days: u32) -> String {
-    let seconds = u64::from(since_days) * 86400;
-    let titles = TITLE_IDS.join(",");
-    format!(
-        "(origin:JOB_SEARCH_PAGE_JOB_FILTER,locationUnion:(geoId:{GEO_ID}),selectedFilters:(sortBy:List({SORT_BY_DATE}),industry:List({INDUSTRY_ID}),title:List({titles}),timePostedRange:List(r{seconds}),workplaceType:List({WORKPLACE_TYPE_REMOTE})))"
-    )
-}
-
 pub async fn fetch_job_detail(page: &Page, job_id: u64) -> Result<LinkedInJobDetail> {
     let job_posting_urn = format!("{JOB_POSTING_URN_PREFIX}{job_id}");
     let config = JobDetailConfig {
@@ -304,46 +369,50 @@ pub async fn fetch_job_detail(page: &Page, job_id: u64) -> Result<LinkedInJobDet
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
 
-    fn query_pairs(url: &str) -> HashMap<String, String> {
-        Url::parse(url)
-            .expect("valid URL")
-            .query_pairs()
-            .into_owned()
-            .collect()
+    #[test]
+    fn test_parse_url_defaults() {
+        let params = LinkedInParams::parse_url("https://www.linkedin.com/jobs/search/").unwrap();
+        assert_eq!(params.geo_id, DEFAULT_GEO_ID);
+        assert_eq!(params.title_ids, DEFAULT_TITLE_IDS);
+        assert_eq!(params.industry_ids, vec![DEFAULT_INDUSTRY_ID]);
+        assert_eq!(params.workplace_types, vec![DEFAULT_WORKPLACE_TYPE]);
+        assert_eq!(params.time_posted_range, DEFAULT_TIME_POSTED_RANGE);
     }
 
     #[test]
-    fn test_build_search_url_defaults() {
-        let scraper = LinkedInScraper::new(30);
-        let pairs = query_pairs(&scraper.build_search_url());
-        assert_eq!(pairs["f_I"], "4");
-        assert_eq!(pairs["f_T"], "9,25201,30128");
-        assert_eq!(pairs["f_TPR"], "r2592000");
-        assert_eq!(pairs["f_WT"], "2");
-        assert_eq!(pairs["geoId"], GEO_ID);
-        assert_eq!(pairs["sortBy"], SORT_BY_DATE);
+    fn test_parse_url_custom_params() {
+        let url = "https://www.linkedin.com/jobs/search/?f_TPR=r604800&f_WT=2&geoId=12345&f_T=9,25201&f_I=4";
+        let params = LinkedInParams::parse_url(url).unwrap();
+        assert_eq!(params.geo_id, "12345");
+        assert_eq!(params.title_ids, vec!["9", "25201"]);
+        assert_eq!(params.industry_ids, vec!["4"]);
+        assert_eq!(params.workplace_types, vec!["2"]);
+        assert_eq!(params.time_posted_range, "r604800");
     }
 
     #[test]
-    fn test_build_search_url_since_days() {
-        let scraper = LinkedInScraper::new(7);
-        let pairs = query_pairs(&scraper.build_search_url());
-        assert_eq!(pairs["f_TPR"], "r604800");
+    fn test_parse_url_rejects_unknown_param() {
+        let url = "https://www.linkedin.com/jobs/search/?f_T=9&foo=bar";
+        assert!(LinkedInParams::parse_url(url).is_err());
+    }
+
+    #[test]
+    fn test_build_voyager_query() {
+        let params = LinkedInParams::default();
+        let query = params.build_voyager_query();
+        assert!(query.contains(&format!("geoId:{DEFAULT_GEO_ID}")));
+        assert!(query.contains("timePostedRange:List(r2592000)"));
+        assert!(query.contains("workplaceType:List(2)"));
+        assert!(query.contains("title:List(9,25201,30128)"));
     }
 
     #[test]
     fn test_build_voyager_search_url() {
-        let url = build_voyager_search_url(0, 30);
-        let pairs = query_pairs(&url);
-        assert_eq!(pairs["decorationId"], VOYAGER_DECORATION_ID);
-        assert_eq!(pairs["count"], "25");
-        assert_eq!(pairs["q"], "jobSearch");
-        assert_eq!(pairs["start"], "0");
-        let query = &pairs["query"];
-        assert!(query.contains("timePostedRange:List(r2592000)"));
-        assert!(query.contains("workplaceType:List(2)"));
-        assert!(query.contains("title:List(9,25201,30128)"));
+        let params = LinkedInParams::default();
+        let url = params.build_voyager_search_url(0);
+        assert!(url.starts_with(VOYAGER_BASE_URL));
+        assert!(url.contains(&format!("decorationId={VOYAGER_DECORATION_ID}")));
+        assert!(url.contains("count=25"));
     }
 }

@@ -2,7 +2,6 @@ use chromiumoxide::browser::Browser;
 use futures::FutureExt;
 use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS};
 use jobsearch::language::LanguageService;
-use jobsearch::platforms::PlatformClient;
 use jobsearch::platforms::linkedin::{LinkedInScraper, fetch_job_detail};
 use jobsearch::platforms::upwork::UpworkScraper;
 use std::sync::LazyLock;
@@ -47,15 +46,25 @@ where
     .expect("test should complete within timeout");
 }
 
+fn efc_search_url(keyword: &str) -> String {
+    let keyword = keyword.trim();
+    let encoded = keyword.replace(' ', "+");
+    format!(
+        "https://www.efinancialcareers.com/jobs/remote?radius=50&radiusUnit=mi&pageSize=10&filters.workArrangementType=REMOTE&currencyCode=USD&filters.minSalary=100000&language=en&q={encoded}&includeUnspecifiedSalary=true&enableVectorSearch=true",
+    )
+}
+
 // --- Hacker News: fetch jobs via Algolia (no browser) ---
 
 #[tokio::test]
 #[ignore = "requires network access to Hacker News Algolia API"]
 async fn test_hackernews_fetch_comments() {
-    let config = jobsearch::platforms::hackernews::HackerNewsConfig {
-        location: "Europe".to_string(),
-    };
-    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(None, &config);
+    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(
+        None,
+        "Europe",
+        "https://hn.algolia.com/api/v1/search_by_date",
+    )
+    .expect("HackerNewsScraper should be created");
     let comments = scraper
         .fetch_top_level_comments("rust", Some(5))
         .await
@@ -77,11 +86,9 @@ async fn test_hackernews_fetch_comments() {
 #[ignore = "requires Brave browser installed and upwork.com logged in"]
 async fn test_upwork_search_page_has_cards() {
     with_browser(45, |browser| async move {
-        let search_url = UpworkScraper::build_search_url("rust", None, None, None, 1);
-        let page = browser
-            .new_tab(&search_url)
-            .await
-            .expect("open search page");
+        let search_url =
+            "https://www.upwork.com/nx/search/jobs/?q=rust&sort=recency&per_page=50&t=0";
+        let page = browser.new_tab(search_url).await.expect("open search page");
 
         let ok = UpworkScraper::wait_for_jobs(&page)
             .await
@@ -119,8 +126,9 @@ async fn test_upwork_search_page_has_cards() {
 async fn test_upwork_job_detail_fetch() {
     with_browser(60, |browser| async move {
         // Grab a job URL from search
-        let search_url = UpworkScraper::build_search_url("rust", None, None, None, 1);
-        let page = browser.new_tab(&search_url).await.expect("open search");
+        let search_url =
+            "https://www.upwork.com/nx/search/jobs/?q=rust&sort=recency&per_page=50&t=0";
+        let page = browser.new_tab(search_url).await.expect("open search");
 
         assert!(
             UpworkScraper::wait_for_jobs(&page)
@@ -137,7 +145,7 @@ async fn test_upwork_job_detail_fetch() {
 
         let scraper = UpworkScraper::new();
         let detail = scraper
-            .fetch_job_detail(&browser, &job_url)
+            .fetch_job_detail(browser.as_ref(), job_url.as_str())
             .await
             .expect("fetch_job_detail should succeed");
 
@@ -174,11 +182,9 @@ async fn test_upwork_job_detail_fetch() {
 #[ignore = "requires Brave browser installed and upwork.com logged in"]
 async fn test_upwork_pagination_has_next_page() {
     with_browser(60, |browser| async move {
-        let search_url = UpworkScraper::build_search_url("rust", None, None, None, 1);
-        let page = browser
-            .new_tab(&search_url)
-            .await
-            .expect("open search page");
+        let search_url =
+            "https://www.upwork.com/nx/search/jobs/?q=rust&sort=recency&per_page=50&t=0";
+        let page = browser.new_tab(search_url).await.expect("open search page");
 
         assert!(
             UpworkScraper::wait_for_jobs(&page)
@@ -208,8 +214,9 @@ async fn test_upwork_pagination_has_next_page() {
             return;
         }
 
-        let next_url = UpworkScraper::build_search_url("rust", None, None, None, 2);
-        page.goto(&next_url).await.expect("goto page 2");
+        let next_url =
+            "https://www.upwork.com/nx/search/jobs/?q=rust&sort=recency&per_page=50&t=0&page=2";
+        page.goto(next_url).await.expect("goto page 2");
         page.wait_for_navigation().await.expect("navigation");
 
         assert!(
@@ -233,68 +240,6 @@ async fn test_upwork_pagination_has_next_page() {
     .await;
 }
 
-// --- Upwork: sync applications ---
-
-#[tokio::test]
-#[ignore = "requires Brave browser installed and upwork.com logged in"]
-async fn test_upwork_sync_applications() {
-    with_browser(120, |browser| async move {
-        let tmp = tempfile::NamedTempFile::new().expect("temp db");
-        let db = jobsearch::db::Db::open(tmp.path()).await.expect("open db");
-        let scraper = UpworkScraper::new();
-
-        let synced = scraper
-            .sync_applications(&browser, &db, 500, Some(1))
-            .await
-            .expect("sync_applications should succeed");
-
-        if synced.checked() == 0 {
-            println!("No new submitted proposals found — skipping DB assertions");
-            return;
-        }
-
-        let jobs = db
-            .list_jobs(
-                Some(jobsearch::models::Platform::Upwork),
-                jobsearch::models::Sort::Created,
-                i64::MAX,
-            )
-            .await
-            .expect("list jobs");
-
-        let applied_jobs: Vec<_> = jobs
-            .into_iter()
-            .filter(|j| j.applied_at.is_some())
-            .collect();
-        assert!(
-            !applied_jobs.is_empty(),
-            "at least one job should have applied_at set"
-        );
-
-        for job in &applied_jobs {
-            println!(
-                "applied: {} | applied_at: {:?} | note_len: {:?}",
-                job.title,
-                job.applied_at,
-                job.note.as_ref().map(std::string::String::len)
-            );
-            assert!(
-                job.budget.is_some(),
-                "synced job should have budget from detail"
-            );
-            assert!(
-                !job.tags.is_empty(),
-                "synced job should have tags from detail"
-            );
-            assert!(
-                job.created_at < chrono::Utc::now() - chrono::Duration::minutes(1),
-                "synced job should have posted date, not now"
-            );
-        }
-    })
-    .await;
-}
-
 // --- NoFluffJobs: search page ---
 
 #[tokio::test]
@@ -303,11 +248,8 @@ async fn test_nofluffjobs_search_page_has_cards_and_details() {
     with_browser(45, |browser| async move {
         let scraper =
             jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new(LanguageService::new());
-        let search_url = scraper.build_search_url("rust");
-        let page = browser
-            .new_tab(&search_url)
-            .await
-            .expect("open search page");
+        let search_url = "https://nofluffjobs.com/remote?criteria=keyword%3Drust&sort=newest";
+        let page = browser.new_tab(search_url).await.expect("open search page");
 
         let ok = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::wait_for_jobs(&page)
             .await
@@ -355,13 +297,8 @@ async fn test_nofluffjobs_search_page_has_cards_and_details() {
 #[ignore = "requires Brave browser installed and nofluffjobs.com accessible"]
 async fn test_nofluffjobs_load_more_adds_jobs() {
     with_browser(60, |browser| async move {
-        let scraper =
-            jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new(LanguageService::new());
-        let search_url = scraper.build_search_url("rust");
-        let page = browser
-            .new_tab(&search_url)
-            .await
-            .expect("open search page");
+        let search_url = "https://nofluffjobs.com/remote?criteria=keyword%3Drust&sort=newest";
+        let page = browser.new_tab(search_url).await.expect("open search page");
 
         assert!(
             jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::wait_for_jobs(&page)
@@ -412,7 +349,7 @@ async fn test_efinancialcareers_search_page_has_cards_and_details() {
         let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new(
             LanguageService::new(),
         );
-        let search_url = scraper.build_search_url("developer");
+        let search_url = efc_search_url("developer");
         let page = browser
             .new_tab(&search_url)
             .await
@@ -453,7 +390,7 @@ async fn test_efinancialcareers_search_page_has_cards_and_details() {
 
         let http = reqwest::Client::new();
         let detail = scraper
-            .fetch_detail(&http, &first.external_id)
+            .fetch_detail(&http, first.external_id.as_str())
             .await
             .expect("fetch_detail should succeed");
         assert!(
@@ -488,10 +425,7 @@ async fn test_efinancialcareers_search_page_has_cards_and_details() {
 #[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
 async fn test_efinancialcareers_show_more_adds_jobs() {
     with_browser(60, |browser| async move {
-        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new(
-            LanguageService::new(),
-        );
-        let search_url = scraper.build_search_url("");
+        let search_url = efc_search_url("");
         let page = browser
             .new_tab(&search_url)
             .await
@@ -545,10 +479,7 @@ async fn test_efinancialcareers_show_more_adds_jobs() {
 #[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
 async fn test_efinancialcareers_zero_results_returns_count_zero() {
     with_browser(45, |browser| async move {
-        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new(
-            LanguageService::new(),
-        );
-        let search_url = scraper.build_search_url("xyznonexistent12345thisshouldreturnnojobs");
+        let search_url = efc_search_url("xyznonexistent12345thisshouldreturnnojobs");
         let page = browser
             .new_tab(&search_url)
             .await
@@ -572,150 +503,16 @@ async fn test_efinancialcareers_zero_results_returns_count_zero() {
     .await;
 }
 
-// --- eFinancialCareers: sync applications ---
-
-#[tokio::test]
-#[ignore = "requires Brave browser installed and efinancialcareers.com logged in"]
-async fn test_efinancialcareers_sync_applications() {
-    with_browser(120, |browser| async move {
-        let tmp = tempfile::NamedTempFile::new().expect("temp db");
-        let db = jobsearch::db::Db::open(tmp.path()).await.expect("open db");
-        let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new(
-            LanguageService::new(),
-        );
-
-        let synced = scraper
-            .sync_applications(&browser, &db, 500, Some(1))
-            .await
-            .expect("sync_applications should succeed");
-
-        println!("Synced {} applications", synced.checked());
-
-        if synced.checked() == 0 {
-            println!("No applications found — skipping DB assertions");
-            return;
-        }
-
-        let jobs = db
-            .list_jobs(
-                Some(jobsearch::models::Platform::Efinancialcareers),
-                jobsearch::models::Sort::Created,
-                i64::MAX,
-            )
-            .await
-            .expect("list jobs");
-
-        let applied_jobs: Vec<_> = jobs
-            .into_iter()
-            .filter(|j| j.applied_at.is_some())
-            .collect();
-        assert!(
-            !applied_jobs.is_empty(),
-            "at least one job should have applied_at set"
-        );
-
-        for job in &applied_jobs {
-            println!(
-                "applied: {} | applied_at: {:?} | budget: {:?}",
-                job.title, job.applied_at, job.budget
-            );
-            assert!(!job.title.is_empty(), "synced job should have title");
-            assert!(
-                job.url.starts_with("https://www.efinancialcareers."),
-                "url must be on efinancialcareers domain"
-            );
-            assert!(
-                !job.external_id.is_empty(),
-                "synced job should have external_id"
-            );
-            assert!(
-                job.description.as_ref().is_some_and(|d| !d.is_empty()),
-                "synced job should have description from batch API"
-            );
-            if let jobsearch::models::Data::Efinancialcareers { detail } = &job.raw {
-                assert!(!detail.company.is_empty(), "detail should have company");
-                assert!(!detail.location.is_empty(), "detail should have location");
-            } else {
-                panic!("synced job should be Efinancialcareers variant");
-            }
-        }
-    })
-    .await;
-}
-
-// --- NoFluffJobs: sync applications ---
-
-#[tokio::test]
-#[ignore = "requires Brave browser installed and nofluffjobs.com logged in"]
-async fn test_nofluffjobs_sync_applications() {
-    with_browser(120, |browser| async move {
-        let tmp = tempfile::NamedTempFile::new().expect("temp db");
-        let db = jobsearch::db::Db::open(tmp.path()).await.expect("open db");
-        let scraper =
-            jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::new(LanguageService::new());
-
-        let synced = scraper
-            .sync_applications(&browser, &db, 500, Some(1))
-            .await
-            .expect("sync_applications should succeed");
-
-        if synced.checked() == 0 {
-            println!("No applications found — skipping DB assertions");
-            return;
-        }
-
-        let jobs = db
-            .list_jobs(
-                Some(jobsearch::models::Platform::NoFluffJobs),
-                jobsearch::models::Sort::Created,
-                i64::MAX,
-            )
-            .await
-            .expect("list jobs");
-
-        let applied_jobs: Vec<_> = jobs
-            .into_iter()
-            .filter(|j| j.applied_at.is_some())
-            .collect();
-        assert!(
-            !applied_jobs.is_empty(),
-            "at least one job should have applied_at set"
-        );
-
-        for job in &applied_jobs {
-            println!(
-                "applied: {} | applied_at: {:?} | budget: {:?} | tags: {:?}",
-                job.title, job.applied_at, job.budget, job.tags
-            );
-            assert!(job.budget.is_some(), "synced job should have budget");
-            assert!(
-                jobsearch::models::Budget::parse(
-                    job.budget.as_ref().expect("budget should be present"),
-                    Some("mo"),
-                )
-                .is_some(),
-                "synced job budget should parse: {:?}",
-                job.budget
-            );
-            assert!(
-                job.created_at < chrono::Utc::now() - chrono::Duration::minutes(1),
-                "synced job should have posted date, not now"
-            );
-        }
-    })
-    .await;
-}
-
 // --- LinkedIn: search page ---
 
 #[tokio::test]
 #[ignore = "requires Brave browser installed and linkedin.com logged in"]
 async fn test_linkedin_search_page_has_cards() {
     with_browser(60, |browser| async move {
-        let scraper = LinkedInScraper::new(1);
-        let search_url = scraper.build_search_url();
+        let scraper = LinkedInScraper::new("https://www.linkedin.com/jobs/search/");
+        let search_url = "https://www.linkedin.com/jobs/search/";
         let page = browser
-            .new_tab(&search_url)
+            .new_tab(search_url)
             .await
             .expect("open LinkedIn search page");
 
@@ -755,10 +552,10 @@ async fn test_linkedin_search_page_has_cards() {
 #[ignore = "requires Brave browser installed and linkedin.com logged in"]
 async fn test_linkedin_job_detail_fetch() {
     with_browser(60, |browser| async move {
-        let scraper = LinkedInScraper::new(1);
-        let search_url = scraper.build_search_url();
+        let scraper = LinkedInScraper::new("https://www.linkedin.com/jobs/search/");
+        let search_url = "https://www.linkedin.com/jobs/search/";
         let page = browser
-            .new_tab(&search_url)
+            .new_tab(search_url)
             .await
             .expect("open LinkedIn search");
 
@@ -802,10 +599,10 @@ async fn test_linkedin_job_detail_fetch() {
 #[ignore = "requires Brave browser installed and linkedin.com logged in"]
 async fn test_linkedin_pagination_has_next_page() {
     with_browser(60, |browser| async move {
-        let scraper = LinkedInScraper::new(1);
-        let search_url = scraper.build_search_url();
+        let scraper = LinkedInScraper::new("https://www.linkedin.com/jobs/search/");
+        let search_url = "https://www.linkedin.com/jobs/search/";
         let page = browser
-            .new_tab(&search_url)
+            .new_tab(search_url)
             .await
             .expect("open LinkedIn search page");
 
