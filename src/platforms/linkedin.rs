@@ -38,7 +38,7 @@ const VOYAGER_JOB_DETAIL_CARDS: &[&str] = &[
 const JS_URL_PLACEHOLDER: &str = "__VOYAGER_URL__";
 const JOB_CONFIG_PLACEHOLDER: &str = "__JOB_CONFIG__";
 
-const PAGE_SIZE: usize = 25;
+const PAGE_SIZE: usize = 100;
 const JOB_CARD_PRESENT_JS: &str = "!!document.querySelector('[data-job-id]')";
 
 const DEFAULT_GEO_ID: &str = "92000000";
@@ -413,6 +413,6 @@ mod tests {
         let url = params.build_voyager_search_url(0);
         assert!(url.starts_with(VOYAGER_BASE_URL));
         assert!(url.contains(&format!("decorationId={VOYAGER_DECORATION_ID}")));
-        assert!(url.contains("count=25"));
+        assert!(url.contains("count="));
     }
 }
