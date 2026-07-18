@@ -1,5 +1,6 @@
 /target
 jobsearch.db*
+jobsearch.toml
 *.db
 lance/
 

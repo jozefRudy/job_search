@@ -56,15 +56,15 @@ impl Settings {
                     pause_ms: None,
                 },
                 nofluffjobs: ProviderConfig {
-                    urls: vec!["https://nofluffjobs.com/remote?criteria=keyword%3Drust&sort=newest".to_string()],
+                    urls: vec!["https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur8000m%20jobLanguage%3Den&sort=newest".to_string()],
                     pause_ms: None,
                 },
                 efinancialcareers: ProviderConfig {
-                    urls: vec!["https://www.efinancialcareers.com/jobs/remote?q=rust".to_string()],
+                    urls: vec!["https://www.efinancialcareers.com/jobs/remote/python?pageSize=50&filters.postedDate=SEVEN&language=en".to_string()],
                     pause_ms: None,
                 },
                 linkedin: ProviderConfig {
-                    urls: vec!["https://www.linkedin.com/jobs/search/?f_TPR=r2592000&f_WT=2&geoId=92000000".to_string()],
+                    urls: vec!["https://www.linkedin.com/jobs/search/?f_I=4&f_T=9%2C25201%2C39&f_TPR=r604800&f_WT=2&geoId=92000000".to_string()],
                     pause_ms: None,
                 },
             },
