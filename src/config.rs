@@ -52,7 +52,7 @@ impl Settings {
             pause_ms: 2000,
             providers: Providers {
                 upwork: ProviderConfig {
-                    urls: vec!["https://www.upwork.com/nx/search/jobs/?q=rust&sort=recency&per_page=50&t=0".to_string()],
+                    urls: vec!["https://www.upwork.com/nx/search/jobs/?q=trading&sort=recency&per_page=50&t=0&hourly_rate=60-".to_string()],
                     pause_ms: None,
                 },
                 nofluffjobs: ProviderConfig {
