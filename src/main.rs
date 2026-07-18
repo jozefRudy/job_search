@@ -200,8 +200,17 @@ async fn cmd_update(
         }
         UpdatePlatform::Hackernews => {
             let llm_cli = std::env::var("LLM_CLI").ok();
-            let scraper = HackerNewsScraper::new(llm_cli, &settings.location);
-            fetch_and_store(db, browser, &scraper, "", 0).await?;
+            for url in &settings.providers.hackernews.urls {
+                let scraper = HackerNewsScraper::new(llm_cli.clone(), &settings.location, url)?;
+                fetch_and_store(
+                    db,
+                    browser,
+                    &scraper,
+                    url,
+                    settings.provider_pause_ms("hackernews"),
+                )
+                .await?;
+            }
         }
         UpdatePlatform::LinkedIn => {
             for url in &settings.providers.linkedin.urls {
@@ -316,7 +325,7 @@ async fn fetch_and_store(
     url: &str,
     pause_ms: u64,
 ) -> Result<()> {
-    eprintln!("Fetching from {}...", client.name());
+    eprintln!("Fetching from {}: {}...", client.name(), url);
     match client.fetch_with_manager(manager, db, url, pause_ms).await {
         Ok(state) => {
             eprintln!("    {}", state.summary());

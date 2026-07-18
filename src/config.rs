@@ -17,6 +17,7 @@ pub struct Providers {
     pub nofluffjobs: ProviderConfig,
     pub efinancialcareers: ProviderConfig,
     pub linkedin: ProviderConfig,
+    pub hackernews: ProviderConfig,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -67,6 +68,10 @@ impl Settings {
                     urls: vec!["https://www.linkedin.com/jobs/search/?f_I=4&f_T=9%2C25201%2C39&f_TPR=r604800&f_WT=2&geoId=92000000".to_string()],
                     pause_ms: None,
                 },
+                hackernews: ProviderConfig {
+                    urls: vec!["https://hn.algolia.com/api/v1/search_by_date".to_string()],
+                    pause_ms: None,
+                },
             },
         }
     }
@@ -82,6 +87,7 @@ impl Settings {
                 .pause_ms
                 .unwrap_or(self.pause_ms),
             "linkedin" => self.providers.linkedin.pause_ms.unwrap_or(self.pause_ms),
+            "hackernews" => self.providers.hackernews.pause_ms.unwrap_or(self.pause_ms),
             _ => self.pause_ms,
         }
     }

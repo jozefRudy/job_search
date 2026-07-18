@@ -59,7 +59,12 @@ fn efc_search_url(keyword: &str) -> String {
 #[tokio::test]
 #[ignore = "requires network access to Hacker News Algolia API"]
 async fn test_hackernews_fetch_comments() {
-    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(None, "Europe");
+    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(
+        None,
+        "Europe",
+        "https://hn.algolia.com/api/v1/search_by_date",
+    )
+    .expect("HackerNewsScraper should be created");
     let comments = scraper
         .fetch_top_level_comments("rust", Some(5))
         .await

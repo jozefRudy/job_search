@@ -4,7 +4,7 @@ use crate::extractors::llm_hackernews;
 use crate::models::{Data, HackerNewsJobDetail, Job, Platform, Rating};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
-use anyhow::Result;
+use anyhow::{Result, bail};
 use async_stream::try_stream;
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
@@ -15,9 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::pin::pin;
 
-const ALGOLIA_BASE: &str = "https://hn.algolia.com/api/v1";
 const THREAD_QUERY: &str = "Ask HN: Who is hiring";
-const DEFAULT_LOCATION: &str = "Europe";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct StoryHit {
@@ -52,26 +50,35 @@ struct CommentSearchResponse {
 pub struct HackerNewsScraper {
     client: Client,
     extractor: LlmExtractor<llm_hackernews::ExtractFields>,
+    algolia_url: String,
 }
 
 impl HackerNewsScraper {
-    #[must_use]
-    pub fn new(llm_cli: Option<String>, location: &str) -> Self {
-        Self {
+    pub fn new(llm_cli: Option<String>, location: &str, url: &str) -> Result<Self> {
+        let parsed =
+            url::Url::parse(url).map_err(|e| anyhow::anyhow!("invalid HackerNews URL: {e}"))?;
+        if parsed.host_str() != Some("hn.algolia.com") {
+            bail!("HackerNews URL must be on hn.algolia.com, got: {url}");
+        }
+        if parsed.path() != "/api/v1/search_by_date" {
+            bail!("HackerNews URL path must be /api/v1/search_by_date, got: {url}");
+        }
+
+        Ok(Self {
             client: Client::builder()
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
                 .build()
                 .unwrap_or_else(|_| Client::new()),
             extractor: LlmExtractor::<llm_hackernews::ExtractFields>::from_cli(llm_cli)
                 .with_prompt_context(format!("Candidate location: {location}")),
-        }
+            algolia_url: url.to_string(),
+        })
     }
 
     async fn latest_thread_id(&self) -> Result<String> {
-        let url = format!("{ALGOLIA_BASE}/search_by_date");
         let response: StorySearchResponse = self
             .client
-            .get(&url)
+            .get(&self.algolia_url)
             .query(&[
                 ("query", THREAD_QUERY),
                 ("tags", "story,author_whoishiring"),
@@ -96,10 +103,9 @@ impl HackerNewsScraper {
         query: &str,
         page: usize,
     ) -> Result<Vec<CommentHit>> {
-        let url = format!("{ALGOLIA_BASE}/search_by_date");
         let response: CommentSearchResponse = self
             .client
-            .get(&url)
+            .get(&self.algolia_url)
             .query(&[
                 ("query", query),
                 ("tags", &format!("comment,story_{thread_id}")),
@@ -320,12 +326,6 @@ impl HackerNewsScraper {
     }
 }
 
-impl Default for HackerNewsScraper {
-    fn default() -> Self {
-        Self::new(None, DEFAULT_LOCATION)
-    }
-}
-
 #[async_trait]
 impl PlatformClient for HackerNewsScraper {
     fn name(&self) -> &'static str {
@@ -364,5 +364,34 @@ mod tests {
             HackerNewsScraper::title_from_html(html),
             "Acme Inc | Rust Engineer | Remote"
         );
+    }
+
+    #[test]
+    fn test_new_accepts_valid_algolia_url() {
+        let scraper = HackerNewsScraper::new(
+            None,
+            "Europe",
+            "https://hn.algolia.com/api/v1/search_by_date",
+        );
+        assert!(scraper.is_ok());
+    }
+
+    #[test]
+    fn test_new_rejects_wrong_host() {
+        let scraper =
+            HackerNewsScraper::new(None, "Europe", "https://example.com/api/v1/search_by_date");
+        assert!(scraper.is_err());
+    }
+
+    #[test]
+    fn test_new_rejects_wrong_path() {
+        let scraper = HackerNewsScraper::new(None, "Europe", "https://hn.algolia.com/api/v1/other");
+        assert!(scraper.is_err());
+    }
+
+    #[test]
+    fn test_new_rejects_invalid_url() {
+        let scraper = HackerNewsScraper::new(None, "Europe", "not-a-url");
+        assert!(scraper.is_err());
     }
 }
