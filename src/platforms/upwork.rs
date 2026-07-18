@@ -108,7 +108,6 @@ pub struct UpworkJobCard {
 struct SearchContext<'a> {
     browser: &'a Browser,
     db: &'a Db,
-    page_len: usize,
     pause_ms: u64,
     fetch_started_at: DateTime<Utc>,
     detail_ttl: chrono::Duration,
@@ -213,7 +212,7 @@ impl UpworkScraper {
             && (ctx.fetch_started_at - ts < ctx.detail_ttl || is_stale)
         {
             state.inc_existing();
-            eprint!("{}", state.progress_line(Some(ctx.page_len), ""));
+            eprint!("{}", state.progress_line(None, ""));
             return Ok(());
         }
 
@@ -252,7 +251,7 @@ impl UpworkScraper {
             }
         }
 
-        eprint!("{}", state.progress_line(Some(ctx.page_len), &v.title));
+        eprint!("{}", state.progress_line(None, &v.title));
         sleep(Duration::from_millis(ctx.pause_ms)).await;
         Ok(())
     }
@@ -350,7 +349,6 @@ impl PlatformClient for UpworkScraper {
             let ctx = SearchContext {
                 browser,
                 db,
-                page_len: raw_jobs.len(),
                 pause_ms,
                 fetch_started_at,
                 detail_ttl,
