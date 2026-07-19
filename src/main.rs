@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs};
@@ -160,6 +160,9 @@ async fn cmd_update(
     let lang = LanguageService::new();
     match update_cmd.platform {
         UpdatePlatform::Upwork => {
+            if settings.providers.upwork.urls.is_empty() {
+                bail!("no URLs configured for upwork in jobsearch.toml");
+            }
             let scraper = UpworkScraper::new();
             for url in &settings.providers.upwork.urls {
                 fetch_and_store(
@@ -173,6 +176,9 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Nofluff => {
+            if settings.providers.nofluffjobs.urls.is_empty() {
+                bail!("no URLs configured for nofluffjobs in jobsearch.toml");
+            }
             let scraper = NoFluffJobsScraper::new(lang);
             for url in &settings.providers.nofluffjobs.urls {
                 fetch_and_store(
@@ -186,6 +192,9 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Efinancialcareers => {
+            if settings.providers.efinancialcareers.urls.is_empty() {
+                bail!("no URLs configured for efinancialcareers in jobsearch.toml");
+            }
             let scraper = EfinancialcareersScraper::new(lang);
             for url in &settings.providers.efinancialcareers.urls {
                 fetch_and_store(
@@ -199,6 +208,9 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Hackernews => {
+            if settings.providers.hackernews.urls.is_empty() {
+                bail!("no URLs configured for hackernews in jobsearch.toml");
+            }
             let llm_cli = std::env::var("LLM_CLI").ok();
             for url in &settings.providers.hackernews.urls {
                 let scraper = HackerNewsScraper::new(llm_cli.clone(), &settings.location, url)?;
@@ -213,6 +225,9 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::LinkedIn => {
+            if settings.providers.linkedin.urls.is_empty() {
+                bail!("no URLs configured for linkedin in jobsearch.toml");
+            }
             for url in &settings.providers.linkedin.urls {
                 let scraper = LinkedInScraper::new(url);
                 fetch_and_store(

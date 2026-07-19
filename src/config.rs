@@ -12,6 +12,7 @@ pub struct Settings {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Providers {
     pub upwork: ProviderConfig,
     pub nofluffjobs: ProviderConfig,
