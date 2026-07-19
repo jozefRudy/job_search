@@ -287,6 +287,7 @@ impl PlatformClient for LinkedInScraper {
             let existing_count = card_count.saturating_sub(new_cards.len());
             state.inc_existing_n(existing_count);
             eprint!("{}", state.progress_line(Some(total), ""));
+            sleep(Duration::from_millis(pause_ms)).await;
 
             for card in new_cards {
                 let job_id: u64 = card
@@ -343,7 +344,6 @@ impl PlatformClient for LinkedInScraper {
                 break;
             }
             no_cards_fetched += card_count;
-            sleep(Duration::from_millis(pause_ms)).await;
         }
 
         page.close().await.ok();
