@@ -79,6 +79,89 @@
     card?.tertiaryDescription?.text?.split('·')[0]?.trim() ||
     '';
 
+  function formatTextViewModelAsMarkdown(text, attributesV2) {
+    if (!text || !attributesV2 || attributesV2.length === 0) return text;
+
+    const chars = Array.from(text);
+
+    const attrs = attributesV2
+      .map((a) => ({ start: a.start, end: a.start + a.length, style: a.detailData?.style }))
+      .filter((a) => a.start >= 0 && a.end <= chars.length);
+
+    const paragraphs = attrs
+      .filter((a) => a.style === 'PARAGRAPH' && a.end - a.start > 1)
+      .sort((a, b) => a.start - b.start);
+
+    const listItems = attrs
+      .filter((a) => a.style === 'LIST_ITEM')
+      .sort((a, b) => a.start - b.start);
+
+    const inlineStyles = attrs
+      .filter((a) => a.style === 'BOLD' || a.style === 'ITALIC')
+      .map((a) => ({ start: a.start, end: a.end, style: a.style.toLowerCase() }))
+      .sort((a, b) => a.start - b.start);
+
+    const contents = [...paragraphs, ...listItems].sort((a, b) => a.start - b.start);
+
+    const blocks = [];
+    let currentList = [];
+    let prevEnd = 0;
+
+    for (const item of contents) {
+      if (item.start < prevEnd) continue;
+      const formatted = formatInline(chars, item.start, item.end, inlineStyles);
+
+      if (item.style === 'LIST_ITEM') {
+        currentList.push('- ' + formatted.replace(/^•\s*/, ''));
+      } else {
+        if (currentList.length > 0) {
+          blocks.push(currentList.join('\n'));
+          currentList = [];
+        }
+        blocks.push(formatted);
+      }
+      prevEnd = item.end;
+    }
+
+    if (currentList.length > 0) {
+      blocks.push(currentList.join('\n'));
+    }
+
+    return blocks.join('\n\n');
+  }
+
+  function formatInline(chars, segmentStart, segmentEnd, inlineStyles) {
+    const segmentLength = segmentEnd - segmentStart;
+    const relevant = inlineStyles
+      .filter((a) => a.end > segmentStart && a.start < segmentEnd)
+      .map((a) => ({
+        start: Math.max(0, a.start - segmentStart),
+        end: Math.min(segmentLength, a.end - segmentStart),
+        style: a.style,
+      }))
+      .filter((a) => a.start < a.end)
+      .sort((a, b) => a.start - b.start);
+
+    if (relevant.length === 0) {
+      return chars.slice(segmentStart, segmentEnd).join('');
+    }
+
+    let result = '';
+    let lastPos = 0;
+    for (const a of relevant) {
+      if (a.start < lastPos) continue;
+      const marker = a.style === 'bold' ? '**' : '*';
+      result += chars.slice(segmentStart + lastPos, segmentStart + a.start).join('');
+      result += marker + chars.slice(segmentStart + a.start, segmentStart + a.end).join('') + marker;
+      lastPos = a.end;
+    }
+    result += chars.slice(segmentStart + lastPos, segmentEnd).join('');
+    return result;
+  }
+
+  const descriptionTv = jobPosting?.description || jobDescription?.descriptionText || {};
+  const description = formatTextViewModelAsMarkdown(descriptionTv.text, descriptionTv.attributesV2);
+
   return {
     company: company?.name || card?.primaryDescription?.text || '',
     location,
@@ -86,8 +169,7 @@
     employment_type: employmentType,
     job_function: '',
     industries,
-    description:
-      jobPosting?.description?.text || jobDescription?.descriptionText?.text || '',
+    description,
     salary: salary?.formattedBaseSalary || '',
     posted_at: postedAt,
   };
