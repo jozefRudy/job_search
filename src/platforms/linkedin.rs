@@ -268,7 +268,7 @@ impl PlatformClient for LinkedInScraper {
         let mut state = FetchState::new();
         let _guard = CursorGuard::new();
 
-        'pages: loop {
+        loop {
             let result = self.fetch_page(&page, no_cards_fetched).await?;
             let total = result.total as usize;
             let cards = result.cards;
@@ -282,7 +282,7 @@ impl PlatformClient for LinkedInScraper {
                 {
                     state.inc_existing();
                     eprint!("{}", state.progress_line(Some(total), ""));
-                    break 'pages;
+                    continue;
                 }
 
                 let job_id: u64 = card
