@@ -61,6 +61,7 @@ impl Default for EfinancialcareersJobDetail {
 pub struct LinkedInJobDetail {
     pub company: String,
     pub location: String,
+    pub workplace_type: String,
     pub employment_type: String,
     pub job_function: String,
     pub industries: String,
@@ -74,6 +75,7 @@ impl Default for LinkedInJobDetail {
         Self {
             company: String::new(),
             location: String::new(),
+            workplace_type: String::new(),
             employment_type: String::new(),
             job_function: String::new(),
             industries: String::new(),

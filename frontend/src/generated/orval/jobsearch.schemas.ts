@@ -86,6 +86,7 @@ export interface LinkedInJobDetail {
   location: string;
   posted_at: string;
   salary: string;
+  workplace_type: string;
 }
 
 /**

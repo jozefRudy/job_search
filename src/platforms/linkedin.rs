@@ -68,6 +68,7 @@ pub struct VoyagerCardsResult {
 struct LinkedInJobDetailJs {
     company: String,
     location: String,
+    workplace_type: String,
     employment_type: String,
     job_function: String,
     industries: String,
@@ -91,6 +92,7 @@ impl From<LinkedInJobDetailJs> for LinkedInJobDetail {
         Self {
             company: raw.company,
             location: raw.location,
+            workplace_type: raw.workplace_type,
             employment_type: raw.employment_type,
             job_function: raw.job_function,
             industries: raw.industries,
@@ -308,6 +310,7 @@ impl PlatformClient for LinkedInScraper {
 
                 let company = Some(detail.company.clone()).filter(|c| !c.is_empty());
                 let description = Some(detail.description.clone()).filter(|d| !d.is_empty());
+                let remote = detail.workplace_type.eq_ignore_ascii_case("remote");
                 let posted_at = card
                     .listed_at
                     .and_then(DateTime::from_timestamp_millis)
@@ -329,7 +332,7 @@ impl PlatformClient for LinkedInScraper {
                     note: None,
                     rating: Rating::Neutral,
                     applied_at: None,
-                    remote: true,
+                    remote,
                 };
                 let is_english = crate::models::classify_language(&lang, &job).await?;
                 if is_english {

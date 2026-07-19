@@ -191,6 +191,9 @@ export function JobDetailContent(props: { job: Job }) {
       <Show when={j.platform === "hackernews"}>
         <HackerNewsDetail job={j} />
       </Show>
+      <Show when={j.platform === "linkedin"}>
+        <LinkedInDetail job={j} />
+      </Show>
 
       <ApplicationCard appliedAt={j.applied_at} note={j.note} />
 
@@ -341,6 +344,32 @@ export function EfinancialcareersDetail(props: { job: Job }) {
             <DetailRow label="Location" value={d.location} />
             <DetailRow label="Employment type" value={d.employment_type} />
             <DetailRow label="Posted" value={fmtRelative(d.posted_at)} />
+          </DetailList>
+          <Show when={d.description}>
+            <MarkdownDescription label="Description" text={d.description} />
+          </Show>
+        </Stack>
+      </div>
+    </div>
+  );
+}
+
+export function LinkedInDetail(props: { job: Job }) {
+  const raw = props.job.raw;
+  if (raw.platform !== "linkedin") return null;
+  const d = raw.detail;
+  return (
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h3 class="card-title text-lg">Details</h3>
+        <Stack gap="sm">
+          <DetailList>
+            <DetailRow label="Company" value={d.company} />
+            <DetailRow label="Location" value={d.location} />
+            <DetailRow label="Workplace type" value={d.workplace_type} />
+            <DetailRow label="Employment type" value={d.employment_type} />
+            <DetailRow label="Industries" value={d.industries} />
+            <DetailRow label="Salary" value={d.salary} />
           </DetailList>
           <Show when={d.description}>
             <MarkdownDescription label="Description" text={d.description} />

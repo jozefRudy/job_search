@@ -144,7 +144,7 @@ async fn cmd_embed(
 
     let _indexed = store
         .index_unvectorized(cmd.batch_size, |total| {
-            eprint!("\r    Indexed {total:>5} jobs");
+            eprint!("\rIndexed {total:>5} jobs");
         })
         .await?;
     eprintln!();

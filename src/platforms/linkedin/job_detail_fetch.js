@@ -60,6 +60,15 @@
   const insightTexts = insights
     .map((i) => i.jobInsightViewModel?.description?.[0]?.text?.text)
     .filter(Boolean);
+  const knownWorkplaceTypes = ['Remote', 'Hybrid', 'On-site', 'Onsite'];
+  const workplaceType =
+    insightTexts.find((t) =>
+      knownWorkplaceTypes.some(
+        (w) => t.toLowerCase() === w.toLowerCase() || t.toLowerCase().includes(w.toLowerCase())
+      )
+    ) ||
+    card?.navigationBarSubtitle?.match(/\(([^)]+)\)/)?.[1] ||
+    '';
   const employmentType = employmentStatus?.localizedName || insightTexts[1] || '';
 
   const postedAt =
@@ -73,6 +82,7 @@
   return {
     company: company?.name || card?.primaryDescription?.text || '',
     location,
+    workplace_type: workplaceType,
     employment_type: employmentType,
     job_function: '',
     industries,
