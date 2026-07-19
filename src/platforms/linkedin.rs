@@ -9,7 +9,7 @@ use chromiumoxide::Page;
 use chromiumoxide::browser::Browser;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::time::sleep;
 use url::Url;
@@ -274,17 +274,20 @@ impl PlatformClient for LinkedInScraper {
             let cards = result.cards;
             let card_count = cards.len();
 
-            for card in cards {
-                if db
-                    .find_job_id(&Platform::LinkedIn, &card.id)
-                    .await?
-                    .is_some()
-                {
-                    state.inc_existing();
-                    eprint!("{}", state.progress_line(Some(total), ""));
-                    continue;
-                }
+            let ids: Vec<String> = cards.iter().map(|c| c.id.clone()).collect();
+            let new_ids: HashSet<String> = db
+                .filter_new(&Platform::LinkedIn, &ids)
+                .await?
+                .into_iter()
+                .collect();
+            let new_cards: Vec<LinkedInJobCard> = cards
+                .into_iter()
+                .filter(|c| new_ids.contains(&c.id))
+                .collect();
+            let existing_count = card_count.saturating_sub(new_cards.len());
+            state.inc_existing_n(existing_count);
 
+            for card in new_cards {
                 let job_id: u64 = card
                     .id
                     .parse()

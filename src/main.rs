@@ -340,7 +340,7 @@ async fn fetch_and_store(
     url: &str,
     pause_ms: u64,
 ) -> Result<()> {
-    eprintln!("Fetching from {}: {}...", client.name(), url);
+    eprintln!("Fetching from {}: {}", client.name(), url);
     match client.fetch_with_manager(manager, db, url, pause_ms).await {
         Ok(state) => {
             eprintln!("    {}", state.summary());

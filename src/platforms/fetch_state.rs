@@ -18,6 +18,10 @@ impl FetchState {
         self.existing += 1;
     }
 
+    pub fn inc_existing_n(&mut self, n: usize) {
+        self.existing += n;
+    }
+
     #[must_use]
     pub fn checked(&self) -> usize {
         self.existing + self.new
