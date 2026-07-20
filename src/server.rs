@@ -6,7 +6,7 @@ use crate::models::{
     ApplyRequest, Data, HackerNewsJobDetail, Job, JobFilter, JobListResponse, ListQuery,
     NoFluffJobDetail, Platform, RateRequest, Rating, Sort, UpworkJobDetail,
 };
-use anyhow::Result;
+use anyhow::{Error, Result};
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
@@ -59,6 +59,11 @@ pub fn app(db: Db, embeddings: Arc<EmbeddingsStore>) -> Router {
         .route("/api/openapi.json", get(move || async move { Json(api) }))
         .route("/health", get(|| async { StatusCode::OK }))
         .fallback(serve_static)
+}
+
+fn internal_error(err: &Error) -> StatusCode {
+    eprintln!("internal server error: {err:#}");
+    StatusCode::INTERNAL_SERVER_ERROR
 }
 
 async fn serve_static(uri: axum::http::Uri) -> Response {
@@ -118,19 +123,19 @@ async fn list_jobs(
             .db
             .filter_job_ids(&filter)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|err| internal_error(&err))?;
         let query_embedding = state
             .embeddings
             .embedder()
             .embed_query(query_text)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|err| internal_error(&err))?;
         let top_n = usize::try_from(limit + offset).unwrap_or(usize::MAX);
         let ranked = state
             .embeddings
             .search(&query_embedding, &candidate_ids, top_n, 0)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|err| internal_error(&err))?;
         let ids: Vec<i64> = ranked
             .into_iter()
             .map(|(id, _)| id)
@@ -142,7 +147,7 @@ async fn list_jobs(
             .db
             .get_jobs(&ids)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|err| internal_error(&err))?;
         return Ok(Json(JobListResponse { jobs, total }));
     }
 
@@ -150,7 +155,7 @@ async fn list_jobs(
         .db
         .list_jobs_filtered(&filter, sort_by, limit, offset)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|err| internal_error(&err))?;
 
     Ok(Json(JobListResponse {
         jobs: paginated.items,
@@ -176,7 +181,7 @@ async fn get_job(
         .db
         .get_job(id)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|err| internal_error(&err))?
         .ok_or(StatusCode::NOT_FOUND)?;
     Ok(Json(job))
 }
@@ -200,7 +205,7 @@ async fn rate_job(
         .db
         .set_rating(&[id], body.rating)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|err| internal_error(&err))?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -223,7 +228,7 @@ async fn delete_job(
         .db
         .delete_jobs(&[id])
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|err| internal_error(&err))?;
     if deleted == 1 {
         Ok(StatusCode::NO_CONTENT)
     } else {
@@ -251,13 +256,13 @@ async fn apply_job(
             .db
             .set_applied(id, Some(""), Utc::now())
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|err| internal_error(&err))?;
     } else {
         state
             .db
             .unset_applied(id)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|err| internal_error(&err))?;
     }
     Ok(StatusCode::NO_CONTENT)
 }
