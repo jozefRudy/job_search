@@ -1,8 +1,24 @@
 use crate::models::{Data, Job, JobFilter, Paginated, Platform, Rating, Sort};
 use anyhow::Result;
+use sha2::{Digest, Sha256};
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSynchronous};
 use std::collections::HashMap;
 use std::str::FromStr;
+
+fn job_content_hash(job: &Job) -> String {
+    let canonical = format!(
+        "{} {} {}",
+        job.company.as_deref().unwrap_or(""),
+        job.title,
+        job.description.as_deref().unwrap_or("")
+    );
+    let normalized = canonical
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase();
+    hex::encode(Sha256::digest(normalized))
+}
 
 #[derive(Clone)]
 pub struct Db {
@@ -31,21 +47,73 @@ impl Db {
         let tags = serde_json::to_string(&job.tags)?;
         let raw = serde_json::to_string(&job.raw)?;
         let created_at = job.created_at.naive_utc();
+        let content_hash = job_content_hash(job);
+
+        let existing_id = sqlx::query_scalar!(
+            "SELECT id FROM jobs WHERE platform = ?1 AND external_id = ?2",
+            job.platform,
+            job.external_id,
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        .flatten();
+
+        if let Some(id) = existing_id {
+            sqlx::query!(
+                r#"
+                UPDATE jobs
+                SET title = ?1,
+                    description = ?2,
+                    url = ?3,
+                    budget = ?4,
+                    tags = ?5,
+                    raw = ?6,
+                    remote = ?7,
+                    rating = ?8,
+                    content_hash = ?9,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?10
+                "#,
+                job.title,
+                job.description,
+                job.url,
+                job.budget,
+                tags,
+                raw,
+                job.remote,
+                job.rating,
+                content_hash,
+                id,
+            )
+            .execute(&self.pool)
+            .await?;
+            return Ok(id);
+        }
+
+        let duplicate_id = if job
+            .description
+            .as_deref()
+            .is_some_and(|d| !d.trim().is_empty())
+        {
+            sqlx::query_scalar!(
+                "SELECT id FROM jobs WHERE content_hash = ?1 LIMIT 1",
+                content_hash,
+            )
+            .fetch_optional(&self.pool)
+            .await?
+            .flatten()
+        } else {
+            None
+        };
+
+        if let Some(id) = duplicate_id {
+            return Ok(id);
+        }
 
         let id = sqlx::query_scalar!(
             r#"
-            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at, remote, rating)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
-            ON CONFLICT(platform, external_id) DO UPDATE SET
-                title = excluded.title,
-                description = excluded.description,
-                url = excluded.url,
-                budget = excluded.budget,
-                tags = excluded.tags,
-                raw = excluded.raw,
-                remote = excluded.remote,
-                rating = excluded.rating,
-                updated_at = CURRENT_TIMESTAMP
+            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at, remote, rating, content_hash)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
             RETURNING id
             "#,
             job.platform,
@@ -59,6 +127,7 @@ impl Db {
             created_at,
             job.remote,
             job.rating,
+            content_hash,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -560,6 +629,77 @@ mod tests {
         let jobs = db.list_jobs(None, Sort::Created, 10).await?;
         assert_eq!(jobs.len(), 1);
         assert_eq!(jobs[0].title, "Rust Dev");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_upsert_dedupes_by_content_hash() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let mut a = test_job(Platform::Upwork, "u1", "Rust Dev");
+        a.description = Some("Build a Rust API".to_string());
+        let mut b = test_job(Platform::Upwork, "u2", "Rust Dev");
+        b.description = Some("Build a Rust API".to_string());
+
+        let id_a = db.upsert_job(&a).await?;
+        let id_b = db.upsert_job(&b).await?;
+        assert_eq!(id_a, id_b, "same content should return existing id");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_upsert_dedupes_across_platforms() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let mut a = test_job(Platform::Upwork, "u1", "Rust Dev");
+        a.description = Some("Build a Rust API".to_string());
+        a.company = Some("Acme".to_string());
+        let mut b = test_job(Platform::NoFluffJobs, "n1", "Rust Dev");
+        b.description = Some("Build a Rust API".to_string());
+        b.company = Some("Acme".to_string());
+
+        let id_a = db.upsert_job(&a).await?;
+        let id_b = db.upsert_job(&b).await?;
+        assert_eq!(
+            id_a, id_b,
+            "same content across platforms should return existing id"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_upsert_no_dedupe_without_description() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let a = test_job(Platform::Upwork, "u1", "Rust Dev");
+        let b = test_job(Platform::Upwork, "u2", "Rust Dev");
+
+        let id_a = db.upsert_job(&a).await?;
+        let id_b = db.upsert_job(&b).await?;
+        assert_ne!(id_a, id_b, "jobs without description should not be deduped");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_upsert_updates_existing_by_external_id() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let mut a = test_job(Platform::Upwork, "u1", "Rust Dev");
+        a.description = Some("Original".to_string());
+        let mut a2 = test_job(Platform::Upwork, "u1", "Senior Rust Dev");
+        a2.description = Some("Updated".to_string());
+
+        let id_a = db.upsert_job(&a).await?;
+        let id_a2 = db.upsert_job(&a2).await?;
+        assert_eq!(id_a, id_a2, "same external_id should update existing row");
+
+        let found = db.get_job(id_a).await?.expect("job exists");
+        assert_eq!(found.title, "Senior Rust Dev");
+        assert_eq!(found.description.as_deref(), Some("Updated"));
         Ok(())
     }
 
