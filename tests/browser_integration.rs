@@ -579,6 +579,11 @@ async fn test_linkedin_job_detail_fetch() {
             !detail.description.is_empty(),
             "detail should have description"
         );
+        assert!(
+            detail.description.contains("**About the job**"),
+            "description should preserve the 'About the job' section header; got:\n{}",
+            detail.description
+        );
         assert!(!detail.company.is_empty(), "detail should have company");
         assert!(!detail.location.is_empty(), "detail should have location");
 

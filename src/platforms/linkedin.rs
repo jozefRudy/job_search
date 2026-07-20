@@ -14,6 +14,8 @@ use std::time::Duration;
 use tokio::time::sleep;
 use url::Url;
 
+mod description;
+
 const VOYAGER_FETCH_JS: &str = include_str!("linkedin/voyager_fetch.js");
 const JOB_DETAIL_FETCH_JS: &str = include_str!("linkedin/job_detail_fetch.js");
 
@@ -28,12 +30,7 @@ const VOYAGER_JOB_DETAIL_QUERY_ID: &str =
     "voyagerJobsDashJobPostingDetailSections.77cb64956921ef397a36de4f7f8bce47";
 const VOYAGER_JOB_POSTING_QUERY_ID: &str =
     "voyagerJobsDashJobPostings.891aed7916d7453a37e4bbf5f1f60de4";
-const VOYAGER_JOB_DETAIL_CARDS: &[&str] = &[
-    "TOP_CARD",
-    "HOW_YOU_FIT_CARD",
-    "JOB_DESCRIPTION_CARD",
-    "SALARY_CARD",
-];
+const VOYAGER_JOB_DETAIL_CARDS: &[&str] = &["TOP_CARD", "JOB_DESCRIPTION_CARD", "SALARY_CARD"];
 
 const JS_URL_PLACEHOLDER: &str = "__VOYAGER_URL__";
 const JOB_CONFIG_PLACEHOLDER: &str = "__JOB_CONFIG__";
@@ -72,7 +69,7 @@ struct LinkedInJobDetailJs {
     employment_type: String,
     job_function: String,
     industries: String,
-    description: String,
+    description_sections: Vec<description::DescriptionSection>,
     salary: String,
     posted_at: i64,
 }
@@ -96,7 +93,7 @@ impl From<LinkedInJobDetailJs> for LinkedInJobDetail {
             employment_type: raw.employment_type,
             job_function: raw.job_function,
             industries: raw.industries,
-            description: raw.description,
+            description: description::description_sections_to_markdown(&raw.description_sections),
             salary: raw.salary,
             posted_at: DateTime::from_timestamp_millis(raw.posted_at).unwrap_or_else(Utc::now),
         }
@@ -421,5 +418,53 @@ mod tests {
         assert!(url.starts_with(VOYAGER_BASE_URL));
         assert!(url.contains(&format!("decorationId={VOYAGER_DECORATION_ID}")));
         assert!(url.contains("count="));
+    }
+
+    #[test]
+    fn test_job_detail_js_conversion_preserves_description() {
+        let section: description::DescriptionSection =
+            serde_json::from_str(include_str!("linkedin/fixtures/job_4439699193.json"))
+                .expect("fixture is valid JSON");
+        let raw = LinkedInJobDetailJs {
+            company: "NetApp".to_string(),
+            location: "Ireland".to_string(),
+            workplace_type: "Remote".to_string(),
+            employment_type: "Full-time".to_string(),
+            job_function: String::new(),
+            industries: "Software Development".to_string(),
+            description_sections: vec![section],
+            salary: String::new(),
+            posted_at: 1_784_492_802_000,
+        };
+        let detail: LinkedInJobDetail = raw.into();
+        assert!(detail.description.starts_with("**About the job**"));
+        assert!(
+            detail
+                .description
+                .contains("**Own Every Moment at NetApp**")
+        );
+        assert!(
+            detail
+                .description
+                .contains("- Analyzing and defining software and firmware requirements.")
+        );
+        assert!(detail.description.len() >= detail.description.matches("- ").count() * 2);
+    }
+
+    #[test]
+    fn test_job_detail_js_conversion_with_empty_description() {
+        let raw = LinkedInJobDetailJs {
+            company: "Example".to_string(),
+            location: String::new(),
+            workplace_type: String::new(),
+            employment_type: String::new(),
+            job_function: String::new(),
+            industries: String::new(),
+            description_sections: vec![],
+            salary: String::new(),
+            posted_at: 0,
+        };
+        let detail: LinkedInJobDetail = raw.into();
+        assert!(detail.description.is_empty());
     }
 }
