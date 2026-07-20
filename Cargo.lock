@@ -3397,6 +3397,7 @@ dependencies = [
  "lingua",
  "mime_guess",
  "ort",
+ "owo-colors",
  "regex",
  "reqwest 0.12.28",
  "schemars 1.2.1",
@@ -4834,6 +4835,12 @@ checksum = "e2355d85b9a3786f481747ced0e0ff2ba35213a1f9bd406ed906554d7af805a1"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "owo-colors"
+version = "4.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d211803b9b6b570f68772237e415a029d5a50c65d382910b879fb19d3271f94d"
 
 [[package]]
 name = "parking"

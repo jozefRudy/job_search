@@ -22,6 +22,7 @@ futures = "0.3"
 html2text = "0.14"
 include_dir = "0.7"
 mime_guess = "2.0"
+owo-colors = "4"
 reqwest = { version = "0.12", features = ["json", "cookies"] }
 serde = { version = "1", features = ["derive"] }
 shell-words = "1"
