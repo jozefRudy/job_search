@@ -5,6 +5,7 @@ use chromiumoxide::cdp::browser_protocol::target::{
     CloseTargetParams, CreateTargetParams, GetTargetsParams, TargetId,
 };
 use futures::StreamExt;
+use owo_colors::OwoColorize;
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
@@ -244,7 +245,7 @@ pub async fn wait_for_with_challenge_recovery(
                 );
                 eprintln!(
                     "{CLEAR_LINE}Bot check at {}. Waiting up to {}s for user to solve...",
-                    url,
+                    url.bright_black(),
                     grace.as_secs()
                 );
             }
