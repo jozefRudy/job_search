@@ -1,3 +1,4 @@
+use super::html;
 use crate::browser::{BrowserExt, host_of, wait_for, wait_for_element};
 use crate::db::Db;
 use crate::language::LanguageService;
@@ -117,9 +118,9 @@ impl TryFrom<RawPostingEnvelope> for NoFluffJobDetail {
             })
             .collect();
 
-        let description = html_to_md(&raw.details.description);
+        let description = html::html_to_md(&raw.details.description).unwrap_or_default();
 
-        let requirements = html_to_md(&raw.requirements.description);
+        let requirements = html::html_to_md(&raw.requirements.description).unwrap_or_default();
 
         let nice_to_have = raw
             .requirements
@@ -478,10 +479,6 @@ impl Default for NoFluffJobsScraper {
     fn default() -> Self {
         Self::new(LanguageService::new())
     }
-}
-
-fn html_to_md(html: &str) -> String {
-    html2text::from_read(html.as_bytes(), 120).unwrap_or_else(|_| html.to_string())
 }
 
 #[cfg(test)]

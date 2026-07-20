@@ -1,3 +1,4 @@
+use super::html;
 use crate::db::Db;
 use crate::extractors::llm::LlmExtractor;
 use crate::extractors::llm_hackernews;
@@ -119,12 +120,8 @@ impl HackerNewsScraper {
         Ok(response.hits)
     }
 
-    fn html_to_text(html: &str) -> String {
-        html2text::from_read(html.as_bytes(), 1000).unwrap_or_else(|_| html.to_string())
-    }
-
     fn title_from_html(html: &str) -> String {
-        let text = Self::html_to_text(html);
+        let text = html::html_to_md(html).unwrap_or_default();
         text.lines()
             .find(|l| !l.trim().is_empty())
             .map(str::trim)
@@ -147,7 +144,7 @@ impl HackerNewsScraper {
     async fn build_job(&self, hit: CommentHit) -> Result<Option<Job>> {
         const MAX_TITLE_LEN: usize = 200;
 
-        let body = Self::html_to_text(&hit.comment_text);
+        let body = html::html_to_md(&hit.comment_text).unwrap_or_default();
         let fields = self.extractor.extract(&body).await?;
         if !fields.is_job_ad {
             return Ok(None);

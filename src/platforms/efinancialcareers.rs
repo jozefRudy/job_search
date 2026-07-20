@@ -1,3 +1,4 @@
+use super::html;
 use crate::browser::{BrowserExt, host_of};
 use crate::db::Db;
 use crate::language::LanguageService;
@@ -199,7 +200,7 @@ impl EfinancialcareersScraper {
         let facade: FacadeResponse = res.json().await?;
         let job = facade.data;
 
-        let description = Self::html_to_text(&job.description).unwrap_or_default();
+        let description = html::html_to_md(&job.description).unwrap_or_default();
         let posted_at = DateTime::parse_from_rfc3339(&job.posted_date)
             .map_or_else(|_| Utc::now(), |dt| dt.with_timezone(&Utc));
         let company = job.brand.map(|b| b.name).unwrap_or_default();
@@ -228,15 +229,6 @@ impl EfinancialcareersScraper {
             description,
             posted_at,
         })
-    }
-
-    fn html_to_text(html: &str) -> Option<String> {
-        if html.trim().is_empty() {
-            return None;
-        }
-        let text = html2text::from_read(html.as_bytes(), 120).ok()?;
-        let text = text.trim().to_string();
-        if text.is_empty() { None } else { Some(text) }
     }
 
     async fn build_job(
