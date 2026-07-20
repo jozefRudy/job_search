@@ -36,11 +36,10 @@ impl TextAttributeDetail {
     }
 
     fn url(&self) -> Option<&str> {
-        self.hyperlink.as_deref().or_else(|| {
-            self.text_link
-                .as_ref()
-                .and_then(|l| l.url.as_deref().or_else(|| l.redirect_url.as_deref()))
-        })
+        self.hyperlink.as_deref().or(self
+            .text_link
+            .as_ref()
+            .and_then(|l| l.url.as_deref().or(l.redirect_url.as_deref())))
     }
 }
 
@@ -270,20 +269,20 @@ fn format_inline(
                 })
                 .unwrap_or("");
             if is_bold && is_italic {
-                format!("[***{}***]({})", trimmed, url)
+                format!("[***{trimmed}***]({url})")
             } else if is_bold {
-                format!("[**{}**]({})", trimmed, url)
+                format!("[**{trimmed}**]({url})")
             } else if is_italic {
-                format!("[*{}*]({})", trimmed, url)
+                format!("[*{trimmed}*]({url})")
             } else {
-                format!("[{}]({})", trimmed, url)
+                format!("[{trimmed}]({url})")
             }
         } else if is_bold && is_italic {
-            format!("***{}***", trimmed)
+            format!("***{trimmed}***")
         } else if is_bold {
-            format!("**{}**", trimmed)
+            format!("**{trimmed}**")
         } else if is_italic {
-            format!("*{}*", trimmed)
+            format!("*{trimmed}*")
         } else {
             trimmed.to_string()
         };
@@ -302,14 +301,17 @@ pub fn description_sections_to_markdown(sections: &[DescriptionSection]) -> Stri
             let header = s
                 .header
                 .as_ref()
-                .map(|h| format!("**{}**", h.text.trim()))
+                .map(|h| {
+                    let text = h.text.trim();
+                    format!("**{text}**")
+                })
                 .filter(|h| !h.is_empty());
             let body = format_text_view_model(&s.body);
             if header.is_none() && body.is_empty() {
                 return None;
             }
             Some(match header {
-                Some(h) => format!("{}\n\n{}", h, body),
+                Some(h) => format!("{h}\n\n{body}"),
                 None => body,
             })
         })
@@ -361,8 +363,7 @@ mod tests {
         let list_items = md.matches("- ").count();
         assert!(
             list_items >= 30,
-            "expected at least 30 list items, got {}",
-            list_items
+            "expected at least 30 list items, got {list_items}"
         );
     }
 

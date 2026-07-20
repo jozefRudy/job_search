@@ -21,12 +21,14 @@ use lance_linalg::distance::DistanceType;
 use crate::db::Db;
 use crate::embed::Embedder;
 use crate::models::Job;
+use tokio::sync::Mutex;
 
 pub struct EmbeddingsStore {
     db: Db,
     uri: String,
     embedder: Embedder,
     dim: usize,
+    dataset: Mutex<Dataset>,
 }
 
 impl EmbeddingsStore {
@@ -47,7 +49,7 @@ impl EmbeddingsStore {
             .to_string();
         let dim = embedder.dim();
 
-        if Dataset::open(&uri).await.is_err() {
+        let dataset = if Dataset::open(&uri).await.is_err() {
             let schema = Arc::new(arrow_schema(dim));
             let empty = RecordBatch::new_empty(schema.clone());
             let reader = RecordBatchIterator::new(vec![Ok(empty)], schema.clone());
@@ -57,14 +59,17 @@ impl EmbeddingsStore {
             };
             Dataset::write(reader, &uri, Some(params))
                 .await
-                .context("creating embeddings dataset")?;
-        }
+                .context("creating embeddings dataset")?
+        } else {
+            Dataset::open(&uri).await?
+        };
 
         Ok(Self {
             db,
             uri,
             embedder,
             dim,
+            dataset: Mutex::new(dataset),
         })
     }
 
@@ -85,9 +90,10 @@ impl EmbeddingsStore {
             mode: WriteMode::Append,
             ..Default::default()
         };
-        Dataset::write(reader, &self.uri, Some(params))
+        let new_dataset = Dataset::write(reader, &self.uri, Some(params))
             .await
             .context("appending embeddings")?;
+        *self.dataset.lock().await = new_dataset;
         Ok(())
     }
 
@@ -108,7 +114,11 @@ impl EmbeddingsStore {
             return Ok(Vec::new());
         }
 
-        let dataset = Dataset::open(&self.uri).await?;
+        let mut dataset = self.dataset.lock().await;
+        if dataset.is_stale().await? {
+            dataset.checkout_latest().await?;
+        }
+
         let id_list = candidate_ids
             .iter()
             .map(ToString::to_string)
@@ -147,9 +157,7 @@ impl EmbeddingsStore {
     }
 
     pub async fn maintenance(&self) -> Result<()> {
-        let mut dataset = Dataset::open(&self.uri)
-            .await
-            .context("open dataset for maintenance")?;
+        let mut dataset = self.dataset.lock().await;
         let row_count = dataset.count_rows(None).await.context("counting rows")?;
         let indices = dataset.load_indices().await.context("loading indices")?;
 
@@ -206,7 +214,10 @@ impl EmbeddingsStore {
     }
 
     async fn list_vectorized_ids(&self) -> Result<Vec<i64>> {
-        let dataset = Dataset::open(&self.uri).await?;
+        let mut dataset = self.dataset.lock().await;
+        if dataset.is_stale().await? {
+            dataset.checkout_latest().await?;
+        }
         let mut scanner = dataset.scan();
         scanner.project(&["job_id"])?;
         let batches: Vec<RecordBatch> = scanner.try_into_stream().await?.try_collect().await?;
@@ -445,5 +456,26 @@ mod tests {
         let ranked = store.search(&query, &[id2], 10, 0).await.unwrap();
         assert_eq!(ranked.len(), 1);
         assert_eq!(ranked[0].0, id2);
+    }
+
+    #[tokio::test]
+    async fn multiple_consecutive_searches_after_write() {
+        let (_tmp, db, store) = test_store().await;
+        let id1 = db
+            .upsert_job(&test_job(Platform::Upwork, "u1", "Rust backend developer"))
+            .await
+            .unwrap();
+
+        let mut emb1 = vec![0.0f32; TEST_DIM];
+        emb1[0] = 1.0;
+        store.upsert_batch(&[id1], &[emb1]).await.unwrap();
+
+        let mut query = vec![0.0f32; TEST_DIM];
+        query[0] = 1.0;
+        for i in 0..30 {
+            let ranked = store.search(&query, &[id1], 10, 0).await.unwrap();
+            assert_eq!(ranked.len(), 1, "search {i} should return one result");
+            assert_eq!(ranked[0].0, id1);
+        }
     }
 }
