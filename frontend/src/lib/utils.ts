@@ -48,7 +48,11 @@ export function fmtRelative(dtStr: string | null | undefined): string {
       ({ days }) => days < 7,
       ({ days }) => `${days}d ago`,
     )
-    .otherwise(({ days }) => `${Math.floor(days / 7)}w ago`);
+    .when(
+      ({ days }) => days < 28,
+      ({ days }) => `${Math.floor(days / 7)}w ago`,
+    )
+    .otherwise(({ days }) => `${Math.round(Math.floor(days / 7) / 4)}mo ago`);
 }
 
 export function ratingEmoji(rating: string | null | undefined): string {
