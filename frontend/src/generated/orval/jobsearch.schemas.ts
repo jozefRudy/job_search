@@ -154,6 +154,7 @@ export interface Job {
 }
 
 export interface JobListResponse {
+  capped: boolean;
   jobs: Job[];
   /** @minimum 0 */
   total: number;

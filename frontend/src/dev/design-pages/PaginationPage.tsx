@@ -17,6 +17,7 @@ export default function PaginationPage() {
             currentPage={page1()}
             totalItems={187}
             pageSize={20}
+            capped={false}
             onPageChange={setPage1}
           />
         </Stack>
@@ -27,6 +28,7 @@ export default function PaginationPage() {
             currentPage={page2()}
             totalItems={1984}
             pageSize={20}
+            capped={false}
             onPageChange={setPage2}
           />
         </Stack>
@@ -37,6 +39,7 @@ export default function PaginationPage() {
             currentPage={page3()}
             totalItems={1984}
             pageSize={20}
+            capped={false}
             onPageChange={setPage3}
           />
         </Stack>
@@ -47,6 +50,7 @@ export default function PaginationPage() {
             currentPage={1}
             totalItems={5}
             pageSize={20}
+            capped={false}
             onPageChange={() => {}}
           />
         </Stack>
@@ -60,6 +64,7 @@ export default function PaginationPage() {
             currentPage={1}
             totalItems={0}
             pageSize={20}
+            capped={false}
             onPageChange={() => {}}
           />
         </Stack>

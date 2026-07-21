@@ -166,6 +166,7 @@ export function JobList() {
 
   const jobs = () => query.data?.jobs ?? [];
   const total = () => query.data?.total ?? 0;
+  const capped = () => query.data?.capped ?? false;
 
   const hasUpwork = createMemo(() => platform() === "upwork");
   const hasCompany = createMemo(() => platform() !== "upwork");
@@ -398,6 +399,7 @@ export function JobList() {
             <Pagination
               currentPage={page()}
               totalItems={total()}
+              capped={capped()}
               pageSize={PAGE_SIZE}
               onPageChange={setPageAndUpdate}
             />

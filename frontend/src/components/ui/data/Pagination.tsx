@@ -6,6 +6,7 @@ export interface PaginationProps {
   currentPage: number;
   totalItems: number;
   pageSize: number;
+  capped: boolean;
   onPageChange: (page: number) => void;
 }
 
@@ -13,10 +14,12 @@ function formatRange(
   currentPage: number,
   totalItems: number,
   pageSize: number,
+  capped: boolean,
 ): string {
   const start = (currentPage - 1) * pageSize + 1;
   const end = Math.min(currentPage * pageSize, totalItems);
   const totalPages = Math.ceil(totalItems / pageSize);
+  const totalSuffix = capped ? `+` : "";
 
   return match({ totalItems, totalPages })
     .when(
@@ -29,9 +32,9 @@ function formatRange(
     )
     .when(
       ({ totalPages }) => totalPages <= 1,
-      ({ totalItems }) => `${totalItems} items`,
+      ({ totalItems }) => `${totalItems}${totalSuffix} items`,
     )
-    .otherwise(() => `${start}-${end} of ${totalItems}`);
+    .otherwise(() => `${start}-${end} of ${totalItems}${totalSuffix}`);
 }
 
 export function Pagination(props: PaginationProps) {
@@ -45,7 +48,12 @@ export function Pagination(props: PaginationProps) {
   });
 
   const rangeText = () =>
-    formatRange(props.currentPage, props.totalItems, props.pageSize);
+    formatRange(
+      props.currentPage,
+      props.totalItems,
+      props.pageSize,
+      props.capped,
+    );
 
   const pages = () => {
     const tp = totalPages();

@@ -377,6 +377,7 @@ pub async fn classify_language(svc: &LanguageService, job: &Job) -> Result<bool>
 pub struct JobListResponse {
     pub jobs: Vec<Job>,
     pub total: usize,
+    pub capped: bool,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

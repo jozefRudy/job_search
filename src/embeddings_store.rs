@@ -29,6 +29,7 @@ pub const VECTOR_SEARCH_MAX_RESULTS: usize = 1000;
 
 pub struct SearchResult {
     pub total: usize,
+    pub capped: bool,
     pub items: Vec<(i64, f32)>,
 }
 
@@ -130,6 +131,7 @@ impl EmbeddingsStore {
         if candidate_ids.is_empty() || embedding.len() != self.dim {
             return Ok(SearchResult {
                 total: 0,
+                capped: false,
                 items: Vec::new(),
             });
         }
@@ -174,8 +176,13 @@ impl EmbeddingsStore {
         }
 
         let total = results.len();
+        let capped = total == VECTOR_SEARCH_MAX_RESULTS;
         let items = results.into_iter().skip(offset).take(limit).collect();
-        Ok(SearchResult { total, items })
+        Ok(SearchResult {
+            total,
+            capped,
+            items,
+        })
     }
 
     pub async fn maintenance(&self) -> Result<()> {

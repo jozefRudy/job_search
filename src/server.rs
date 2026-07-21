@@ -144,13 +144,18 @@ async fn list_jobs(
             .await
             .map_err(|err| internal_error(&err))?;
         let total = result.total;
+        let capped = result.capped;
         let ids: Vec<i64> = result.items.into_iter().map(|(id, _)| id).collect();
         let jobs = state
             .db
             .get_jobs(&ids)
             .await
             .map_err(|err| internal_error(&err))?;
-        return Ok(Json(JobListResponse { jobs, total }));
+        return Ok(Json(JobListResponse {
+            jobs,
+            total,
+            capped,
+        }));
     }
 
     let paginated = state
@@ -162,6 +167,7 @@ async fn list_jobs(
     Ok(Json(JobListResponse {
         jobs: paginated.items,
         total: usize::try_from(paginated.total).unwrap_or(usize::MAX),
+        capped: false,
     }))
 }
 
