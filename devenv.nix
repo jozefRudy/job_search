@@ -11,10 +11,6 @@
     JOBSEARCH_DATABASE_URL = "sqlite:./jobsearch.db";
     JOBSEARCH_CONFIG_DIR = "./";
   };
-  enterShell = ''
-    cargo sqlx database create --database-url "$JOBSEARCH_DATABASE_URL" 2>/dev/null || true
-    cargo sqlx migrate run --database-url "$JOBSEARCH_DATABASE_URL" && cargo sqlx prepare --database-url "$JOBSEARCH_DATABASE_URL" -- --tests
-  '';
 
   languages = {
     rust = {
@@ -58,6 +54,11 @@
     };
   };
   scripts = {
+    sqlx-update.exec = ''
+      cargo sqlx database create --database-url "$JOBSEARCH_DATABASE_URL" 2>/dev/null || true
+      cargo sqlx migrate run --database-url "$JOBSEARCH_DATABASE_URL" && cargo sqlx prepare --database-url "$JOBSEARCH_DATABASE_URL" -- --tests
+    '';
+
     kill-services.exec = ''
       echo "Killing all services on ports 8080, 3000"
       pkill -9 -f "devenv" || true

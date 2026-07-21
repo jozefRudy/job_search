@@ -45,6 +45,7 @@ fastembed = { version = "5", features = ["ort-download-binaries-native-tls", "hf
 ort = { version = "=2.0.0-rc.12" }
 
 lance = { version = "8.0", default-features = false }
+lance-datafusion = "8.0"
 arrow = "58"
 arrow-array = "58"
 arrow-schema = "58"

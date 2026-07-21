@@ -3393,6 +3393,7 @@ dependencies = [
  "html2text",
  "include_dir",
  "lance",
+ "lance-datafusion",
  "lance-index",
  "lance-linalg",
  "lingua",

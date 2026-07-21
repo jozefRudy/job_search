@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT j.id\n            FROM jobs j\n            LEFT JOIN reactions r ON r.job_id = j.id\n            WHERE (?1 IS NULL OR j.platform = ?1)\n              AND (?2 IS NULL OR j.rating = ?2)\n              AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)\n              AND (?4 IS NULL OR j.remote = ?4)\n              AND j.vectorized = TRUE\n            ORDER BY j.id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "49053e83c521f541958221855da5a3aa6a873bd59c47b50a16924867ff9b9018"
+}

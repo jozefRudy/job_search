@@ -112,8 +112,8 @@ impl Db {
 
         let id = sqlx::query_scalar!(
             r#"
-            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at, remote, rating, content_hash)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at, remote, rating, content_hash, vectorized)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, FALSE)
             RETURNING id
             "#,
             job.platform,
@@ -162,7 +162,7 @@ impl Db {
         Ok(rows.into_iter().map(std::convert::Into::into).collect())
     }
 
-    pub async fn list_jobs_filtered(
+    pub async fn filter_jobs_paginated(
         &self,
         filter: &JobFilter,
         sort: Sort,
@@ -474,17 +474,29 @@ impl Db {
         Ok(Stats { total, by_platform })
     }
 
-    pub async fn get_job_ids_except(&self, excluded_ids: &[i64], limit: i64) -> Result<Vec<i64>> {
-        let ids_json = serde_json::to_string(excluded_ids)?;
+    pub async fn mark_vectorized(&self, ids: &[i64]) -> Result<()> {
+        if ids.is_empty() {
+            return Ok(());
+        }
+        let ids_json = serde_json::to_string(ids)?;
+        sqlx::query!(
+            "UPDATE jobs SET vectorized = TRUE WHERE id IN (SELECT value FROM json_each(?1))",
+            ids_json
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_unvectorized_job_ids(&self, limit: i64) -> Result<Vec<i64>> {
         let ids = sqlx::query_scalar!(
             r#"
             SELECT id
             FROM jobs
-            WHERE id NOT IN (SELECT value FROM json_each(?1))
+            WHERE vectorized = FALSE
             ORDER BY created_at ASC
-            LIMIT ?2
+            LIMIT ?1
             "#,
-            ids_json,
             limit
         )
         .fetch_all(&self.pool)
@@ -492,7 +504,7 @@ impl Db {
         Ok(ids.into_iter().flatten().collect())
     }
 
-    pub async fn filter_job_ids(&self, filter: &JobFilter) -> Result<Vec<i64>> {
+    pub async fn filter_vectorized_job_ids(&self, filter: &JobFilter) -> Result<Vec<i64>> {
         let ids = sqlx::query_scalar!(
             r#"
             SELECT j.id
@@ -502,6 +514,7 @@ impl Db {
               AND (?2 IS NULL OR j.rating = ?2)
               AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
+              AND j.vectorized = TRUE
             ORDER BY j.id
             "#,
             filter.platform,
@@ -511,7 +524,7 @@ impl Db {
         )
         .fetch_all(&self.pool)
         .await?;
-        Ok(ids)
+        Ok(ids.into_iter().flatten().collect())
     }
 }
 
@@ -971,7 +984,7 @@ mod tests {
         db.set_applied(id1, None, chrono::Utc::now()).await?;
 
         let applied = db
-            .list_jobs_filtered(
+            .filter_jobs_paginated(
                 &JobFilter {
                     platform: Some(Platform::Upwork),
                     applied: Some(true),
@@ -986,7 +999,7 @@ mod tests {
         assert_eq!(applied.items[0].title, "Applied");
 
         let not_applied = db
-            .list_jobs_filtered(
+            .filter_jobs_paginated(
                 &JobFilter {
                     platform: Some(Platform::Upwork),
                     applied: Some(false),
@@ -1001,7 +1014,7 @@ mod tests {
         assert_eq!(not_applied.items[0].title, "Not applied");
 
         let all = db
-            .list_jobs_filtered(
+            .filter_jobs_paginated(
                 &JobFilter {
                     platform: Some(Platform::Upwork),
                     ..Default::default()
@@ -1035,7 +1048,7 @@ mod tests {
         db.set_rating(&[id_neutral], Rating::Neutral).await?;
 
         let liked = db
-            .list_jobs_filtered(
+            .filter_jobs_paginated(
                 &JobFilter {
                     platform: Some(Platform::Upwork),
                     rating: Some(Rating::Liked),
@@ -1050,7 +1063,7 @@ mod tests {
         assert_eq!(liked.items[0].title, "Liked");
 
         let disliked = db
-            .list_jobs_filtered(
+            .filter_jobs_paginated(
                 &JobFilter {
                     platform: Some(Platform::Upwork),
                     rating: Some(Rating::Disliked),
@@ -1065,7 +1078,7 @@ mod tests {
         assert_eq!(disliked.items[0].title, "Disliked");
 
         let neutral = db
-            .list_jobs_filtered(
+            .filter_jobs_paginated(
                 &JobFilter {
                     platform: Some(Platform::Upwork),
                     rating: Some(Rating::Neutral),
@@ -1080,7 +1093,7 @@ mod tests {
         assert_eq!(neutral.items[0].title, "Neutral");
 
         let all = db
-            .list_jobs_filtered(
+            .filter_jobs_paginated(
                 &JobFilter {
                     platform: Some(Platform::Upwork),
                     ..Default::default()
@@ -1109,7 +1122,7 @@ mod tests {
         db.upsert_job(&onsite_job).await?;
 
         let remote = db
-            .list_jobs_filtered(
+            .filter_jobs_paginated(
                 &JobFilter {
                     platform: Some(Platform::Upwork),
                     remote: Some(true),
@@ -1124,7 +1137,7 @@ mod tests {
         assert!(remote.items[0].remote);
 
         let onsite = db
-            .list_jobs_filtered(
+            .filter_jobs_paginated(
                 &JobFilter {
                     platform: Some(Platform::Upwork),
                     remote: Some(false),
@@ -1139,7 +1152,7 @@ mod tests {
         assert!(!onsite.items[0].remote);
 
         let all = db
-            .list_jobs_filtered(
+            .filter_jobs_paginated(
                 &JobFilter {
                     platform: Some(Platform::Upwork),
                     ..Default::default()
@@ -1179,21 +1192,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_job_ids_except() -> Result<()> {
+    async fn test_get_unvectorized_job_ids() -> Result<()> {
         let tmp = temp_db();
         let db = Db::open(tmp.path()).await?;
 
         let id1 = db
             .upsert_job(&test_job(Platform::Upwork, "u1", "A"))
             .await?;
-        let _id2 = db
+        let id2 = db
             .upsert_job(&test_job(Platform::Upwork, "u2", "B"))
             .await?;
         let id3 = db
             .upsert_job(&test_job(Platform::Upwork, "u3", "C"))
             .await?;
 
-        let ids = db.get_job_ids_except(&[id1], 10).await?;
+        db.mark_vectorized(&[id1]).await?;
+
+        let ids = db.get_unvectorized_job_ids(10).await?;
+        assert!(ids.contains(&id2));
         assert!(ids.contains(&id3));
         assert!(!ids.contains(&id1));
 
@@ -1212,15 +1228,17 @@ mod tests {
             .upsert_job(&test_job(Platform::NoFluffJobs, "n1", "B"))
             .await?;
 
+        db.mark_vectorized(&[id1, id2]).await?;
+
         let upwork = db
-            .filter_job_ids(&JobFilter {
+            .filter_vectorized_job_ids(&JobFilter {
                 platform: Some(Platform::Upwork),
                 ..Default::default()
             })
             .await?;
         assert_eq!(upwork, vec![id1]);
 
-        let all = db.filter_job_ids(&JobFilter::default()).await?;
+        let all = db.filter_vectorized_job_ids(&JobFilter::default()).await?;
         assert_eq!(all.len(), 2);
         assert!(all.contains(&id2));
 

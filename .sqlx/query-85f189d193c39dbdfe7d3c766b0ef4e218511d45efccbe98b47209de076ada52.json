@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT id\n            FROM jobs\n            WHERE vectorized = FALSE\n            ORDER BY created_at ASC\n            LIMIT ?1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "85f189d193c39dbdfe7d3c766b0ef4e218511d45efccbe98b47209de076ada52"
+}

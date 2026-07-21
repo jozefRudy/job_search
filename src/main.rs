@@ -9,6 +9,7 @@ use jobsearch::config::Settings;
 use jobsearch::db::Db;
 use jobsearch::embed::{DEFAULT_EMBEDDING_MODEL, Embedder};
 use jobsearch::embeddings_store::EmbeddingsStore;
+use jobsearch::embeddings_store::VECTOR_SEARCH_MAX_RESULTS;
 use jobsearch::language::LanguageService;
 use jobsearch::models::{JobFilter, Platform, Rating, Sort};
 use jobsearch::platforms::{
@@ -366,18 +367,24 @@ async fn cmd_list(
 ) -> Result<()> {
     if let Some(query) = search.filter(|s| !s.is_empty()) {
         let store = open_embeddings_store(db, db_path).await?;
-        let candidate_ids = db.filter_job_ids(&filter).await?;
+        let candidate_ids = db.filter_vectorized_job_ids(&filter).await?;
         let query_embedding = store.embedder().embed_query(&query).await?;
-        let ranked = store
-            .search(&query_embedding, &candidate_ids, 1000, 0)
+        let result = store
+            .search(
+                &query_embedding,
+                &candidate_ids,
+                VECTOR_SEARCH_MAX_RESULTS,
+                0,
+            )
             .await?;
+        let ranked = result.items;
         let ids: Vec<i64> = ranked.into_iter().map(|(id, _)| id).collect();
         let jobs = db.get_jobs(&ids).await?;
         println!("{}", serde_json::to_string_pretty(&jobs)?);
         return Ok(());
     }
 
-    let jobs = db.list_jobs_filtered(&filter, sort, i64::MAX, 0).await?;
+    let jobs = db.filter_jobs_paginated(&filter, sort, i64::MAX, 0).await?;
     println!("{}", serde_json::to_string_pretty(&jobs.items)?);
     Ok(())
 }

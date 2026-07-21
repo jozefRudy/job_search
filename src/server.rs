@@ -121,21 +121,9 @@ async fn list_jobs(
     if let Some(query_text) = search {
         let candidate_ids = state
             .db
-            .filter_job_ids(&filter)
+            .filter_vectorized_job_ids(&filter)
             .await
             .map_err(|err| internal_error(&err))?;
-
-        let vectorized_count = state
-            .embeddings
-            .count_vectorized_candidates(&candidate_ids)
-            .await
-            .map_err(|err| internal_error(&err))?;
-        if vectorized_count == 0 {
-            return Ok(Json(JobListResponse {
-                jobs: vec![],
-                total: 0,
-            }));
-        }
 
         let query_embedding = state
             .embeddings
@@ -143,32 +131,31 @@ async fn list_jobs(
             .embed_query(query_text)
             .await
             .map_err(|err| internal_error(&err))?;
-        let top_n = usize::try_from(limit + offset).unwrap_or(usize::MAX);
-        let ranked = state
+        let search_limit = usize::try_from(limit).unwrap_or(usize::MAX);
+        let search_offset = usize::try_from(offset).unwrap_or(usize::MAX);
+        let result = state
             .embeddings
-            .search(&query_embedding, &candidate_ids, top_n, 0)
+            .search(
+                &query_embedding,
+                &candidate_ids,
+                search_limit,
+                search_offset,
+            )
             .await
             .map_err(|err| internal_error(&err))?;
-        let ids: Vec<i64> = ranked
-            .into_iter()
-            .map(|(id, _)| id)
-            .skip(usize::try_from(offset).unwrap_or(usize::MAX))
-            .take(usize::try_from(limit).unwrap_or(usize::MAX))
-            .collect();
+        let total = result.total;
+        let ids: Vec<i64> = result.items.into_iter().map(|(id, _)| id).collect();
         let jobs = state
             .db
             .get_jobs(&ids)
             .await
             .map_err(|err| internal_error(&err))?;
-        return Ok(Json(JobListResponse {
-            jobs,
-            total: vectorized_count,
-        }));
+        return Ok(Json(JobListResponse { jobs, total }));
     }
 
     let paginated = state
         .db
-        .list_jobs_filtered(&filter, sort_by, limit, offset)
+        .filter_jobs_paginated(&filter, sort_by, limit, offset)
         .await
         .map_err(|err| internal_error(&err))?;
 

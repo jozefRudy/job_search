@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -11,7 +10,9 @@ use arrow_array::builder::{
 use chrono::Utc;
 use futures::TryStreamExt;
 use lance::dataset::optimize::{CompactionOptions, compact_files};
-use lance::dataset::{Dataset, WriteMode, WriteParams};
+use lance::dataset::{
+    Dataset, MergeInsertBuilder, WhenMatched, WhenNotMatched, WriteMode, WriteParams,
+};
 use lance::index::DatasetIndexExt;
 use lance::index::vector::VectorIndexParams;
 use lance_index::IndexType;
@@ -24,9 +25,15 @@ use crate::embed::Embedder;
 use crate::models::Job;
 use tokio::sync::Mutex;
 
+pub const VECTOR_SEARCH_MAX_RESULTS: usize = 1000;
+
+pub struct SearchResult {
+    pub total: usize,
+    pub items: Vec<(i64, f32)>,
+}
+
 pub struct EmbeddingsStore {
     db: Db,
-    uri: String,
     embedder: Embedder,
     dim: usize,
     dataset: Mutex<Dataset>,
@@ -67,7 +74,6 @@ impl EmbeddingsStore {
 
         Ok(Self {
             db,
-            uri,
             embedder,
             dim,
             dataset: Mutex::new(dataset),
@@ -84,34 +90,34 @@ impl EmbeddingsStore {
     }
 
     pub async fn upsert_batch(&self, job_ids: &[i64], embeddings: &[Vec<f32>]) -> Result<()> {
+        if job_ids.is_empty() {
+            return Ok(());
+        }
+
         let batch = embeddings_to_batch(job_ids, embeddings, self.dim)?;
         let schema = batch.schema();
         let reader = RecordBatchIterator::new(vec![Ok(batch)], schema);
-        let params = WriteParams {
-            mode: WriteMode::Append,
-            ..Default::default()
-        };
-        let new_dataset = Dataset::write(reader, &self.uri, Some(params))
-            .await
-            .context("appending embeddings")?;
-        *self.dataset.lock().await = new_dataset;
-        Ok(())
+        let stream = lance_datafusion::utils::reader_to_stream(Box::new(reader));
+
+        let dataset = self.dataset.lock().await.clone();
+        let (new_dataset, _stats) =
+            MergeInsertBuilder::try_new(Arc::new(dataset), vec!["job_id".to_string()])?
+                .when_matched(WhenMatched::UpdateAll)
+                .when_not_matched(WhenNotMatched::InsertAll)
+                .try_build()?
+                .execute(stream)
+                .await
+                .context("upserting embeddings")?;
+
+        *self.dataset.lock().await =
+            Arc::try_unwrap(new_dataset).unwrap_or_else(|arc| (*arc).clone());
+
+        self.db.mark_vectorized(job_ids).await
     }
 
     pub async fn get_unvectorized_jobs(&self, limit: i64) -> Result<Vec<Job>> {
-        let vectorized_ids = self.list_vectorized_ids().await?;
-        let ids = self.db.get_job_ids_except(&vectorized_ids, limit).await?;
+        let ids = self.db.get_unvectorized_job_ids(limit).await?;
         self.db.get_jobs(&ids).await
-    }
-
-    pub async fn count_vectorized_candidates(&self, candidate_ids: &[i64]) -> Result<usize> {
-        if candidate_ids.is_empty() {
-            return Ok(0);
-        }
-
-        let vectorized = self.list_vectorized_ids().await?;
-        let set: HashSet<i64> = vectorized.into_iter().collect();
-        Ok(candidate_ids.iter().filter(|id| set.contains(id)).count())
     }
 
     pub async fn search(
@@ -120,9 +126,12 @@ impl EmbeddingsStore {
         candidate_ids: &[i64],
         limit: usize,
         offset: usize,
-    ) -> Result<Vec<(i64, f32)>> {
+    ) -> Result<SearchResult> {
         if candidate_ids.is_empty() || embedding.len() != self.dim {
-            return Ok(Vec::new());
+            return Ok(SearchResult {
+                total: 0,
+                items: Vec::new(),
+            });
         }
 
         let mut dataset = self.dataset.lock().await;
@@ -141,7 +150,7 @@ impl EmbeddingsStore {
         scanner.prefilter(true);
         scanner.distance_metric(DistanceType::Cosine);
         let query_arr = Float32Array::from(embedding.to_vec());
-        let top_n = limit.saturating_add(offset);
+        let top_n = limit.saturating_add(offset).min(VECTOR_SEARCH_MAX_RESULTS);
         scanner.nearest("embedding", &query_arr, top_n)?;
         scanner.project(&["job_id", "_distance"])?;
 
@@ -164,7 +173,9 @@ impl EmbeddingsStore {
             }
         }
 
-        Ok(results.into_iter().skip(offset).take(limit).collect())
+        let total = results.len();
+        let items = results.into_iter().skip(offset).take(limit).collect();
+        Ok(SearchResult { total, items })
     }
 
     pub async fn maintenance(&self) -> Result<()> {
@@ -224,6 +235,7 @@ impl EmbeddingsStore {
         Ok(total)
     }
 
+    #[cfg(test)]
     async fn list_vectorized_ids(&self) -> Result<Vec<i64>> {
         let mut dataset = self.dataset.lock().await;
         if dataset.is_stale().await? {
@@ -365,7 +377,8 @@ mod tests {
     #[tokio::test]
     async fn open_creates_dataset() {
         let (_tmp, _db, store) = test_store().await;
-        let dataset = Dataset::open(&store.uri).await.unwrap();
+        let uri = store.dataset.lock().await.uri().to_string();
+        let dataset = Dataset::open(&uri).await.unwrap();
         assert_eq!(dataset.schema().fields.len(), 3);
     }
 
@@ -376,7 +389,7 @@ mod tests {
             .path()
             .join("lance")
             .join("embeddings-nomic-ai-nomic-embed-text-v1.5");
-        assert_eq!(store.uri, expected.to_string_lossy().to_string());
+        assert_eq!(store.dataset.lock().await.uri(), expected.to_string_lossy());
     }
 
     #[tokio::test]
@@ -432,7 +445,9 @@ mod tests {
             .await
             .unwrap();
 
-        let ranked = store.search(&query, &[id1, id2], 10, 0).await.unwrap();
+        let result = store.search(&query, &[id1, id2], 10, 0).await.unwrap();
+        let ranked = result.items;
+        assert_eq!(result.total, 2);
         assert_eq!(ranked.len(), 2);
         assert_eq!(ranked[0].0, id1);
     }
@@ -464,41 +479,11 @@ mod tests {
             .await
             .unwrap();
 
-        let ranked = store.search(&query, &[id2], 10, 0).await.unwrap();
+        let result = store.search(&query, &[id2], 10, 0).await.unwrap();
+        let ranked = result.items;
+        assert_eq!(result.total, 1);
         assert_eq!(ranked.len(), 1);
         assert_eq!(ranked[0].0, id2);
-    }
-
-    #[tokio::test]
-    async fn count_vectorized_candidates_returns_vectorized_subset() {
-        let (_tmp, db, store) = test_store().await;
-        let id1 = db
-            .upsert_job(&test_job(Platform::Upwork, "u1", "Rust backend developer"))
-            .await
-            .unwrap();
-        let id2 = db
-            .upsert_job(&test_job(
-                Platform::NoFluffJobs,
-                "n2",
-                "Python data scientist",
-            ))
-            .await
-            .unwrap();
-
-        let mut emb1 = vec![0.0f32; TEST_DIM];
-        emb1[0] = 1.0;
-        store.upsert_batch(&[id1], &[emb1]).await.unwrap();
-
-        assert_eq!(
-            store
-                .count_vectorized_candidates(&[id1, id2])
-                .await
-                .unwrap(),
-            1
-        );
-        assert_eq!(store.count_vectorized_candidates(&[id1]).await.unwrap(), 1);
-        assert_eq!(store.count_vectorized_candidates(&[id2]).await.unwrap(), 0);
-        assert_eq!(store.count_vectorized_candidates(&[]).await.unwrap(), 0);
     }
 
     #[tokio::test]
@@ -516,9 +501,44 @@ mod tests {
         let mut query = vec![0.0f32; TEST_DIM];
         query[0] = 1.0;
         for i in 0..30 {
-            let ranked = store.search(&query, &[id1], 10, 0).await.unwrap();
+            let result = store.search(&query, &[id1], 10, 0).await.unwrap();
+            let ranked = result.items;
+            assert_eq!(result.total, 1, "search {i} should return one result");
             assert_eq!(ranked.len(), 1, "search {i} should return one result");
             assert_eq!(ranked[0].0, id1);
         }
+    }
+
+    #[tokio::test]
+    async fn upsert_overwrites_existing_embedding() {
+        let (_tmp, db, store) = test_store().await;
+        let id1 = db
+            .upsert_job(&test_job(Platform::Upwork, "u1", "Rust backend developer"))
+            .await
+            .unwrap();
+
+        let mut first = vec![0.0f32; TEST_DIM];
+        first[0] = 1.0;
+        store.upsert_batch(&[id1], &[first]).await.unwrap();
+
+        let mut second = vec![0.0f32; TEST_DIM];
+        second[1] = 1.0;
+        store.upsert_batch(&[id1], &[second]).await.unwrap();
+
+        let mut query = vec![0.0f32; TEST_DIM];
+        query[1] = 1.0;
+        let result = store.search(&query, &[id1], 10, 0).await.unwrap();
+        assert_eq!(result.total, 1);
+        assert_eq!(result.items.len(), 1);
+
+        let mut wrong_query = vec![0.0f32; TEST_DIM];
+        wrong_query[0] = 1.0;
+        let wrong_result = store.search(&wrong_query, &[id1], 10, 0).await.unwrap();
+        assert_eq!(wrong_result.total, 1);
+        assert_eq!(wrong_result.items.len(), 1);
+        assert!(
+            wrong_result.items[0].1 < result.items[0].1,
+            "second embedding should score higher for query[1]"
+        );
     }
 }
