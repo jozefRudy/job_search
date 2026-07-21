@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -101,6 +102,16 @@ impl EmbeddingsStore {
         let vectorized_ids = self.list_vectorized_ids().await?;
         let ids = self.db.get_job_ids_except(&vectorized_ids, limit).await?;
         self.db.get_jobs(&ids).await
+    }
+
+    pub async fn count_vectorized_candidates(&self, candidate_ids: &[i64]) -> Result<usize> {
+        if candidate_ids.is_empty() {
+            return Ok(0);
+        }
+
+        let vectorized = self.list_vectorized_ids().await?;
+        let set: HashSet<i64> = vectorized.into_iter().collect();
+        Ok(candidate_ids.iter().filter(|id| set.contains(id)).count())
     }
 
     pub async fn search(
@@ -456,6 +467,38 @@ mod tests {
         let ranked = store.search(&query, &[id2], 10, 0).await.unwrap();
         assert_eq!(ranked.len(), 1);
         assert_eq!(ranked[0].0, id2);
+    }
+
+    #[tokio::test]
+    async fn count_vectorized_candidates_returns_vectorized_subset() {
+        let (_tmp, db, store) = test_store().await;
+        let id1 = db
+            .upsert_job(&test_job(Platform::Upwork, "u1", "Rust backend developer"))
+            .await
+            .unwrap();
+        let id2 = db
+            .upsert_job(&test_job(
+                Platform::NoFluffJobs,
+                "n2",
+                "Python data scientist",
+            ))
+            .await
+            .unwrap();
+
+        let mut emb1 = vec![0.0f32; TEST_DIM];
+        emb1[0] = 1.0;
+        store.upsert_batch(&[id1], &[emb1]).await.unwrap();
+
+        assert_eq!(
+            store
+                .count_vectorized_candidates(&[id1, id2])
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(store.count_vectorized_candidates(&[id1]).await.unwrap(), 1);
+        assert_eq!(store.count_vectorized_candidates(&[id2]).await.unwrap(), 0);
+        assert_eq!(store.count_vectorized_candidates(&[]).await.unwrap(), 0);
     }
 
     #[tokio::test]

@@ -124,6 +124,19 @@ async fn list_jobs(
             .filter_job_ids(&filter)
             .await
             .map_err(|err| internal_error(&err))?;
+
+        let vectorized_count = state
+            .embeddings
+            .count_vectorized_candidates(&candidate_ids)
+            .await
+            .map_err(|err| internal_error(&err))?;
+        if vectorized_count == 0 {
+            return Ok(Json(JobListResponse {
+                jobs: vec![],
+                total: 0,
+            }));
+        }
+
         let query_embedding = state
             .embeddings
             .embedder()
@@ -142,13 +155,15 @@ async fn list_jobs(
             .skip(usize::try_from(offset).unwrap_or(usize::MAX))
             .take(usize::try_from(limit).unwrap_or(usize::MAX))
             .collect();
-        let total = candidate_ids.len();
         let jobs = state
             .db
             .get_jobs(&ids)
             .await
             .map_err(|err| internal_error(&err))?;
-        return Ok(Json(JobListResponse { jobs, total }));
+        return Ok(Json(JobListResponse {
+            jobs,
+            total: vectorized_count,
+        }));
     }
 
     let paginated = state
