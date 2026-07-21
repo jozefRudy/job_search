@@ -152,8 +152,7 @@ impl EmbeddingsStore {
         scanner.prefilter(true);
         scanner.distance_metric(DistanceType::Cosine);
         let query_arr = Float32Array::from(embedding.to_vec());
-        let top_n = limit.saturating_add(offset).min(VECTOR_SEARCH_MAX_RESULTS);
-        scanner.nearest("embedding", &query_arr, top_n)?;
+        scanner.nearest("embedding", &query_arr, VECTOR_SEARCH_MAX_RESULTS)?;
         scanner.project(&["job_id", "_distance"])?;
 
         let batches: Vec<RecordBatch> = scanner.try_into_stream().await?.try_collect().await?;
@@ -491,6 +490,30 @@ mod tests {
         assert_eq!(result.total, 1);
         assert_eq!(ranked.len(), 1);
         assert_eq!(ranked[0].0, id2);
+    }
+
+    #[tokio::test]
+    async fn search_total_is_not_limited_by_page_size() {
+        let (_tmp, db, store) = test_store().await;
+        let mut ids = Vec::new();
+        for i in 0..30 {
+            let mut job = test_job(Platform::Upwork, &format!("u{i}"), &format!("Job {i}"));
+            job.description = Some("same description".to_string());
+            let id = db.upsert_job(&job).await.unwrap();
+            ids.push(id);
+        }
+
+        let embedding = vec![1.0f32; TEST_DIM];
+        let embeddings: Vec<Vec<f32>> = (0..30).map(|_| embedding.clone()).collect();
+        store.upsert_batch(&ids, &embeddings).await.unwrap();
+
+        let query = vec![1.0f32; TEST_DIM];
+        let result = store.search(&query, &ids, 10, 0).await.unwrap();
+        assert_eq!(result.items.len(), 10);
+        assert_eq!(
+            result.total, 30,
+            "total should be the full candidate count, not the page size"
+        );
     }
 
     #[tokio::test]
