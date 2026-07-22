@@ -41,7 +41,7 @@
     if (descEl) {
         description = descEl.innerText?.trim() || '';
     }
-    if (!description || description.length < 200) {
+    if (!description) {
         const sections = Array.from(document.querySelectorAll('section'));
         for (const section of sections) {
             const t = section.innerText?.trim() || '';
@@ -50,7 +50,11 @@
                 && !t.includes('Footer navigation')
                 && !t.includes('Rating is')
                 && !t.includes('To freelancer:')
-                && !t.includes('Billed: $')) {
+                && !t.includes('Billed: $')
+                && !t.includes('Apply now')
+                && !t.includes('Save job')
+                && !t.includes('Send a proposal')
+                && !t.includes('About the client')) {
                 description = t;
             }
         }
