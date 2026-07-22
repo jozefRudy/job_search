@@ -153,12 +153,23 @@ impl EfinancialcareersScraper {
         if let Some(job) = job {
             match db.upsert_job(&job).await? {
                 UpsertResult::New(_) => state.inc_new(),
-                UpsertResult::Updated(_) | UpsertResult::Duplicate(_) => {
+                UpsertResult::Updated(_) => {
                     state.inc_existing();
+                }
+                UpsertResult::Duplicate(_) => {
+                    state.inc_existing();
+                    db.mark_rejected(&Platform::Efinancialcareers, &card.external_id, "duplicate")
+                        .await?;
                 }
             }
         } else {
             state.inc_skipped();
+            db.mark_rejected(
+                &Platform::Efinancialcareers,
+                &card.external_id,
+                "non_english",
+            )
+            .await?;
         }
 
         eprint!("{}", state.progress_line(Some(total_jobs), &card.title));

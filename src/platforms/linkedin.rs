@@ -296,19 +296,14 @@ impl LinkedInScraper {
                 UpsertResult::Updated(_) => state.inc_existing(),
                 UpsertResult::Duplicate(_) => {
                     state.inc_existing();
-                    if let Err(e) = db
-                        .mark_rejected(&Platform::LinkedIn, &job.external_id, "duplicate")
-                        .await
-                    {
-                        eprintln!(
-                            "    Warning: failed to mark duplicate {} as rejected: {e}",
-                            job.external_id
-                        );
-                    }
+                    db.mark_rejected(&Platform::LinkedIn, &job.external_id, "duplicate")
+                        .await?;
                 }
             }
         } else {
             state.inc_skipped();
+            db.mark_rejected(&Platform::LinkedIn, &job.external_id, "non_english")
+                .await?;
         }
         eprint!("{}", state.progress_line(Some(total), &job.title));
         sleep(Duration::from_millis(pause_ms)).await;
