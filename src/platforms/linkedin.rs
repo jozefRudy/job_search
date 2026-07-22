@@ -1,5 +1,5 @@
 use crate::browser::{BrowserExt, wait_for_with_challenge_recovery};
-use crate::db::Db;
+use crate::db::{Db, UpsertResult};
 use crate::models::{Budget, Data, Job, LinkedInJobDetail, Platform, Rating};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
@@ -196,13 +196,17 @@ impl LinkedInParams {
 
 pub struct LinkedInScraper {
     params: LinkedInParams,
+    lang: crate::language::LanguageService,
 }
 
 impl LinkedInScraper {
     #[must_use]
     pub fn new(url: &str) -> Self {
         let params = LinkedInParams::parse_url(url).unwrap_or_default();
-        Self { params }
+        Self {
+            params,
+            lang: crate::language::LanguageService::new(),
+        }
     }
 
     async fn ensure_linkedin_tab(&self, browser: &Browser) -> Result<()> {
@@ -233,6 +237,83 @@ impl LinkedInScraper {
     pub async fn scrape_page(&self, page: &Page) -> Result<Vec<LinkedInJobCard>> {
         self.fetch_page(page, 0).await.map(|r| r.cards)
     }
+
+    async fn process_search_card(
+        &self,
+        db: &Db,
+        page: &Page,
+        card: &LinkedInJobCard,
+        total: usize,
+        pause_ms: u64,
+        state: &mut FetchState,
+    ) -> Result<()> {
+        let job_id: u64 = card
+            .id
+            .parse()
+            .map_err(|e| anyhow::anyhow!("invalid LinkedIn job id {e}"))?;
+
+        let detail = match fetch_job_detail(page, job_id).await {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!(
+                    "    Warning: failed to fetch detail for {}: {e}",
+                    card.title
+                );
+                return Ok(());
+            }
+        };
+
+        let company = Some(detail.company.clone()).filter(|c| !c.is_empty());
+        let description = Some(detail.description.clone()).filter(|d| !d.is_empty());
+        let remote = detail.workplace_type.eq_ignore_ascii_case("remote");
+        let posted_at = card
+            .listed_at
+            .and_then(DateTime::from_timestamp_millis)
+            .unwrap_or_else(Utc::now);
+
+        let job = Job {
+            id: 0,
+            platform: Platform::LinkedIn,
+            external_id: card.id.clone(),
+            title: card.title.clone(),
+            description,
+            url: format!("{JOB_VIEW_BASE_URL}{job_id}/"),
+            budget: Budget::parse(&detail.salary, Some("yr")).map(|b| b.to_string()),
+            tags: Vec::new(),
+            raw: Data::LinkedIn { detail },
+            company,
+            created_at: posted_at,
+            updated_at: Utc::now(),
+            note: None,
+            rating: Rating::Neutral,
+            applied_at: None,
+            remote,
+        };
+        let is_english = crate::models::classify_language(&self.lang, &job).await?;
+        if is_english {
+            match db.upsert_job(&job).await? {
+                UpsertResult::New(_) => state.inc_new(),
+                UpsertResult::Updated(_) => state.inc_existing(),
+                UpsertResult::Duplicate(_) => {
+                    state.inc_existing();
+                    if let Err(e) = db
+                        .mark_rejected(&Platform::LinkedIn, &job.external_id, "duplicate")
+                        .await
+                    {
+                        eprintln!(
+                            "    Warning: failed to mark duplicate {} as rejected: {e}",
+                            job.external_id
+                        );
+                    }
+                }
+            }
+        } else {
+            state.inc_skipped();
+        }
+        eprint!("{}", state.progress_line(Some(total), &job.title));
+        sleep(Duration::from_millis(pause_ms)).await;
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -262,7 +343,6 @@ impl PlatformClient for LinkedInScraper {
             bail!("LinkedIn search page did not load. Ensure you are logged in at linkedin.com.");
         }
 
-        let lang = crate::language::LanguageService::new();
         let mut no_cards_fetched = 0;
         let mut state = FetchState::new();
         let _guard = CursorGuard::new();
@@ -289,55 +369,8 @@ impl PlatformClient for LinkedInScraper {
             sleep(Duration::from_millis(pause_ms)).await;
 
             for card in new_cards {
-                let job_id: u64 = card
-                    .id
-                    .parse()
-                    .map_err(|e| anyhow::anyhow!("invalid LinkedIn job id {e}"))?;
-
-                let detail = match fetch_job_detail(&page, job_id).await {
-                    Ok(d) => d,
-                    Err(e) => {
-                        eprintln!(
-                            "    Warning: failed to fetch detail for {}: {e}",
-                            card.title
-                        );
-                        continue;
-                    }
-                };
-
-                let company = Some(detail.company.clone()).filter(|c| !c.is_empty());
-                let description = Some(detail.description.clone()).filter(|d| !d.is_empty());
-                let remote = detail.workplace_type.eq_ignore_ascii_case("remote");
-                let posted_at = card
-                    .listed_at
-                    .and_then(DateTime::from_timestamp_millis)
-                    .unwrap_or_else(Utc::now);
-
-                let job = Job {
-                    id: 0,
-                    platform: Platform::LinkedIn,
-                    external_id: card.id,
-                    title: card.title,
-                    description,
-                    url: format!("{JOB_VIEW_BASE_URL}{job_id}/"),
-                    budget: Budget::parse(&detail.salary, Some("yr")).map(|b| b.to_string()),
-                    tags: Vec::new(),
-                    raw: Data::LinkedIn { detail },
-                    company,
-                    created_at: posted_at,
-                    updated_at: Utc::now(),
-                    note: None,
-                    rating: Rating::Neutral,
-                    applied_at: None,
-                    remote,
-                };
-                let is_english = crate::models::classify_language(&lang, &job).await?;
-                if is_english {
-                    db.upsert_job(&job).await?;
-                    state.inc_new();
-                    eprint!("{}", state.progress_line(Some(total), &job.title));
-                }
-                sleep(Duration::from_millis(pause_ms)).await;
+                self.process_search_card(db, &page, &card, total, pause_ms, &mut state)
+                    .await?;
             }
 
             if card_count == 0 || no_cards_fetched + card_count >= total {

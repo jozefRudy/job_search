@@ -244,7 +244,7 @@ pub async fn wait_for_with_challenge_recovery(
                     &format!("{url} hit a robot check. Solve it in the browser; test will resume."),
                 );
                 eprintln!(
-                    "{CLEAR_LINE}Bot check at {}. Waiting up to {}s for user to solve...",
+                    "{CLEAR_LINE}    Bot check at {}. Waiting up to {}s for user to solve...",
                     url.bright_black(),
                     grace.as_secs()
                 );
@@ -253,7 +253,7 @@ pub async fn wait_for_with_challenge_recovery(
             loop {
                 sleep(delay).await;
                 if !page.evaluate(js).await?.into_value()? {
-                    eprintln!("{CLEAR_LINE}Bot check cleared, resuming.");
+                    eprintln!("{CLEAR_LINE}    Bot check cleared, resuming.");
                     break;
                 }
                 let remaining = deadline

@@ -401,16 +401,20 @@ mod tests {
     #[tokio::test]
     async fn index_unvectorized_embeddings() {
         let (_tmp, db, store) = test_store().await;
-        db.upsert_job(&test_job(Platform::Upwork, "u1", "Rust backend developer"))
+        let _ = db
+            .upsert_job(&test_job(Platform::Upwork, "u1", "Rust backend developer"))
             .await
-            .unwrap();
-        db.upsert_job(&test_job(
-            Platform::NoFluffJobs,
-            "n1",
-            "Senior Python engineer",
-        ))
-        .await
-        .unwrap();
+            .unwrap()
+            .id();
+        let _ = db
+            .upsert_job(&test_job(
+                Platform::NoFluffJobs,
+                "n1",
+                "Senior Python engineer",
+            ))
+            .await
+            .unwrap()
+            .id();
 
         let indexed = store
             .index_unvectorized(16, |_total| {
@@ -430,7 +434,8 @@ mod tests {
         let id1 = db
             .upsert_job(&test_job(Platform::Upwork, "u1", "Rust backend developer"))
             .await
-            .unwrap();
+            .unwrap()
+            .id();
         let id2 = db
             .upsert_job(&test_job(
                 Platform::NoFluffJobs,
@@ -438,7 +443,8 @@ mod tests {
                 "Python data scientist",
             ))
             .await
-            .unwrap();
+            .unwrap()
+            .id();
 
         let mut query = vec![0.0f32; TEST_DIM];
         query[0] = 1.0;
@@ -464,7 +470,8 @@ mod tests {
         let id1 = db
             .upsert_job(&test_job(Platform::Upwork, "u1", "Rust backend developer"))
             .await
-            .unwrap();
+            .unwrap()
+            .id();
         let id2 = db
             .upsert_job(&test_job(
                 Platform::NoFluffJobs,
@@ -472,7 +479,8 @@ mod tests {
                 "Python data scientist",
             ))
             .await
-            .unwrap();
+            .unwrap()
+            .id();
 
         let mut query = vec![0.0f32; TEST_DIM];
         query[0] = 1.0;
@@ -499,7 +507,7 @@ mod tests {
         for i in 0..30 {
             let mut job = test_job(Platform::Upwork, &format!("u{i}"), &format!("Job {i}"));
             job.description = Some("same description".to_string());
-            let id = db.upsert_job(&job).await.unwrap();
+            let id = db.upsert_job(&job).await.unwrap().id();
             ids.push(id);
         }
 
@@ -522,7 +530,8 @@ mod tests {
         let id1 = db
             .upsert_job(&test_job(Platform::Upwork, "u1", "Rust backend developer"))
             .await
-            .unwrap();
+            .unwrap()
+            .id();
 
         let mut emb1 = vec![0.0f32; TEST_DIM];
         emb1[0] = 1.0;
@@ -545,7 +554,8 @@ mod tests {
         let id1 = db
             .upsert_job(&test_job(Platform::Upwork, "u1", "Rust backend developer"))
             .await
-            .unwrap();
+            .unwrap()
+            .id();
 
         let mut first = vec![0.0f32; TEST_DIM];
         first[0] = 1.0;

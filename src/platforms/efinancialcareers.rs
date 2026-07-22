@@ -1,6 +1,6 @@
 use super::html;
 use crate::browser::{BrowserExt, host_of};
-use crate::db::Db;
+use crate::db::{Db, UpsertResult};
 use crate::language::LanguageService;
 use crate::models::{Data, EfinancialcareersJobDetail, Job, Platform, Rating, classify_language};
 use crate::platforms::{FetchState, PlatformClient};
@@ -126,6 +126,15 @@ impl EfinancialcareersScraper {
             return Ok(());
         }
 
+        if db
+            .is_rejected(&Platform::Efinancialcareers, &card.external_id)
+            .await?
+        {
+            state.inc_skipped();
+            eprint!("{}", state.progress_line(Some(total_jobs), ""));
+            return Ok(());
+        }
+
         sleep(Duration::from_millis(pause_ms)).await;
 
         let http = reqwest::Client::new();
@@ -142,8 +151,14 @@ impl EfinancialcareersScraper {
 
         let job = self.build_job(card, detail).await?;
         if let Some(job) = job {
-            db.upsert_job(&job).await?;
-            state.inc_new();
+            match db.upsert_job(&job).await? {
+                UpsertResult::New(_) => state.inc_new(),
+                UpsertResult::Updated(_) | UpsertResult::Duplicate(_) => {
+                    state.inc_existing();
+                }
+            }
+        } else {
+            state.inc_skipped();
         }
 
         eprint!("{}", state.progress_line(Some(total_jobs), &card.title));

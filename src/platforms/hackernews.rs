@@ -1,5 +1,5 @@
 use super::html;
-use crate::db::Db;
+use crate::db::{Db, UpsertResult};
 use crate::extractors::llm::LlmExtractor;
 use crate::extractors::llm_hackernews;
 use crate::models::{Data, HackerNewsJobDetail, Job, Platform, Rating};
@@ -314,8 +314,12 @@ impl HackerNewsScraper {
                 continue;
             }
 
-            db.upsert_job(&job).await?;
-            state.inc_new();
+            match db.upsert_job(&job).await? {
+                UpsertResult::New(_) => state.inc_new(),
+                UpsertResult::Updated(_) | UpsertResult::Duplicate(_) => {
+                    state.inc_existing();
+                }
+            }
             eprint!("{}", state.progress_line(None, &job.title));
         }
 

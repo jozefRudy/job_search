@@ -1,5 +1,5 @@
 use crate::browser::{BrowserExt, host_of, wait_for_element, wait_for_with_challenge_recovery};
-use crate::db::Db;
+use crate::db::{Db, UpsertResult};
 use crate::models::{Data, Job, Platform, Rating, UpworkJobDetail};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
@@ -238,12 +238,11 @@ impl UpworkScraper {
                     applied_at: None,
                     remote: true,
                 };
-                ctx.db.upsert_job(&job).await?;
-
-                if updated_at.is_some() {
-                    state.inc_existing();
-                } else {
-                    state.inc_new();
+                match ctx.db.upsert_job(&job).await? {
+                    UpsertResult::New(_) => state.inc_new(),
+                    UpsertResult::Updated(_) | UpsertResult::Duplicate(_) => {
+                        state.inc_existing();
+                    }
                 }
             }
             Err(e) => {

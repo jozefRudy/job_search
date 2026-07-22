@@ -1,6 +1,6 @@
 use super::html;
 use crate::browser::{BrowserExt, host_of, wait_for, wait_for_element};
-use crate::db::Db;
+use crate::db::{Db, UpsertResult};
 use crate::language::LanguageService;
 use crate::models::{Data, Job, NoFluffJobDetail, Platform, Rating, classify_language};
 use crate::platforms::{FetchState, PlatformClient};
@@ -285,6 +285,86 @@ impl NoFluffJobsScraper {
             .any(|c| c.name == "nfj_at" || c.name == "nfj_session"))
     }
 
+    async fn process_search_card(
+        &self,
+        db: &Db,
+        card: &NofluffJobCard,
+        total_results: Option<usize>,
+        pause_ms: u64,
+        state: &mut FetchState,
+    ) -> Result<()> {
+        let platform = Platform::NoFluffJobs;
+        if db
+            .find_job_id(&platform, &card.external_id)
+            .await?
+            .is_some()
+        {
+            state.inc_existing();
+            eprint!("{}", state.progress_line(total_results, ""));
+            return Ok(());
+        }
+
+        if db.is_rejected(&platform, &card.external_id).await? {
+            state.inc_skipped();
+            eprint!("{}", state.progress_line(total_results, ""));
+            return Ok(());
+        }
+
+        sleep(Duration::from_millis(pause_ms)).await;
+
+        match self.fetch_detail(&card.external_id).await {
+            Ok(detail) => {
+                let posted = detail.posted_at;
+                let budget = card.budget.as_ref().and_then(|b| {
+                    let normalized = b.replace(['\u{00a0}', '\u{2007}', '\u{202f}'], " ");
+                    if normalized.trim() == "Salary Match" {
+                        None
+                    } else {
+                        crate::extractors::budget::parse_nofluff_budget(b).map(|b| b.to_string())
+                    }
+                });
+                let job = Job {
+                    id: 0,
+                    platform,
+                    external_id: card.external_id.clone(),
+                    title: card.title.clone(),
+                    description: None,
+                    url: card.url.clone(),
+                    budget,
+                    tags: card.tags.clone(),
+                    raw: Data::Nofluffjobs { detail },
+                    company: None,
+                    created_at: posted,
+                    updated_at: chrono::Utc::now(),
+                    rating: Rating::Neutral,
+                    note: None,
+                    applied_at: None,
+                    remote: true,
+                };
+                let is_english = classify_language(&self.lang, &job).await?;
+                if is_english {
+                    match db.upsert_job(&job).await? {
+                        UpsertResult::New(_) => state.inc_new(),
+                        UpsertResult::Updated(_) | UpsertResult::Duplicate(_) => {
+                            state.inc_existing();
+                        }
+                    }
+                } else {
+                    state.inc_skipped();
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "    Warning: failed to fetch detail for {}: {}",
+                    card.external_id, e
+                );
+            }
+        }
+
+        eprint!("{}", state.progress_line(total_results, &card.external_id));
+        Ok(())
+    }
+
     /// Scrape job cards from `NoFluffJobs` search page via browser.
     /// The configured URL controls the search; this method clicks "See more offers".
     pub async fn fetch_jobs_via_browser(
@@ -316,8 +396,6 @@ impl NoFluffJobsScraper {
             .flatten()
             .and_then(|n: i32| usize::try_from(n).ok());
 
-        let mut all_jobs = Vec::new();
-        let platform = Platform::NoFluffJobs;
         let mut processed_ids: HashSet<String> = HashSet::new();
         let mut state = FetchState::new();
 
@@ -332,64 +410,8 @@ impl NoFluffJobsScraper {
                 .collect();
 
             for card in &new_cards {
-                if db
-                    .find_job_id(&platform, &card.external_id)
-                    .await?
-                    .is_some()
-                {
-                    state.inc_existing();
-                    eprint!("{}", state.progress_line(total_results, ""));
-                    continue;
-                }
-
-                sleep(Duration::from_millis(pause_ms)).await;
-
-                match self.fetch_detail(&card.external_id).await {
-                    Ok(detail) => {
-                        let posted = detail.posted_at;
-                        let budget = card.budget.as_ref().and_then(|b| {
-                            let normalized = b.replace(['\u{00a0}', '\u{2007}', '\u{202f}'], " ");
-                            if normalized.trim() == "Salary Match" {
-                                None
-                            } else {
-                                crate::extractors::budget::parse_nofluff_budget(b)
-                                    .map(|b| b.to_string())
-                            }
-                        });
-                        let job = Job {
-                            id: 0,
-                            platform,
-                            external_id: card.external_id.clone(),
-                            title: card.title.clone(),
-                            description: None,
-                            url: card.url.clone(),
-                            budget,
-                            tags: card.tags.clone(),
-                            raw: Data::Nofluffjobs { detail },
-                            company: None,
-                            created_at: posted,
-                            updated_at: chrono::Utc::now(),
-                            rating: Rating::Neutral,
-                            note: None,
-                            applied_at: None,
-                            remote: true,
-                        };
-                        let is_english = classify_language(&self.lang, &job).await?;
-                        if is_english {
-                            db.upsert_job(&job).await?;
-                            state.inc_new();
-                            all_jobs.push(job);
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "    Warning: failed to fetch detail for {}: {}",
-                            card.external_id, e
-                        );
-                    }
-                }
-
-                eprint!("{}", state.progress_line(total_results, &card.external_id));
+                self.process_search_card(db, card, total_results, pause_ms, &mut state)
+                    .await?;
             }
 
             if !Self::click_load_more(&page, pause_ms).await {

@@ -20,6 +20,23 @@ fn job_content_hash(job: &Job) -> String {
     hex::encode(Sha256::digest(normalized))
 }
 
+#[must_use]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpsertResult {
+    New(i64),
+    Updated(i64),
+    Duplicate(i64),
+}
+
+impl UpsertResult {
+    #[must_use]
+    pub fn id(&self) -> i64 {
+        match *self {
+            Self::New(id) | Self::Updated(id) | Self::Duplicate(id) => id,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Db {
     pool: SqlitePool,
@@ -43,7 +60,7 @@ impl Db {
         Ok(Self { pool })
     }
 
-    pub async fn upsert_job(&self, job: &Job) -> Result<i64> {
+    pub async fn upsert_job(&self, job: &Job) -> Result<UpsertResult> {
         let tags = serde_json::to_string(&job.tags)?;
         let raw = serde_json::to_string(&job.raw)?;
         let created_at = job.created_at.naive_utc();
@@ -87,7 +104,7 @@ impl Db {
             )
             .execute(&self.pool)
             .await?;
-            return Ok(id);
+            return Ok(UpsertResult::Updated(id));
         }
 
         let duplicate_id = if job
@@ -107,7 +124,7 @@ impl Db {
         };
 
         if let Some(id) = duplicate_id {
-            return Ok(id);
+            return Ok(UpsertResult::Duplicate(id));
         }
 
         let id = sqlx::query_scalar!(
@@ -132,7 +149,7 @@ impl Db {
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(id)
+        Ok(UpsertResult::New(id))
     }
 
     pub async fn list_jobs(
@@ -401,6 +418,17 @@ impl Db {
         Ok(())
     }
 
+    pub async fn is_rejected(&self, platform: &Platform, external_id: &str) -> Result<bool> {
+        let count: i64 = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM rejected_jobs WHERE platform = ?1 AND external_id = ?2",
+            platform,
+            external_id,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(count > 0)
+    }
+
     /// Check whether a Hacker News job post with the same company and role
     /// already exists with a `created_at` later than `since`.
     pub async fn has_similar_hackernews_post(
@@ -636,7 +664,7 @@ mod tests {
         let db = Db::open(tmp.path()).await?;
 
         let job = test_job(Platform::Upwork, "abc123", "Rust Dev");
-        let id = db.upsert_job(&job).await?;
+        let id = db.upsert_job(&job).await?.id();
         assert!(id > 0);
 
         let jobs = db.list_jobs(None, Sort::Created, 10).await?;
@@ -655,8 +683,8 @@ mod tests {
         let mut b = test_job(Platform::Upwork, "u2", "Rust Dev");
         b.description = Some("Build a Rust API".to_string());
 
-        let id_a = db.upsert_job(&a).await?;
-        let id_b = db.upsert_job(&b).await?;
+        let id_a = db.upsert_job(&a).await?.id();
+        let id_b = db.upsert_job(&b).await?.id();
         assert_eq!(id_a, id_b, "same content should return existing id");
         Ok(())
     }
@@ -673,8 +701,8 @@ mod tests {
         b.description = Some("Build a Rust API".to_string());
         b.company = Some("Acme".to_string());
 
-        let id_a = db.upsert_job(&a).await?;
-        let id_b = db.upsert_job(&b).await?;
+        let id_a = db.upsert_job(&a).await?.id();
+        let id_b = db.upsert_job(&b).await?.id();
         assert_eq!(
             id_a, id_b,
             "same content across platforms should return existing id"
@@ -690,8 +718,8 @@ mod tests {
         let a = test_job(Platform::Upwork, "u1", "Rust Dev");
         let b = test_job(Platform::Upwork, "u2", "Rust Dev");
 
-        let id_a = db.upsert_job(&a).await?;
-        let id_b = db.upsert_job(&b).await?;
+        let id_a = db.upsert_job(&a).await?.id();
+        let id_b = db.upsert_job(&b).await?.id();
         assert_ne!(id_a, id_b, "jobs without description should not be deduped");
         Ok(())
     }
@@ -706,8 +734,8 @@ mod tests {
         let mut a2 = test_job(Platform::Upwork, "u1", "Senior Rust Dev");
         a2.description = Some("Updated".to_string());
 
-        let id_a = db.upsert_job(&a).await?;
-        let id_a2 = db.upsert_job(&a2).await?;
+        let id_a = db.upsert_job(&a).await?.id();
+        let id_a2 = db.upsert_job(&a2).await?.id();
         assert_eq!(id_a, id_a2, "same external_id should update existing row");
 
         let found = db.get_job(id_a).await?.expect("job exists");
@@ -758,7 +786,7 @@ mod tests {
             remote: true,
         };
 
-        let id = db.upsert_job(&job).await?;
+        let id = db.upsert_job(&job).await?.id();
         let found = db.get_job(id).await?.expect("job exists");
 
         assert!(matches!(found.raw, Data::Upwork { .. }));
@@ -811,7 +839,7 @@ mod tests {
             remote: true,
         };
 
-        let id = db.upsert_job(&job).await?;
+        let id = db.upsert_job(&job).await?.id();
         let found = db.get_job(id).await?.expect("job exists");
 
         assert!(matches!(found.raw, Data::Nofluffjobs { .. }));
@@ -828,12 +856,18 @@ mod tests {
         let tmp = temp_db();
         let db = Db::open(tmp.path()).await?;
 
-        db.upsert_job(&test_job(Platform::Upwork, "u1", "A"))
-            .await?;
-        db.upsert_job(&test_job(Platform::Upwork, "u2", "B"))
-            .await?;
-        db.upsert_job(&test_job(Platform::NoFluffJobs, "n1", "C"))
-            .await?;
+        let _ = db
+            .upsert_job(&test_job(Platform::Upwork, "u1", "A"))
+            .await?
+            .id();
+        let _ = db
+            .upsert_job(&test_job(Platform::Upwork, "u2", "B"))
+            .await?
+            .id();
+        let _ = db
+            .upsert_job(&test_job(Platform::NoFluffJobs, "n1", "C"))
+            .await?
+            .id();
 
         let stats = db.stats().await?;
         assert_eq!(stats.total, 3);
@@ -846,7 +880,7 @@ mod tests {
         let db = Db::open(tmp.path()).await?;
 
         let job = test_job(Platform::Upwork, "del-cascade", "Delete me");
-        let id = db.upsert_job(&job).await?;
+        let id = db.upsert_job(&job).await?.id();
         db.set_applied(id, Some("note"), chrono::Utc::now()).await?;
 
         let before = db.get_job(id).await?;
@@ -879,17 +913,17 @@ mod tests {
         let c = test_job(Platform::Upwork, "c", "C");
         let d = test_job(Platform::NoFluffJobs, "d", "D");
 
-        let id_a = source.upsert_job(&a).await?;
-        let id_b = source.upsert_job(&b).await?;
-        let _id_c = source.upsert_job(&c).await?;
-        let _id_d = source.upsert_job(&d).await?;
+        let id_a = source.upsert_job(&a).await?.id();
+        let id_b = source.upsert_job(&b).await?.id();
+        let _id_c = source.upsert_job(&c).await?.id();
+        let _id_d = source.upsert_job(&d).await?.id();
         source.set_rating(&[id_a], Rating::Liked).await?;
         source.set_rating(&[id_b], Rating::Disliked).await?;
 
         // Target has A, B, C; lacks D.
-        let target_a = target.upsert_job(&a).await?;
-        let target_b = target.upsert_job(&b).await?;
-        target.upsert_job(&c).await?;
+        let target_a = target.upsert_job(&a).await?.id();
+        let target_b = target.upsert_job(&b).await?.id();
+        let _ = target.upsert_job(&c).await?.id();
         target
             .set_rating(&[target_a, target_b], Rating::Liked)
             .await?;
@@ -948,8 +982,10 @@ mod tests {
             remote: true,
         };
 
-        db.upsert_job(&job("hn-1", "Acme", "Senior Rust Engineer", 70))
-            .await?;
+        let _ = db
+            .upsert_job(&job("hn-1", "Acme", "Senior Rust Engineer", 70))
+            .await?
+            .id();
 
         let since = chrono::Utc::now() - chrono::Duration::days(90);
         let similar = db
@@ -978,9 +1014,12 @@ mod tests {
 
         let id1 = db
             .upsert_job(&test_job(Platform::Upwork, "u1", "Applied"))
-            .await?;
-        db.upsert_job(&test_job(Platform::Upwork, "u2", "Not applied"))
-            .await?;
+            .await?
+            .id();
+        let _ = db
+            .upsert_job(&test_job(Platform::Upwork, "u2", "Not applied"))
+            .await?
+            .id();
         db.set_applied(id1, None, chrono::Utc::now()).await?;
 
         let applied = db
@@ -1036,13 +1075,16 @@ mod tests {
 
         let id_liked = db
             .upsert_job(&test_job(Platform::Upwork, "liked", "Liked"))
-            .await?;
+            .await?
+            .id();
         let id_disliked = db
             .upsert_job(&test_job(Platform::Upwork, "disliked", "Disliked"))
-            .await?;
+            .await?
+            .id();
         let id_neutral = db
             .upsert_job(&test_job(Platform::Upwork, "neutral", "Neutral"))
-            .await?;
+            .await?
+            .id();
         db.set_rating(&[id_liked], Rating::Liked).await?;
         db.set_rating(&[id_disliked], Rating::Disliked).await?;
         db.set_rating(&[id_neutral], Rating::Neutral).await?;
@@ -1118,8 +1160,8 @@ mod tests {
         let mut onsite_job = test_job(Platform::Upwork, "onsite-1", "Onsite job");
         onsite_job.remote = false;
 
-        db.upsert_job(&remote_job).await?;
-        db.upsert_job(&onsite_job).await?;
+        let _ = db.upsert_job(&remote_job).await?.id();
+        let _ = db.upsert_job(&onsite_job).await?.id();
 
         let remote = db
             .filter_jobs_paginated(
@@ -1174,13 +1216,16 @@ mod tests {
 
         let id1 = db
             .upsert_job(&test_job(Platform::Upwork, "order1", "A"))
-            .await?;
+            .await?
+            .id();
         let id2 = db
             .upsert_job(&test_job(Platform::Upwork, "order2", "B"))
-            .await?;
+            .await?
+            .id();
         let id3 = db
             .upsert_job(&test_job(Platform::Upwork, "order3", "C"))
-            .await?;
+            .await?
+            .id();
 
         let jobs = db.get_jobs(&[id3, id1, id2]).await?;
         assert_eq!(jobs.len(), 3);
@@ -1198,13 +1243,16 @@ mod tests {
 
         let id1 = db
             .upsert_job(&test_job(Platform::Upwork, "u1", "A"))
-            .await?;
+            .await?
+            .id();
         let id2 = db
             .upsert_job(&test_job(Platform::Upwork, "u2", "B"))
-            .await?;
+            .await?
+            .id();
         let id3 = db
             .upsert_job(&test_job(Platform::Upwork, "u3", "C"))
-            .await?;
+            .await?
+            .id();
 
         db.mark_vectorized(&[id1]).await?;
 
@@ -1223,10 +1271,12 @@ mod tests {
 
         let id1 = db
             .upsert_job(&test_job(Platform::Upwork, "u1", "A"))
-            .await?;
+            .await?
+            .id();
         let id2 = db
             .upsert_job(&test_job(Platform::NoFluffJobs, "n1", "B"))
-            .await?;
+            .await?
+            .id();
 
         db.mark_vectorized(&[id1, id2]).await?;
 
