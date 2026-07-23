@@ -225,7 +225,6 @@ impl UpworkScraper {
                     platform: Platform::Upwork,
                     external_id: v.external_id.clone(),
                     title: v.title.clone(),
-                    description: v.description.clone(),
                     url: v.url.clone(),
                     budget: v.budget.clone(),
                     tags: v.tags.clone(),

@@ -279,7 +279,6 @@ impl EfinancialcareersScraper {
             platform: Platform::Efinancialcareers,
             external_id: card.external_id.clone(),
             title: card.title.clone(),
-            description: Some(detail.description.clone()).filter(|d| !d.is_empty()),
             url: card.url.clone(),
             budget,
             tags: Vec::new(),

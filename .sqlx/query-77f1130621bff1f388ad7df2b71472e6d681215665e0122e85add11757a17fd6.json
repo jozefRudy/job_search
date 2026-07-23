@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                j.id, j.platform, j.external_id, j.title, j.description,\n                j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,\n                j.rating, j.remote, r.note, r.applied_at\n            FROM jobs j\n            LEFT JOIN reactions r ON r.job_id = j.id\n            WHERE j.id = ?1\n            ",
+  "query": "\n            SELECT\n                j.id, j.platform, j.external_id, j.title,\n                j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,\n                j.rating, j.remote, r.note, r.applied_at\n            FROM jobs j\n            LEFT JOIN reactions r ON r.job_id = j.id\n            WHERE j.id = ?1\n            ",
   "describe": {
     "columns": [
       {
@@ -24,63 +24,58 @@
         "type_info": "Text"
       },
       {
-        "name": "description",
+        "name": "url",
         "ordinal": 4,
         "type_info": "Text"
       },
       {
-        "name": "url",
+        "name": "budget",
         "ordinal": 5,
         "type_info": "Text"
       },
       {
-        "name": "budget",
+        "name": "tags",
         "ordinal": 6,
         "type_info": "Text"
       },
       {
-        "name": "tags",
+        "name": "raw",
         "ordinal": 7,
         "type_info": "Text"
       },
       {
-        "name": "raw",
+        "name": "company",
         "ordinal": 8,
         "type_info": "Text"
       },
       {
-        "name": "company",
-        "ordinal": 9,
-        "type_info": "Text"
-      },
-      {
         "name": "created_at",
-        "ordinal": 10,
+        "ordinal": 9,
         "type_info": "Datetime"
       },
       {
         "name": "updated_at",
-        "ordinal": 11,
+        "ordinal": 10,
         "type_info": "Datetime"
       },
       {
         "name": "rating",
-        "ordinal": 12,
+        "ordinal": 11,
         "type_info": "Text"
       },
       {
         "name": "remote",
-        "ordinal": 13,
+        "ordinal": 12,
         "type_info": "Bool"
       },
       {
         "name": "note",
-        "ordinal": 14,
+        "ordinal": 13,
         "type_info": "Text"
       },
       {
         "name": "applied_at",
-        "ordinal": 15,
+        "ordinal": 14,
         "type_info": "Datetime"
       }
     ],
@@ -92,7 +87,6 @@
       false,
       false,
       false,
-      true,
       false,
       true,
       false,
@@ -106,5 +100,5 @@
       true
     ]
   },
-  "hash": "b0b033082b21bfd595e1341ae7bbca012e50f5e54e2413100d4effea08615287"
+  "hash": "77f1130621bff1f388ad7df2b71472e6d681215665e0122e85add11757a17fd6"
 }

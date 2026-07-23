@@ -321,7 +321,7 @@ export function HackerNewsDetail(props: { job: Job }) {
             <DetailRow label="Role" value={d.role} />
             <DetailRow label="Location" value={d.location} />
           </DetailList>
-          <Show when={props.job.description} keyed>
+          <Show when={d.description} keyed>
             {(text) => <MarkdownDescription label="Description" text={text} />}
           </Show>
         </Stack>

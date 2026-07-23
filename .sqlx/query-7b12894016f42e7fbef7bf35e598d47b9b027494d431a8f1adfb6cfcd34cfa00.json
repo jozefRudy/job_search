@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE jobs\n                SET title = ?1,\n                    url = ?2,\n                    budget = ?3,\n                    tags = ?4,\n                    raw = ?5,\n                    remote = ?6,\n                    rating = ?7,\n                    content_hash = ?8,\n                    updated_at = CURRENT_TIMESTAMP\n                WHERE id = ?9\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "7b12894016f42e7fbef7bf35e598d47b9b027494d431a8f1adfb6cfcd34cfa00"
+}

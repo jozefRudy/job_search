@@ -264,7 +264,6 @@ impl LinkedInScraper {
         };
 
         let company = Some(detail.company.clone()).filter(|c| !c.is_empty());
-        let description = Some(detail.description.clone()).filter(|d| !d.is_empty());
         let remote = detail.workplace_type.eq_ignore_ascii_case("remote");
         let posted_at = card
             .listed_at
@@ -276,7 +275,6 @@ impl LinkedInScraper {
             platform: Platform::LinkedIn,
             external_id: card.id.clone(),
             title: card.title.clone(),
-            description,
             url: format!("{JOB_VIEW_BASE_URL}{job_id}/"),
             budget: Budget::parse(&detail.salary, Some("yr")).map(|b| b.to_string()),
             tags: Vec::new(),

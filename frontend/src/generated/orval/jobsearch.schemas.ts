@@ -72,6 +72,7 @@ export interface HackerNewsJobDetail {
   location?: string | null;
   /** @nullable */
   role?: string | null;
+  description: string;
 }
 
 /**
@@ -138,7 +139,6 @@ export interface Job {
   company?: string | null;
   created_at: string;
   /** @nullable */
-  description?: string | null;
   external_id: string;
   id: number;
   /** @nullable */

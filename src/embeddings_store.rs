@@ -354,7 +354,6 @@ mod tests {
             platform,
             external_id: external_id.to_string(),
             title: title.to_string(),
-            description: None,
             url: format!("https://example.com/{external_id}"),
             budget: None,
             tags: vec![],
@@ -506,7 +505,9 @@ mod tests {
         let mut ids = Vec::new();
         for i in 0..30 {
             let mut job = test_job(Platform::Upwork, &format!("u{i}"), &format!("Job {i}"));
-            job.description = Some("same description".to_string());
+            if let Data::Upwork { ref mut detail } = job.raw {
+                detail.description = "same description".to_string();
+            }
             let id = db.upsert_job(&job).await.unwrap().id();
             ids.push(id);
         }

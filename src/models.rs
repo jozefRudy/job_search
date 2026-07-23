@@ -29,6 +29,7 @@ pub struct HackerNewsJobDetail {
     pub company: Option<String>,
     pub role: Option<String>,
     pub location: Option<String>,
+    pub description: String,
 }
 
 /// Full detail scraped from an individual eFinancialCareers job page.
@@ -321,7 +322,6 @@ pub struct Job {
     pub platform: Platform,
     pub external_id: String,
     pub title: String,
-    pub description: Option<String>,
     pub url: String,
     pub budget: Option<String>,
     pub tags: Vec<String>,
@@ -351,9 +351,6 @@ impl Job {
             }
         };
         append(&self.title);
-        if let Some(d) = &self.description {
-            append(d);
-        }
         match &self.raw {
             Data::Upwork { detail } => {
                 append(&detail.description);
@@ -367,12 +364,24 @@ impl Job {
             Data::Efinancialcareers { detail } => {
                 append(&detail.description);
             }
-            Data::Hackernews { .. } => {}
+            Data::Hackernews { detail } => {
+                append(&detail.description);
+            }
             Data::LinkedIn { detail } => {
                 append(&detail.description);
             }
         }
         text
+    }
+
+    /// Returns true if the job has textual detail beyond the title, making it
+    /// suitable for content-hash deduplication.
+    #[must_use]
+    pub fn has_description(&self) -> bool {
+        let advert_text = self.advert_text();
+        let advert_text = advert_text.trim();
+        let title = self.title.trim();
+        !advert_text.is_empty() && advert_text != title
     }
 }
 
@@ -864,7 +873,7 @@ mod tests {
         let svc = LanguageService::new();
         let raw = Data::Upwork {
             detail: UpworkJobDetail {
-                description: "We are looking for a Rust developer to build web services."
+                description: "We are looking for a Rust developer to build web services. Remote full-time role."
                     .to_string(),
                 ..Default::default()
             },
@@ -874,7 +883,6 @@ mod tests {
             platform: Platform::Upwork,
             external_id: "ext".to_string(),
             title: "Rust Developer".to_string(),
-            description: Some("Remote full-time role".to_string()),
             url: "https://example.com".to_string(),
             budget: None,
             tags: Vec::new(),
@@ -896,19 +904,19 @@ mod tests {
     #[test]
     fn test_advert_text_does_not_duplicate_detail_description() {
         let desc = "Build distributed systems with Rust and Kafka.".to_string();
-        let raw = Data::LinkedIn {
-            detail: LinkedInJobDetail {
+        let raw = Data::Nofluffjobs {
+            detail: NoFluffJobDetail {
                 description: desc.clone(),
+                requirements: desc.clone(),
                 ..Default::default()
             },
         };
         let job = Job {
             id: 0,
-            platform: Platform::LinkedIn,
-            external_id: "linkedin-1".to_string(),
+            platform: Platform::NoFluffJobs,
+            external_id: "nf-dedup".to_string(),
             title: "Senior Rust Engineer".to_string(),
-            description: Some(desc.clone()),
-            url: "https://example.com/linkedin-1".to_string(),
+            url: "https://example.com/nf-dedup".to_string(),
             budget: None,
             tags: Vec::new(),
             raw,
@@ -924,7 +932,7 @@ mod tests {
         let count = text.matches(&desc).count();
         assert_eq!(
             count, 1,
-            "description should appear exactly once in advert_text, got: {text}"
+            "description duplicated in detail fields should appear once in advert_text, got: {text}"
         );
     }
 
@@ -944,7 +952,6 @@ mod tests {
             platform: Platform::NoFluffJobs,
             external_id: "nf1".to_string(),
             title: "Backend Engineer".to_string(),
-            description: None,
             url: "https://example.com/nf1".to_string(),
             budget: None,
             tags: Vec::new(),

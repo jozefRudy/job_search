@@ -7,10 +7,9 @@ use std::str::FromStr;
 
 fn job_content_hash(job: &Job) -> String {
     let canonical = format!(
-        "{} {} {}",
+        "{} {}",
         job.company.as_deref().unwrap_or(""),
-        job.title,
-        job.description.as_deref().unwrap_or("")
+        job.advert_text()
     );
     let normalized = canonical
         .split_whitespace()
@@ -80,19 +79,17 @@ impl Db {
                 r#"
                 UPDATE jobs
                 SET title = ?1,
-                    description = ?2,
-                    url = ?3,
-                    budget = ?4,
-                    tags = ?5,
-                    raw = ?6,
-                    remote = ?7,
-                    rating = ?8,
-                    content_hash = ?9,
+                    url = ?2,
+                    budget = ?3,
+                    tags = ?4,
+                    raw = ?5,
+                    remote = ?6,
+                    rating = ?7,
+                    content_hash = ?8,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?10
+                WHERE id = ?9
                 "#,
                 job.title,
-                job.description,
                 job.url,
                 job.budget,
                 tags,
@@ -107,11 +104,7 @@ impl Db {
             return Ok(UpsertResult::Updated(id));
         }
 
-        let duplicate_id = if job
-            .description
-            .as_deref()
-            .is_some_and(|d| !d.trim().is_empty())
-        {
+        let duplicate_id = if job.has_description() {
             sqlx::query_scalar!(
                 "SELECT id FROM jobs WHERE content_hash = ?1 LIMIT 1",
                 content_hash,
@@ -129,14 +122,13 @@ impl Db {
 
         let id = sqlx::query_scalar!(
             r#"
-            INSERT INTO jobs (platform, external_id, title, description, url, budget, tags, raw, created_at, remote, rating, content_hash, vectorized)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, FALSE)
+            INSERT INTO jobs (platform, external_id, title, url, budget, tags, raw, created_at, remote, rating, content_hash, vectorized)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, FALSE)
             RETURNING id
             "#,
             job.platform,
             job.external_id,
             job.title,
-            job.description,
             job.url,
             job.budget,
             tags,
@@ -162,7 +154,7 @@ impl Db {
         let sql = format!(
             r"
             SELECT
-                j.id, j.platform, j.external_id, j.title, j.description,
+                j.id, j.platform, j.external_id, j.title,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
                 j.rating, j.remote, r.note, r.applied_at
             FROM jobs j
@@ -208,7 +200,7 @@ impl Db {
         let sql = format!(
             r"
             SELECT
-                j.id, j.platform, j.external_id, j.title, j.description,
+                j.id, j.platform, j.external_id, j.title,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
                 j.rating, j.remote, r.note, r.applied_at
             FROM jobs j
@@ -243,7 +235,7 @@ impl Db {
         let rows = sqlx::query_as::<_, JobRow>(
             r"
             SELECT
-                j.id, j.platform, j.external_id, j.title, j.description,
+                j.id, j.platform, j.external_id, j.title,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
                 j.rating, j.remote, r.note, r.applied_at
             FROM jobs j
@@ -267,7 +259,7 @@ impl Db {
             JobRow,
             r#"
             SELECT
-                j.id, j.platform, j.external_id, j.title, j.description,
+                j.id, j.platform, j.external_id, j.title,
                 j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
                 j.rating, j.remote, r.note, r.applied_at
             FROM jobs j
@@ -562,7 +554,6 @@ struct JobRow {
     platform: Platform,
     external_id: String,
     title: String,
-    description: Option<String>,
     url: String,
     budget: Option<String>,
     tags: String,
@@ -586,7 +577,6 @@ impl From<JobRow> for Job {
             platform: r.platform,
             external_id: r.external_id,
             title: r.title,
-            description: r.description,
             url: r.url,
             budget: r.budget,
             tags: serde_json::from_str(&r.tags).unwrap_or_default(),
@@ -643,7 +633,6 @@ mod tests {
             platform,
             external_id: external_id.to_string(),
             title: title.to_string(),
-            description: None,
             url: format!("https://example.com/{external_id}"),
             budget: None,
             tags: vec![],
@@ -679,9 +668,13 @@ mod tests {
         let db = Db::open(tmp.path()).await?;
 
         let mut a = test_job(Platform::Upwork, "u1", "Rust Dev");
-        a.description = Some("Build a Rust API".to_string());
+        if let Data::Upwork { ref mut detail } = a.raw {
+            detail.description = "Build a Rust API".to_string();
+        }
         let mut b = test_job(Platform::Upwork, "u2", "Rust Dev");
-        b.description = Some("Build a Rust API".to_string());
+        if let Data::Upwork { ref mut detail } = b.raw {
+            detail.description = "Build a Rust API".to_string();
+        }
 
         let id_a = db.upsert_job(&a).await?.id();
         let id_b = db.upsert_job(&b).await?.id();
@@ -695,10 +688,14 @@ mod tests {
         let db = Db::open(tmp.path()).await?;
 
         let mut a = test_job(Platform::Upwork, "u1", "Rust Dev");
-        a.description = Some("Build a Rust API".to_string());
+        if let Data::Upwork { ref mut detail } = a.raw {
+            detail.description = "Build a Rust API".to_string();
+        }
         a.company = Some("Acme".to_string());
         let mut b = test_job(Platform::NoFluffJobs, "n1", "Rust Dev");
-        b.description = Some("Build a Rust API".to_string());
+        if let Data::Nofluffjobs { ref mut detail } = b.raw {
+            detail.description = "Build a Rust API".to_string();
+        }
         b.company = Some("Acme".to_string());
 
         let id_a = db.upsert_job(&a).await?.id();
@@ -730,9 +727,13 @@ mod tests {
         let db = Db::open(tmp.path()).await?;
 
         let mut a = test_job(Platform::Upwork, "u1", "Rust Dev");
-        a.description = Some("Original".to_string());
+        if let Data::Upwork { ref mut detail } = a.raw {
+            detail.description = "Original".to_string();
+        }
         let mut a2 = test_job(Platform::Upwork, "u1", "Senior Rust Dev");
-        a2.description = Some("Updated".to_string());
+        if let Data::Upwork { ref mut detail } = a2.raw {
+            detail.description = "Updated".to_string();
+        }
 
         let id_a = db.upsert_job(&a).await?.id();
         let id_a2 = db.upsert_job(&a2).await?.id();
@@ -740,7 +741,9 @@ mod tests {
 
         let found = db.get_job(id_a).await?.expect("job exists");
         assert_eq!(found.title, "Senior Rust Dev");
-        assert_eq!(found.description.as_deref(), Some("Updated"));
+        if let Data::Upwork { ref detail } = found.raw {
+            assert_eq!(detail.description, "Updated");
+        }
         Ok(())
     }
 
@@ -770,7 +773,6 @@ mod tests {
             platform: Platform::Upwork,
             external_id: "uw-99".to_string(),
             title: "Rust Backend".to_string(),
-            description: None,
             url: "https://upwork.com/jobs/uw-99".to_string(),
             budget: Some("$5000".to_string()),
             tags: vec!["rust".to_string()],
@@ -823,7 +825,6 @@ mod tests {
             platform: Platform::NoFluffJobs,
             external_id: "nf-88".to_string(),
             title: "Senior Rust".to_string(),
-            description: None,
             url: "https://nofluffjobs.com/job/nf-88".to_string(),
             budget: Some("8000 EUR".to_string()),
             tags: vec!["rust".to_string(), "remote".to_string()],
@@ -959,7 +960,6 @@ mod tests {
             platform: Platform::Hackernews,
             external_id: ext.to_string(),
             title: format!("{company} | {role}"),
-            description: None,
             url: format!("https://news.ycombinator.com/item?id={ext}"),
             budget: None,
             tags: vec![],
@@ -971,6 +971,7 @@ mod tests {
                     company: Some(company.to_string()),
                     role: Some(role.to_string()),
                     location: None,
+                    description: String::new(),
                 },
             },
             company: None,

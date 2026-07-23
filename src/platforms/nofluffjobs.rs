@@ -328,7 +328,6 @@ impl NoFluffJobsScraper {
                     platform,
                     external_id: card.external_id.clone(),
                     title: card.title.clone(),
-                    description: None,
                     url: card.url.clone(),
                     budget,
                     tags: card.tags.clone(),
