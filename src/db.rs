@@ -508,6 +508,13 @@ impl Db {
         Ok(())
     }
 
+    pub async fn reset_vectorized(&self) -> Result<()> {
+        sqlx::query!("UPDATE jobs SET vectorized = FALSE")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn get_unvectorized_job_ids(&self, limit: i64) -> Result<Vec<i64>> {
         let ids = sqlx::query_scalar!(
             r#"
@@ -1261,6 +1268,12 @@ mod tests {
         assert!(ids.contains(&id2));
         assert!(ids.contains(&id3));
         assert!(!ids.contains(&id1));
+
+        db.reset_vectorized().await?;
+        let ids = db.get_unvectorized_job_ids(10).await?;
+        assert!(ids.contains(&id1));
+        assert!(ids.contains(&id2));
+        assert!(ids.contains(&id3));
 
         Ok(())
     }

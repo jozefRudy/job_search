@@ -36,6 +36,10 @@ pub struct EmbedCmd {
     /// Number of jobs to embed in one batch.
     #[arg(long, default_value = "16")]
     pub batch_size: usize,
+
+    /// Reset all vectorized flags and re-embed every job.
+    #[arg(long)]
+    pub force: bool,
 }
 
 #[derive(Parser)]

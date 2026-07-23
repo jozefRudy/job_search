@@ -965,8 +965,17 @@ mod tests {
             remote: true,
         };
         let text = job.advert_text();
-        assert!(text.contains("Rust"), "must_have should be embedded: {text}");
-        assert!(text.contains("Kafka"), "must_have should be embedded: {text}");
-        assert!(text.contains("AWS"), "nice_to_have should be embedded: {text}");
+        assert!(
+            text.contains("Rust"),
+            "must_have should be embedded: {text}"
+        );
+        assert!(
+            text.contains("Kafka"),
+            "must_have should be embedded: {text}"
+        );
+        assert!(
+            text.contains("AWS"),
+            "nice_to_have should be embedded: {text}"
+        );
     }
 }

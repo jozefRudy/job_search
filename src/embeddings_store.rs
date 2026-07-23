@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
@@ -40,6 +40,12 @@ pub struct EmbeddingsStore {
     dataset: Mutex<Dataset>,
 }
 
+#[must_use]
+pub fn embeddings_dir(base: &Path, model_id: &str) -> PathBuf {
+    let model_dir = model_id.replace('/', "-");
+    base.join("lance").join(format!("embeddings-{model_dir}"))
+}
+
 impl EmbeddingsStore {
     pub async fn open(
         sqlite_db_path: &Path,
@@ -48,14 +54,8 @@ impl EmbeddingsStore {
         embedder: Embedder,
     ) -> Result<Self> {
         let base = sqlite_db_path.parent().unwrap_or_else(|| Path::new("."));
-        tokio::fs::create_dir_all(base).await?;
-        let model_dir = model_id.replace('/', "-");
-        let lance_dir = base.join("lance");
-        tokio::fs::create_dir_all(&lance_dir).await?;
-        let uri = lance_dir
-            .join(format!("embeddings-{model_dir}"))
-            .to_string_lossy()
-            .to_string();
+        tokio::fs::create_dir_all(&embeddings_dir(base, model_id)).await?;
+        let uri = embeddings_dir(base, model_id).to_string_lossy().to_string();
         let dim = embedder.dim();
 
         let dataset = if Dataset::open(&uri).await.is_err() {

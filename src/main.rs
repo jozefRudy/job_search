@@ -10,6 +10,7 @@ use jobsearch::db::Db;
 use jobsearch::embed::{DEFAULT_EMBEDDING_MODEL, Embedder};
 use jobsearch::embeddings_store::EmbeddingsStore;
 use jobsearch::embeddings_store::VECTOR_SEARCH_MAX_RESULTS;
+use jobsearch::embeddings_store::embeddings_dir;
 use jobsearch::language::LanguageService;
 use jobsearch::models::{JobFilter, Platform, Rating, Sort};
 use jobsearch::platforms::{
@@ -142,6 +143,17 @@ async fn cmd_embed(
     db: &Db,
     db_path: &std::path::Path,
 ) -> Result<()> {
+    if cmd.force {
+        db.reset_vectorized().await?;
+
+        let base = db_path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."));
+        let dataset_dir = embeddings_dir(base, DEFAULT_EMBEDDING_MODEL);
+        if dataset_dir.exists() {
+            tokio::fs::remove_dir_all(&dataset_dir).await?;
+        }
+    }
     let store = open_embeddings_store(db, db_path).await?;
 
     let _indexed = store

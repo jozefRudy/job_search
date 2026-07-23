@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE jobs SET vectorized = FALSE",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "eafbd461c522d92709a865b9b7d779258e722045171e89f8c2c76269b6ae26b0"
+}
