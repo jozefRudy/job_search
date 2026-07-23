@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use clap::ValueEnum;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fmt;
 use std::sync::LazyLock;
 use utoipa::IntoParams;
@@ -338,30 +339,37 @@ impl Job {
     /// Single text blob from all available advert text for language detection and embedding.
     #[must_use]
     pub fn advert_text(&self) -> String {
-        let mut text = self.title.clone();
+        let mut text = String::new();
+        let mut seen = HashSet::new();
+        let mut append = |s: &str| {
+            if !s.is_empty() && !seen.contains(s) {
+                if !text.is_empty() {
+                    text.push(' ');
+                }
+                text.push_str(s);
+                seen.insert(s.to_string());
+            }
+        };
+        append(&self.title);
         if let Some(d) = &self.description {
-            text.push(' ');
-            text.push_str(d);
+            append(d);
         }
         match &self.raw {
             Data::Upwork { detail } => {
-                text.push(' ');
-                text.push_str(&detail.description);
+                append(&detail.description);
             }
             Data::Nofluffjobs { detail } => {
-                text.push(' ');
-                text.push_str(&detail.description);
-                text.push(' ');
-                text.push_str(&detail.requirements);
+                append(&detail.description);
+                append(&detail.requirements);
+                append(&detail.must_have.join(", "));
+                append(&detail.nice_to_have);
             }
             Data::Efinancialcareers { detail } => {
-                text.push(' ');
-                text.push_str(&detail.description);
+                append(&detail.description);
             }
             Data::Hackernews { .. } => {}
             Data::LinkedIn { detail } => {
-                text.push(' ');
-                text.push_str(&detail.description);
+                append(&detail.description);
             }
         }
         text
@@ -883,5 +891,75 @@ mod tests {
             .await
             .expect("language classification should succeed");
         assert!(en);
+    }
+
+    #[test]
+    fn test_advert_text_does_not_duplicate_detail_description() {
+        let desc = "Build distributed systems with Rust and Kafka.".to_string();
+        let raw = Data::LinkedIn {
+            detail: LinkedInJobDetail {
+                description: desc.clone(),
+                ..Default::default()
+            },
+        };
+        let job = Job {
+            id: 0,
+            platform: Platform::LinkedIn,
+            external_id: "linkedin-1".to_string(),
+            title: "Senior Rust Engineer".to_string(),
+            description: Some(desc.clone()),
+            url: "https://example.com/linkedin-1".to_string(),
+            budget: None,
+            tags: Vec::new(),
+            raw,
+            company: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            note: None,
+            rating: Rating::Neutral,
+            applied_at: None,
+            remote: true,
+        };
+        let text = job.advert_text();
+        let count = text.matches(&desc).count();
+        assert_eq!(
+            count, 1,
+            "description should appear exactly once in advert_text, got: {text}"
+        );
+    }
+
+    #[test]
+    fn test_advert_text_includes_nofluff_skills() {
+        let raw = Data::Nofluffjobs {
+            detail: NoFluffJobDetail {
+                description: "Build backend services.".to_string(),
+                requirements: "5 years experience.".to_string(),
+                must_have: vec!["Rust".to_string(), "Kafka".to_string()],
+                nice_to_have: "AWS".to_string(),
+                ..Default::default()
+            },
+        };
+        let job = Job {
+            id: 0,
+            platform: Platform::NoFluffJobs,
+            external_id: "nf1".to_string(),
+            title: "Backend Engineer".to_string(),
+            description: None,
+            url: "https://example.com/nf1".to_string(),
+            budget: None,
+            tags: Vec::new(),
+            raw,
+            company: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            note: None,
+            rating: Rating::Neutral,
+            applied_at: None,
+            remote: true,
+        };
+        let text = job.advert_text();
+        assert!(text.contains("Rust"), "must_have should be embedded: {text}");
+        assert!(text.contains("Kafka"), "must_have should be embedded: {text}");
+        assert!(text.contains("AWS"), "nice_to_have should be embedded: {text}");
     }
 }
