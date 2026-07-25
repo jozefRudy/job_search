@@ -1,9 +1,9 @@
 (async function() {
-  if (!document.cookie.includes('liap=true')) {
+  if (!document.cookie.includes('JSESSIONID=')) {
     throw new Error('LinkedIn login required. Open linkedin.com in Brave and log in.');
   }
   const url = '__VOYAGER_URL__';
-  const csrf = (document.cookie.match(/JSESSIONID="([^"]+)"/) || [])[1] || '';
+  const csrf = (document.cookie.match(/JSESSIONID="([^"]+)"/) || document.cookie.match(/JSESSIONID=([^;]+)/) || [])[1] || '';
   const res = await fetch(url, {
     headers: {
       'csrf-token': csrf,

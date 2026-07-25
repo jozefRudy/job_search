@@ -1,8 +1,8 @@
 (async function (config) {
-  if (!document.cookie.includes('liap=true')) {
+  if (!document.cookie.includes('JSESSIONID=')) {
     throw new Error('LinkedIn login required. Open linkedin.com in Brave and log in.');
   }
-  const csrf = (document.cookie.match(/JSESSIONID="([^"]+)"/) || [])[1] || '';
+  const csrf = (document.cookie.match(/JSESSIONID="([^"]+)"/) || document.cookie.match(/JSESSIONID=([^;]+)/) || [])[1] || '';
   const { baseUrl, detailQueryId, jobQueryId, jobPostingUrn, cardSectionTypes } = config;
 
   const cards = cardSectionTypes.join(',');

@@ -598,6 +598,53 @@ async fn test_linkedin_job_detail_fetch() {
     .await;
 }
 
+// --- LinkedIn: cookie/csrf extraction regression ---
+
+#[tokio::test]
+#[ignore = "requires Brave browser installed and linkedin.com logged in"]
+async fn test_linkedin_csrf_extracted_from_unquoted_jsessionid() {
+    with_browser(60, |browser| async move {
+        let page = browser
+            .new_tab("https://www.linkedin.com/jobs/search/")
+            .await
+            .expect("open LinkedIn search page");
+
+        assert!(
+            LinkedInScraper::wait_for_jobs(&page)
+                .await
+                .expect("wait_for_jobs"),
+            "jobs should appear on search page"
+        );
+
+        let csrf: String = page
+            .evaluate(
+                r#"const csrf = (document.cookie.match(/JSESSIONID="([^"]+)"/) || document.cookie.match(/JSESSIONID=([^;]+)/) || [])[1] || ""; csrf"#,
+            )
+            .await
+            .expect("evaluate csrf extraction")
+            .into_value()
+            .expect("csrf should be a string");
+
+        assert!(
+            !csrf.is_empty(),
+            "csrf token should be extracted from JSESSIONID cookie"
+        );
+
+        let unquoted: bool = page
+            .evaluate(
+                r#"const m = document.cookie.match(/JSESSIONID=([^;]+)/); !!m && !m[0].startsWith('JSESSIONID="')"#,
+            )
+            .await
+            .expect("evaluate unquoted check")
+            .into_value()
+            .expect("unquoted should be a boolean");
+
+        println!("csrf extracted: {csrf}, unquoted JSESSIONID: {unquoted}");
+        page.close().await.ok();
+    })
+    .await;
+}
+
 // --- LinkedIn: pagination ---
 
 #[tokio::test]
