@@ -94,7 +94,7 @@ jobs:
 
       - name: Create tarball
         shell: bash
-        run: tar czf "jobsearch-${{ matrix.build }}.tar.gz" -C dist "${{ matrix.build }}"
+        run: tar czf "jobsearch-${{ github.ref_name }}-${{ matrix.build }}.tar.gz" -C dist "${{ matrix.build }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
