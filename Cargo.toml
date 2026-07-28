@@ -1,6 +1,6 @@
 [package]
 name = "jobsearch"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2024"
 
 [profile.release]
@@ -51,6 +51,7 @@ arrow-array = "58"
 arrow-schema = "58"
 lance-linalg = "8.0"
 lance-index = "8.0"
+sysinfo = "0.39.6"
 
 [dev-dependencies]
 tempfile = "3"

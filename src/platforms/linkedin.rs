@@ -217,7 +217,7 @@ impl LinkedInScraper {
             .filter_map(|u| crate::browser::host_of(&u))
             .collect();
         if !hosts.iter().any(|h| h.contains("linkedin.com")) {
-            bail!("LinkedIn requires open linkedin.com tab in Brave");
+            bail!("LinkedIn requires open linkedin.com tab in browser");
         }
         Ok(())
     }

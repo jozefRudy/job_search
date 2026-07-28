@@ -13,7 +13,6 @@ use tokio::sync::Mutex;
 use tokio::time::sleep;
 
 const CDP_URL: &str = "http://localhost:9222";
-const BROWSER_APP: &str = "Brave Browser";
 
 pub const DEFAULT_INIT_URLS: &[&str] = &[
     "https://www.upwork.com/freelancers/~01dba08086390dc196",
@@ -280,15 +279,24 @@ pub async fn wait_for_with_challenge_recovery(
 pub struct BrowserManager {
     inner: Arc<Mutex<Option<Arc<Browser>>>>,
     handler: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    bin: String,
 }
 
 impl BrowserManager {
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(bin: String) -> Self {
         Self {
             inner: Arc::new(Mutex::new(None)),
             handler: Arc::new(Mutex::new(None)),
+            bin,
         }
+    }
+
+    fn process_name(&self) -> &str {
+        std::path::Path::new(&self.bin)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(&self.bin)
     }
 
     pub async fn browser(&self) -> Result<Arc<Browser>> {
@@ -297,13 +305,13 @@ impl BrowserManager {
         if guard.is_none() {
             let (browser, handle) = match Self::connect().await {
                 Ok(pair) => pair,
-                Err(_) => Self::launch().await?,
+                Err(_) => self.launch().await?,
             };
             *guard = Some(Arc::new(browser));
             *self.handler.lock().await = Some(handle);
         }
 
-        Ok(guard.as_ref().unwrap().clone())
+        Ok(guard.as_ref().expect("browser just set").clone())
     }
 
     async fn connect() -> Result<(Browser, tokio::task::JoinHandle<()>)> {
@@ -318,26 +326,47 @@ impl BrowserManager {
         Ok((browser, handle))
     }
 
-    fn is_browser_running_without_cdp() -> bool {
-        std::process::Command::new("pgrep")
-            .arg("-x")
-            .arg(BROWSER_APP)
-            .output()
-            .is_ok_and(|o| o.status.success())
+    fn browser_system() -> sysinfo::System {
+        sysinfo::System::new_with_specifics(sysinfo::RefreshKind::nothing().with_processes(
+            sysinfo::ProcessRefreshKind::nothing().with_exe(sysinfo::UpdateKind::OnlyIfNotSet),
+        ))
     }
 
-    async fn launch() -> Result<(Browser, tokio::task::JoinHandle<()>)> {
-        if Self::is_browser_running_without_cdp() {
-            Self::quit_browser().await?;
+    /// Match all processes of the browser tree by executable path.
+    /// macOS: helpers are separate binaries inside the .app bundle -> bundle prefix match.
+    /// Linux: helpers re-exec the same binary -> exact path match.
+    fn matches_exe(&self, exe: &std::path::Path) -> bool {
+        #[cfg(target_os = "macos")]
+        {
+            match self.bin.split_once(".app/") {
+                Some((bundle, _)) => exe.starts_with(format!("{bundle}.app")),
+                None => exe == std::path::Path::new(&self.bin),
+            }
+        }
+        #[cfg(target_os = "linux")]
+        {
+            exe == std::path::Path::new(&self.bin)
+        }
+    }
+
+    fn is_browser_running_without_cdp(&self) -> bool {
+        Self::browser_system()
+            .processes()
+            .values()
+            .any(|p| p.exe().is_some_and(|exe| self.matches_exe(exe)))
+    }
+
+    async fn launch(&self) -> Result<(Browser, tokio::task::JoinHandle<()>)> {
+        if self.is_browser_running_without_cdp() {
+            self.quit_browser().await?;
         }
 
-        let _ = std::process::Command::new("open")
-            .arg("-g")
-            .arg("-a")
-            .arg(BROWSER_APP)
-            .arg("--args")
+        let _ = std::process::Command::new(&self.bin)
             .arg("--remote-debugging-port=9222")
-            .output()?;
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()?;
 
         let mut browser_and_handler = None;
         for _ in 0..30 {
@@ -347,31 +376,28 @@ impl BrowserManager {
             }
             sleep(Duration::from_millis(200)).await;
         }
-        browser_and_handler.ok_or_else(|| anyhow::anyhow!("{BROWSER_APP} did not start in time"))
+        browser_and_handler.ok_or_else(|| anyhow::anyhow!("{} did not start in time", self.bin))
     }
 
-    async fn quit_browser() -> Result<()> {
-        eprintln!("{BROWSER_APP} is running without remote debugging; restarting it with CDP...");
+    async fn quit_browser(&self) -> Result<()> {
+        let name = self.process_name();
+        eprintln!("{name} is running without remote debugging; restarting it with CDP...");
 
-        let _ = std::process::Command::new("osascript")
-            .arg("-e")
-            .arg("quit app \"Brave Browser\"")
-            .output()?;
+        // Kill the whole tree: helpers must die too or stale state crashes the relaunch.
+        for process in Self::browser_system().processes().values() {
+            if process.exe().is_some_and(|exe| self.matches_exe(exe)) {
+                process.kill();
+            }
+        }
 
         // Wait for the process to disappear.
         for _ in 0..30 {
-            if !Self::is_browser_running_without_cdp() {
+            if !self.is_browser_running_without_cdp() {
                 return Ok(());
             }
             sleep(Duration::from_millis(200)).await;
         }
-        anyhow::bail!("{BROWSER_APP} did not quit in time")
-    }
-}
-
-impl Default for BrowserManager {
-    fn default() -> Self {
-        Self::new()
+        anyhow::bail!("{name} did not quit in time")
     }
 }
 

@@ -129,7 +129,7 @@ impl UpworkScraper {
             .filter_map(|u| host_of(&u))
             .collect();
         if !page_hosts.iter().any(|h| h.contains("upwork.com")) {
-            bail!("Upwork requires open upwork.com tab in Brave");
+            bail!("Upwork requires open upwork.com tab in browser");
         }
         Ok(())
     }
@@ -329,7 +329,7 @@ impl PlatformClient for UpworkScraper {
         let page = browser.new_tab(url).await?;
 
         if !Self::wait_for_jobs(&page).await? {
-            bail!("Upwork job cards did not appear. Login at upwork.com in Brave first.");
+            bail!("Upwork job cards did not appear. Login at upwork.com in browser first.");
         }
 
         sleep(Duration::from_millis(pause_ms)).await;

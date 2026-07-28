@@ -8,7 +8,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::sync::Mutex;
 
-/// Serialize access to shared Brave browser.
+/// Serialize access to shared browser.
 static BROWSER_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 async fn with_browser<F, Fut>(timeout_secs: u64, f: F)
@@ -18,8 +18,10 @@ where
 {
     let _guard = BROWSER_LOCK.lock().await;
     tokio::time::timeout(Duration::from_secs(timeout_secs), async {
-        let manager = BrowserManager::new();
-        let browser = manager.browser().await.expect("Brave should connect");
+        let bin = std::env::var("JOBSEARCH_BROWSER_BIN")
+            .expect("JOBSEARCH_BROWSER_BIN must point to a Chromium browser binary");
+        let manager = BrowserManager::new(bin);
+        let browser = manager.browser().await.expect("browser should connect");
         jobsearch::browser::ensure_init_tabs(&browser, DEFAULT_INIT_URLS)
             .await
             .expect("ensure_init_tabs should succeed");
@@ -83,7 +85,7 @@ async fn test_hackernews_fetch_comments() {
 }
 
 #[tokio::test]
-#[ignore = "requires Brave browser installed and upwork.com logged in"]
+#[ignore = "requires Chromium browser running with CDP and upwork.com logged in"]
 async fn test_upwork_search_page_has_cards() {
     with_browser(45, |browser| async move {
         let search_url =
@@ -122,7 +124,7 @@ async fn test_upwork_search_page_has_cards() {
 // --- Upwork: job detail ---
 
 #[tokio::test]
-#[ignore = "requires Brave browser installed and upwork.com logged in"]
+#[ignore = "requires Chromium browser running with CDP and upwork.com logged in"]
 async fn test_upwork_job_detail_fetch() {
     with_browser(60, |browser| async move {
         // Grab a job URL from search
@@ -179,7 +181,7 @@ async fn test_upwork_job_detail_fetch() {
 // --- Upwork: pagination ---
 
 #[tokio::test]
-#[ignore = "requires Brave browser installed and upwork.com logged in"]
+#[ignore = "requires Chromium browser running with CDP and upwork.com logged in"]
 async fn test_upwork_pagination_has_next_page() {
     with_browser(60, |browser| async move {
         let search_url =
@@ -243,7 +245,7 @@ async fn test_upwork_pagination_has_next_page() {
 // --- NoFluffJobs: search page ---
 
 #[tokio::test]
-#[ignore = "requires Brave browser installed and nofluffjobs.com accessible"]
+#[ignore = "requires Chromium browser running with CDP and nofluffjobs.com accessible"]
 async fn test_nofluffjobs_search_page_has_cards_and_details() {
     with_browser(45, |browser| async move {
         let scraper =
@@ -294,7 +296,7 @@ async fn test_nofluffjobs_search_page_has_cards_and_details() {
 // --- NoFluffJobs: load more ---
 
 #[tokio::test]
-#[ignore = "requires Brave browser installed and nofluffjobs.com accessible"]
+#[ignore = "requires Chromium browser running with CDP and nofluffjobs.com accessible"]
 async fn test_nofluffjobs_load_more_adds_jobs() {
     with_browser(60, |browser| async move {
         let search_url = "https://nofluffjobs.com/remote?criteria=keyword%3Drust&sort=newest";
@@ -343,7 +345,7 @@ async fn test_nofluffjobs_load_more_adds_jobs() {
 // --- eFinancialCareers: search page ---
 
 #[tokio::test]
-#[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
+#[ignore = "requires Chromium browser running with CDP and efinancialcareers.com accessible"]
 async fn test_efinancialcareers_search_page_has_cards_and_details() {
     with_browser(45, |browser| async move {
         let scraper = jobsearch::platforms::efinancialcareers::EfinancialcareersScraper::new(
@@ -422,7 +424,7 @@ async fn test_efinancialcareers_search_page_has_cards_and_details() {
 // --- eFinancialCareers: load more ---
 
 #[tokio::test]
-#[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
+#[ignore = "requires Chromium browser running with CDP and efinancialcareers.com accessible"]
 async fn test_efinancialcareers_show_more_adds_jobs() {
     with_browser(60, |browser| async move {
         let search_url = efc_search_url("");
@@ -476,7 +478,7 @@ async fn test_efinancialcareers_show_more_adds_jobs() {
 }
 
 #[tokio::test]
-#[ignore = "requires Brave browser installed and efinancialcareers.com accessible"]
+#[ignore = "requires Chromium browser running with CDP and efinancialcareers.com accessible"]
 async fn test_efinancialcareers_zero_results_returns_count_zero() {
     with_browser(45, |browser| async move {
         let search_url = efc_search_url("xyznonexistent12345thisshouldreturnnojobs");
@@ -506,7 +508,7 @@ async fn test_efinancialcareers_zero_results_returns_count_zero() {
 // --- LinkedIn: search page ---
 
 #[tokio::test]
-#[ignore = "requires Brave browser installed and linkedin.com logged in"]
+#[ignore = "requires Chromium browser running with CDP and linkedin.com logged in"]
 async fn test_linkedin_search_page_has_cards() {
     with_browser(60, |browser| async move {
         let scraper = LinkedInScraper::new("https://www.linkedin.com/jobs/search/");
@@ -549,7 +551,7 @@ async fn test_linkedin_search_page_has_cards() {
 // --- LinkedIn: job detail ---
 
 #[tokio::test]
-#[ignore = "requires Brave browser installed and linkedin.com logged in"]
+#[ignore = "requires Chromium browser running with CDP and linkedin.com logged in"]
 async fn test_linkedin_job_detail_fetch() {
     with_browser(60, |browser| async move {
         let scraper = LinkedInScraper::new("https://www.linkedin.com/jobs/search/");
@@ -601,7 +603,7 @@ async fn test_linkedin_job_detail_fetch() {
 // --- LinkedIn: cookie/csrf extraction regression ---
 
 #[tokio::test]
-#[ignore = "requires Brave browser installed and linkedin.com logged in"]
+#[ignore = "requires Chromium browser running with CDP and linkedin.com logged in"]
 async fn test_linkedin_csrf_extracted_from_unquoted_jsessionid() {
     with_browser(60, |browser| async move {
         let page = browser
@@ -648,7 +650,7 @@ async fn test_linkedin_csrf_extracted_from_unquoted_jsessionid() {
 // --- LinkedIn: pagination ---
 
 #[tokio::test]
-#[ignore = "requires Brave browser installed and linkedin.com logged in"]
+#[ignore = "requires Chromium browser running with CDP and linkedin.com logged in"]
 async fn test_linkedin_pagination_has_next_page() {
     with_browser(60, |browser| async move {
         let scraper = LinkedInScraper::new("https://www.linkedin.com/jobs/search/");

@@ -254,7 +254,7 @@ impl PlatformClient for NoFluffJobsScraper {
             .filter_map(|u| host_of(&u))
             .collect();
         if !page_hosts.iter().any(|h| h.contains("nofluffjobs.com")) {
-            bail!("NoFluffJobs requires open nofluffjobs.com tab in Brave");
+            bail!("NoFluffJobs requires open nofluffjobs.com tab in browser");
         }
         if !self.is_logged_in(browser).await? {
             bail!("NoFluffJobs requires a logged-in nofluffjobs.com session");

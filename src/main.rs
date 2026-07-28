@@ -34,18 +34,7 @@ fn config_path() -> std::path::PathBuf {
 }
 
 async fn cmd_init(manager: &BrowserManager, urls: &[&str]) -> Result<()> {
-    let path = config_path();
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    if !path.exists() {
-        let sample = Settings::sample();
-        let text = toml::to_string_pretty(&sample)?;
-        std::fs::write(&path, text)?;
-        eprintln!("Created sample config at {}", path.display());
-    }
-
-    eprintln!("Launching Brave browser with {} tabs...", urls.len());
+    eprintln!("Launching browser with {} tabs...", urls.len());
 
     let browser = manager.browser().await?;
     let tabs_before = browser.get_page_urls().await?;
@@ -69,7 +58,7 @@ async fn cmd_init(manager: &BrowserManager, urls: &[&str]) -> Result<()> {
         }
     }
 
-    eprintln!("\nBrave is ready with {} tabs.", urls.len());
+    eprintln!("\nBrowser is ready with {} tabs.", urls.len());
     eprintln!("Login to each site if needed, then run 'jobsearch update'.");
 
     Ok(())
@@ -95,14 +84,24 @@ async fn main() -> Result<()> {
     }
 
     let db = Db::open(&db_path).await?;
-    let browser = BrowserManager::new();
 
     match cli.command {
         Commands::Init => {
+            let path = config_path();
+            if !path.exists() {
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::write(&path, toml::to_string_pretty(&Settings::sample())?)?;
+                eprintln!("Created sample config at {}", path.display());
+            }
+            let settings = Settings::load(&path)?;
+            let browser = BrowserManager::new(settings.browser.bin);
             cmd_init(&browser, DEFAULT_INIT_URLS).await?;
         }
         Commands::Update(update_cmd) => {
             let settings = Settings::load(&config_path())?;
+            let browser = BrowserManager::new(settings.browser.bin.clone());
             cmd_update(update_cmd, &db, &browser, &settings).await?;
         }
         Commands::List(cmd) => cmd_list_with_target(cmd, &db, &db_path).await?,

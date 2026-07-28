@@ -7,6 +7,7 @@
 }: {
   packages = [pkgs.git pkgs.sqlx-cli];
   env = {
+    JOBSEARCH_BROWSER_BIN = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
     SQLX_OFFLINE = "true";
     JOBSEARCH_DATABASE_URL = "sqlite:./jobsearch.db";
     JOBSEARCH_CONFIG_DIR = "./";

@@ -9,6 +9,16 @@ pub struct Settings {
     pub location: String,
     pub pause_ms: u64,
     pub providers: Providers,
+    pub browser: BrowserConfig,
+}
+
+/// Placeholder written into the sample config by `jobsearch init`.
+pub const SAMPLE_BROWSER_BIN: &str = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrowserConfig {
+    /// Path to a Chromium-based browser binary, launched with `--remote-debugging-port=9222`.
+    pub bin: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -28,16 +38,6 @@ pub struct ProviderConfig {
     pub pause_ms: Option<u64>,
 }
 
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            location: "Europe".to_string(),
-            pause_ms: 2000,
-            providers: Providers::default(),
-        }
-    }
-}
-
 impl Settings {
     pub fn load(path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(path)
@@ -52,6 +52,9 @@ impl Settings {
         Self {
             location: "Europe".to_string(),
             pause_ms: 2000,
+            browser: BrowserConfig {
+                bin: SAMPLE_BROWSER_BIN.to_string(),
+            },
             providers: Providers {
                 upwork: ProviderConfig {
                     urls: vec!["https://www.upwork.com/nx/search/jobs/?q=trading&sort=recency&per_page=50&t=0&hourly_rate=60-".to_string()],

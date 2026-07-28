@@ -91,7 +91,7 @@ impl EfinancialcareersScraper {
             .iter()
             .any(|h| h.contains("efinancialcareers.com"))
         {
-            bail!("eFinancialCareers requires open efinancialcareers.com tab in Brave");
+            bail!("eFinancialCareers requires open efinancialcareers.com tab in browser");
         }
         Ok(())
     }
