@@ -59,7 +59,7 @@
         postFixup = lib.optionalString pkgs.stdenv.isLinux ''
           patchelf \
             --set-interpreter "${pkgs.stdenv.cc.bintools.dynamicLinker}" \
-            --set-rpath "${lib.makeLibraryPath [pkgs.stdenv.cc.cc.lib]}:$out/lib" \
+            --set-rpath "${lib.makeLibraryPath [pkgs.stdenv.cc.cc.lib pkgs.openssl]}:$out/lib" \
             $out/bin/jobsearch
         '';
 
