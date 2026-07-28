@@ -2,8 +2,9 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,8 +13,34 @@ env:
   ONNX_VERSION: 1.24.2
 
 jobs:
+  version:
+    name: Check version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Check Cargo version against latest release
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n1)
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          if gh release view "v${version}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
   dist:
     name: Dist
+    needs: [version]
+    if: needs.version.outputs.release == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -86,28 +113,41 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          name="jobsearch-${{ github.ref_name }}-${{ matrix.build }}"
+          name="jobsearch-v${{ needs.version.outputs.version }}-${{ matrix.build }}"
           mkdir -p "dist/${name}/bin"
           cp "target/${{ matrix.target }}/release/jobsearch" "dist/${name}/bin/"
           cp -RL onnxruntime/lib "dist/${name}/lib"
 
       - name: Create tarball
         shell: bash
-        run: tar czf "jobsearch-${{ github.ref_name }}-${{ matrix.build }}.tar.gz" -C dist "jobsearch-${{ github.ref_name }}-${{ matrix.build }}"
+        run: tar czf "jobsearch-v${{ needs.version.outputs.version }}-${{ matrix.build }}.tar.gz" -C dist "jobsearch-v${{ needs.version.outputs.version }}-${{ matrix.build }}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: bins-${{ matrix.build }}
-          path: jobsearch-${{ github.ref_name }}-${{ matrix.build }}.tar.gz
+          path: jobsearch-v${{ needs.version.outputs.version }}-${{ matrix.build }}.tar.gz
           if-no-files-found: error
 
   publish:
     name: Publish
-    needs: [dist]
+    needs: [version, dist]
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Create tag
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ needs.version.outputs.version }}"
+          git push origin "v${{ needs.version.outputs.version }}"
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
 
@@ -116,5 +156,73 @@ jobs:
         with:
           file: bins-*/jobsearch-*.tar.gz
           file_glob: true
-          tag: ${{ github.ref_name }}
+          tag: v${{ needs.version.outputs.version }}
           overwrite: true
+
+  update-flake:
+    name: Update flake
+    needs: [version, publish]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Update hashes in flake.nix
+        run: |
+          set -euo pipefail
+          version="${{ needs.version.outputs.version }}"
+          hash_sri() {
+            openssl dgst -sha256 -binary "$1" | base64 -w0
+          }
+          mac=$(hash_sri "bins-aarch64-macos/jobsearch-v${version}-aarch64-macos.tar.gz")
+          linux=$(hash_sri "bins-x86_64-linux/jobsearch-v${version}-x86_64-linux.tar.gz")
+          sed -i \
+            -e "s|^      aarch64-darwin = \"sha256-.*\";|      aarch64-darwin = \"sha256-${mac}\";|" \
+            -e "s|^      x86_64-linux = \"sha256-.*\";|      x86_64-linux = \"sha256-${linux}\";|" \
+            flake.nix
+          grep -A3 'hashes = ' flake.nix
+
+      - name: Commit and push flake.nix
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add flake.nix
+          if git diff --cached --quiet; then
+            echo "flake.nix already up to date"
+            exit 0
+          fi
+          git commit -m "chore: update flake for v${{ needs.version.outputs.version }}"
+          git push origin HEAD:main
+
+  verify:
+    name: Verify Nix flake
+    needs: [update-flake]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-22.04
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Build and smoke test
+        run: |
+          set -euo pipefail
+          nix build .#job-search
+          ./result/bin/jobsearch --help >/dev/null

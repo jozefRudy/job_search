@@ -3,134 +3,75 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    crane.url = "github:ipetkov/crane";
   };
 
   outputs = {
     self,
     nixpkgs,
-    crane,
   }: let
-    supportedSystems = ["aarch64-darwin"];
+    # hashes are updated by .github/workflows/release.yml after each release
+    version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package.version;
+    hashes = {
+      aarch64-darwin = "sha256-RBljReJdUHx/UeycHKQGdrTyjfkZKJgPj+9dMeNKQNg=";
+      x86_64-linux = "sha256-UGeC2yTXA8HP+o/UkAXHe13gtvJHm20DVgeZPcSLJiA=";
+    };
+    assets = {
+      aarch64-darwin = "aarch64-macos";
+      x86_64-linux = "x86_64-linux";
+    };
+
+    supportedSystems = builtins.attrNames assets;
+
     forEachSupportedSystem = f:
       nixpkgs.lib.genAttrs supportedSystems (
-        system: let
-          pkgs = import nixpkgs {inherit system;};
-          craneLib = crane.mkLib pkgs;
-        in
-          f {inherit pkgs craneLib;}
+        system:
+          f {
+            inherit system;
+            pkgs = import nixpkgs {inherit system;};
+          }
       );
   in {
     packages = forEachSupportedSystem ({
+      system,
       pkgs,
-      craneLib,
     }: let
-      pnpm = pkgs.pnpm_10;
+      inherit (pkgs) lib;
+      job-search = pkgs.stdenv.mkDerivation {
+        pname = "job-search";
+        inherit version;
 
-      frontendVersion = (builtins.fromJSON (builtins.readFile ./frontend/package.json)).version;
-      cargoVersion = (fromTOML (builtins.readFile ./Cargo.toml)).package.version;
-
-      frontend = pkgs.stdenv.mkDerivation (finalAttrs: {
-        pname = "jobsearch-frontend";
-        version = frontendVersion;
-        src = ./frontend;
-
-        nativeBuildInputs = [
-          pkgs.nodejs-slim
-          pnpm
-          pkgs.pnpmConfigHook
-        ];
-
-        pnpmDeps = pkgs.fetchPnpmDeps {
-          inherit (finalAttrs) pname version src;
-          inherit pnpm;
-          fetcherVersion = 3;
-          # When pnpm dependencies change, swap to pkgs.lib.fakeHash, run `nix build .#frontend`,
-          # copy the "got:" hash from the error, then put it back here.
-          hash = "sha256-5Dc5RFYuoVDs6uOon260I/016CvFCfln8zGvkeBzVmo";
+        src = pkgs.fetchurl {
+          url = "https://github.com/jozefRudy/job_search/releases/download/v${version}/jobsearch-v${version}-${assets.${system}}.tar.gz";
+          hash = hashes.${system};
         };
 
-        buildPhase = ''
-          pnpm build
-        '';
+        dontBuild = true;
+        dontConfigure = true;
+        dontStrip = true;
+
+        nativeBuildInputs = lib.optionals pkgs.stdenv.isLinux [pkgs.patchelf];
 
         installPhase = ''
-          cp -r dist $out
+          mkdir -p $out
+          tar -xzf $src -C $out --strip-components=1
         '';
-      });
 
-      onnxruntime-bin = let
-        version = "1.24.2";
-        src = pkgs.fetchurl {
-          url = "https://github.com/microsoft/onnxruntime/releases/download/v${version}/onnxruntime-osx-arm64-${version}.tgz";
-          hash = "sha256-CvT6UD6OooUkW0fuQtCnRhuBVqgScIV9oMHU7PhYq94=";
-        };
-      in
-        pkgs.stdenvNoCC.mkDerivation {
-          inherit src version;
-          pname = "onnxruntime-bin";
-          dontBuild = true;
-          installPhase = ''
-            mkdir -p $out
-            cp -r lib $out/lib
-            cp -r include $out/include
-          '';
-        };
+        postFixup = lib.optionalString pkgs.stdenv.isLinux ''
+          patchelf \
+            --set-interpreter "${pkgs.stdenv.cc.bintools.dynamicLinker}" \
+            --set-rpath "${lib.makeLibraryPath [pkgs.stdenv.cc.cc.lib]}:$out/lib" \
+            $out/bin/jobsearch
+        '';
 
-      srcForPackage = pkgs.lib.cleanSourceWith {
-        src = ./.;
-        filter = path: type: let
-          base = baseNameOf path;
-        in
-          !(
-            base
-            == ".git"
-            || base == ".devenv"
-            || base == ".direnv"
-            || base == "frontend"
-            || base == "models"
-            || base == "lance"
-            || base == "target"
-            || base == "jobsearch.db"
-            || base == "providers.md"
-          );
-      };
-
-      srcForDeps = craneLib.cleanCargoSource (craneLib.path ./.);
-
-      commonArgs = {
-        pname = "job-search";
-        version = cargoVersion;
-        src = srcForDeps;
-        nativeBuildInputs = [pkgs.pkg-config pkgs.protobuf];
-        buildInputs = [onnxruntime-bin];
-        env = {
-          SQLX_OFFLINE = "true";
-          ORT_PREFER_DYNAMIC_LINK = "1";
-          ORT_LIB_PATH = "${onnxruntime-bin}/lib";
-          RUSTFLAGS = "-Clink-arg=-Wl,-rpath,${onnxruntime-bin}/lib";
+        meta = {
+          description = "Unified job search CLI";
+          homepage = "https://github.com/jozefRudy/job_search";
+          mainProgram = "jobsearch";
+          platforms = supportedSystems;
         };
       };
-
-      cargoArtifacts = craneLib.buildDepsOnly commonArgs;
-
-      job-search = craneLib.buildPackage (commonArgs
-        // {
-          inherit cargoArtifacts;
-          src = srcForPackage;
-          version = self.shortRev or "dirty";
-          env =
-            commonArgs.env
-            // {
-              GIT_HASH = self.shortRev or "dirty";
-            };
-          preBuild = ''
-            mkdir -p frontend/dist
-            cp -r ${frontend}/* frontend/dist/
-          '';
-        });
     in {
-      inherit frontend job-search;
+      inherit job-search;
       default = job-search;
     });
   };
