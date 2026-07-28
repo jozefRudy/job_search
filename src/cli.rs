@@ -1,9 +1,6 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
-pub const VERSION: &str = match option_env!("GIT_HASH") {
-    Some(v) => v,
-    None => "dev",
-};
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Parser)]
 #[command(name = "jobsearch", version = VERSION)]
