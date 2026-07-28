@@ -182,10 +182,8 @@ jobs:
             openssl dgst -sha256 -binary "$1" | base64 -w0
           }
           mac=$(hash_sri "bins-aarch64-macos/jobsearch-v${version}-aarch64-macos.tar.gz")
-          linux=$(hash_sri "bins-x86_64-linux/jobsearch-v${version}-x86_64-linux.tar.gz")
           sed -i \
             -e "s|^      aarch64-darwin = \"sha256-.*\";|      aarch64-darwin = \"sha256-${mac}\";|" \
-            -e "s|^      x86_64-linux = \"sha256-.*\";|      x86_64-linux = \"sha256-${linux}\";|" \
             flake.nix
           grep -A3 'hashes = ' flake.nix
 
@@ -211,7 +209,6 @@ jobs:
       matrix:
         os:
           - macos-latest
-          - ubuntu-22.04
 
     steps:
       - name: Checkout sources

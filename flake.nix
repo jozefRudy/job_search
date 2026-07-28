@@ -13,11 +13,9 @@
     version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package.version;
     hashes = {
       aarch64-darwin = "sha256-7HBsV9IZhVi03x18DnYzmTu9lxyRyAJXz9R5RQq/yKM=";
-      x86_64-linux = "sha256-oEWzPN3G51hu93X+/pdxoJzQZc0Orjdoaito/ENCWN4=";
     };
     assets = {
       aarch64-darwin = "aarch64-macos";
-      x86_64-linux = "x86_64-linux";
     };
 
     supportedSystems = builtins.attrNames assets;
@@ -58,6 +56,7 @@
 
         postFixup = lib.optionalString pkgs.stdenv.isLinux ''
           patchelf \
+            --force-rpath \
             --set-interpreter "${pkgs.stdenv.cc.bintools.dynamicLinker}" \
             --set-rpath "${lib.makeLibraryPath [pkgs.stdenv.cc.cc.lib pkgs.openssl]}:$out/lib" \
             $out/bin/jobsearch
