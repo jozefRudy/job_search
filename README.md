@@ -12,11 +12,7 @@ Supported providers:
 
 ## Installation
 
-Download a prebuilt binary from [GitHub Releases](https://github.com/jozefRudy/job_search/releases), or build from source:
-
-```bash
-cargo build --release
-```
+Download a prebuilt binary from [GitHub Releases](https://github.com/jozefRudy/job_search/releases). To build from source, see [Development](#development).
 
 ## How it works
 
