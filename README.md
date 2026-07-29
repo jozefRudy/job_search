@@ -95,7 +95,7 @@ Total jobs: 1912
 
 ## Development
 
-Requires Rust (2024 edition). A Nix devenv shell is provided (`devenv.nix`) with all dependencies, including `cargo sqlx prepare` for offline SQLx builds (`.sqlx/` is committed).
+A Nix devenv shell is provided (`devenv.nix`) with all dependencies, including `cargo sqlx prepare` for offline SQLx builds (`.sqlx/` is committed).
 
 ```bash
 cargo build && cargo clippy --all-targets && cargo test && cargo fmt
