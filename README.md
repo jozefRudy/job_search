@@ -70,6 +70,16 @@ jobsearch serve            # or: jobsearch serve --port 3000
 
 Open `http://localhost:8080` — the UI shows all jobs in one unified view with sorting, filtering, and vector search. The backend embeds the compiled SolidJS frontend, so no separate frontend process is needed.
 
+### Screenshots
+
+Job list:
+
+![Job list](docs/list.png)
+
+Job detail:
+
+![Job detail](docs/detail.png)
+
 Embeddings use `nomic-ai/nomic-embed-text-v1.5` via fastembed (runs locally, no API key needed). Vectors are stored in Lance; only jobs not yet vectorized are embedded on each run.
 
 Check what's taking up space (SQLite size, downloaded models, Lance datasets, total jobs):
