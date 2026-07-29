@@ -8,7 +8,7 @@ Supported providers:
 - **NoFluffJobs**
 - **eFinancialCareers**
 - **LinkedIn**
-- **Hacker News** ("Who is hiring?" threads, via the Algolia API)
+- **Hacker News** ("Who is hiring?" threads)
 
 ## Installation
 
