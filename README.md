@@ -88,6 +88,15 @@ Check what's taking up space (SQLite size, downloaded models, Lance datasets, to
 jobsearch diagnose
 ```
 
+Example output:
+
+```text
+/Users/jozefrudy/Documents/projects/job_search/jobsearch.db: 17.35 MB
+./models/models--nomic-ai--nomic-embed-text-v1.5: 522.64 MB
+./lance/embeddings-nomic-ai-nomic-embed-text-v1.5: 22.99 KB
+Total jobs: 1912
+```
+
 ## Development
 
 Requires Rust (2024 edition). A Nix devenv shell is provided (`devenv.nix`) with all dependencies, including `cargo sqlx prepare` for offline SQLx builds (`.sqlx/` is committed).
