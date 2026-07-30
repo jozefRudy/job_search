@@ -22,6 +22,9 @@ pub struct LlmConfig {
 /// Placeholder written into the sample config by `jobsearch init`.
 pub const SAMPLE_BROWSER_BIN: &str = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
 
+/// Sample LLM CLI command written into the sample config by `jobsearch init`.
+pub const SAMPLE_LLM_BIN: &str = "pi --print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-v4-flash";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserConfig {
     /// Path to a Chromium-based browser binary, launched with `--remote-debugging-port=9222`.
@@ -62,7 +65,9 @@ impl Settings {
             browser: BrowserConfig {
                 bin: SAMPLE_BROWSER_BIN.to_string(),
             },
-            llm: LlmConfig { cli: todo!() },
+            llm: LlmConfig {
+                cli: SAMPLE_LLM_BIN.to_string(),
+            },
             providers: Providers {
                 upwork: ProviderConfig {
                     urls: vec!["https://www.upwork.com/nx/search/jobs/?q=trading&sort=recency&per_page=50&t=0&hourly_rate=60-".to_string()],

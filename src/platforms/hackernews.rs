@@ -358,8 +358,6 @@ mod tests {
         );
     }
 
-    // TODO: unit tests pass empty string (unused) instead of None after
-    //   HackerNewsScraper::new takes `llm_cli: String`
     #[test]
     fn test_title_strips_tags() {
         let html = "<p>Acme Inc | Rust Engineer | Remote</p><p>Full description here.</p>";
@@ -371,30 +369,27 @@ mod tests {
 
     #[test]
     fn test_new_accepts_valid_algolia_url() {
-        let scraper = HackerNewsScraper::new(
-            None,
-            "Europe",
-            "https://hn.algolia.com/api/v1/search_by_date",
-        );
+        let scraper =
+            HackerNewsScraper::new("", "Europe", "https://hn.algolia.com/api/v1/search_by_date");
         assert!(scraper.is_ok());
     }
 
     #[test]
     fn test_new_rejects_wrong_host() {
         let scraper =
-            HackerNewsScraper::new(None, "Europe", "https://example.com/api/v1/search_by_date");
+            HackerNewsScraper::new("", "Europe", "https://example.com/api/v1/search_by_date");
         assert!(scraper.is_err());
     }
 
     #[test]
     fn test_new_rejects_wrong_path() {
-        let scraper = HackerNewsScraper::new(None, "Europe", "https://hn.algolia.com/api/v1/other");
+        let scraper = HackerNewsScraper::new("", "Europe", "https://hn.algolia.com/api/v1/other");
         assert!(scraper.is_err());
     }
 
     #[test]
     fn test_new_rejects_invalid_url() {
-        let scraper = HackerNewsScraper::new(None, "Europe", "not-a-url");
+        let scraper = HackerNewsScraper::new("", "Europe", "not-a-url");
         assert!(scraper.is_err());
     }
 }

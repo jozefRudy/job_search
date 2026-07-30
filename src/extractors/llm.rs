@@ -70,8 +70,7 @@ pub trait Extractable: JsonSchema + for<'de> Deserialize<'de> {
 
 /// Generic LLM extractor that calls a local CLI.
 ///
-/// Configure by passing a command string to `from_cli`. When omitted,
-/// [`DEFAULT_LLM_CLI`] is used.
+/// Configure with a command string via `from_cli` (from `jobsearch.toml` `[llm] cli`).
 #[derive(Debug, Clone)]
 pub struct LlmExtractor<T: Extractable> {
     bin: String,
@@ -102,8 +101,17 @@ impl<T: Extractable> LlmExtractor<T> {
     /// Configure with a command string from `jobsearch.toml` `[llm] cli`.
     #[must_use]
     pub fn from_cli(llm_cli: &str) -> Self {
-        let _ = llm_cli;
-        todo!()
+        let tokens = shell_words::split(llm_cli).unwrap_or_default();
+        let (bin, args) = tokens
+            .split_first()
+            .map(|(h, t)| (h.clone(), t.to_vec()))
+            .unwrap_or_default();
+        Self {
+            bin,
+            args,
+            prompt_context: String::new(),
+            _phantom: PhantomData,
+        }
     }
 
     /// Run the LLM with the rendered prompt and deserialize the response into `T`.
