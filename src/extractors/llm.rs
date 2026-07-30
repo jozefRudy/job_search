@@ -6,7 +6,6 @@ use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
 
-// TODO: remove DEFAULT_LLM_CLI const — llm cli comes from jobsearch.toml [llm] cli, no default
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_TEXT_LEN: usize = 4000;
 
@@ -100,23 +99,11 @@ impl<T: Extractable> LlmExtractor<T> {
         self.extract(T::HEALTHCHECK_TEXT).await?.verify()
     }
 
-    // TODO: change signature to `from_cli(llm_cli: String)` — required, drop Option/empty fallback
+    /// Configure with a command string from `jobsearch.toml` `[llm] cli`.
     #[must_use]
-    pub fn from_cli(llm_cli: Option<String>) -> Self {
-        let command = llm_cli
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| DEFAULT_LLM_CLI.to_string());
-        let tokens = shell_words::split(&command).unwrap_or_default();
-        let (bin, args) = tokens
-            .split_first()
-            .map(|(h, t)| (h.clone(), t.to_vec()))
-            .unwrap_or_default();
-        Self {
-            bin,
-            args,
-            prompt_context: String::new(),
-            _phantom: PhantomData,
-        }
+    pub fn from_cli(llm_cli: &str) -> Self {
+        let _ = llm_cli;
+        todo!()
     }
 
     /// Run the LLM with the rendered prompt and deserialize the response into `T`.

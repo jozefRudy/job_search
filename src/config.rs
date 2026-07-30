@@ -10,12 +10,14 @@ pub struct Settings {
     pub pause_ms: u64,
     pub providers: Providers,
     pub browser: BrowserConfig,
-    // TODO: add `pub llm: LlmConfig` field (required, no default)
+    pub llm: LlmConfig,
 }
 
-// TODO: add `pub struct LlmConfig { pub cli: String }` mirroring BrowserConfig
-// TODO: Settings::sample() — fill `llm` with pi command:
-//   "pi --print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-v4-flash"
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmConfig {
+    /// Command string for the LLM CLI, e.g. `pi --print --model ...`.
+    pub cli: String,
+}
 
 /// Placeholder written into the sample config by `jobsearch init`.
 pub const SAMPLE_BROWSER_BIN: &str = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
@@ -60,6 +62,7 @@ impl Settings {
             browser: BrowserConfig {
                 bin: SAMPLE_BROWSER_BIN.to_string(),
             },
+            llm: LlmConfig { cli: todo!() },
             providers: Providers {
                 upwork: ProviderConfig {
                     urls: vec!["https://www.upwork.com/nx/search/jobs/?q=trading&sort=recency&per_page=50&t=0&hourly_rate=60-".to_string()],

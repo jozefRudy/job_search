@@ -55,8 +55,7 @@ pub struct HackerNewsScraper {
 }
 
 impl HackerNewsScraper {
-    // TODO: change signature to `new(llm_cli: String, location: &str, url: &str)` — required
-    pub fn new(llm_cli: Option<String>, location: &str, url: &str) -> Result<Self> {
+    pub fn new(llm_cli: &str, location: &str, url: &str) -> Result<Self> {
         let parsed =
             url::Url::parse(url).map_err(|e| anyhow::anyhow!("invalid HackerNews URL: {e}"))?;
         if parsed.host_str() != Some("hn.algolia.com") {

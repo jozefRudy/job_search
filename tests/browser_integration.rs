@@ -61,9 +61,9 @@ fn efc_search_url(keyword: &str) -> String {
 #[tokio::test]
 #[ignore = "requires network access to Hacker News Algolia API"]
 async fn test_hackernews_fetch_comments() {
-    // TODO: pass JOBSEARCH_LLM_CLI env var value (with expect) instead of None
     let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(
-        None,
+        std::env::var("JOBSEARCH_LLM_CLI")
+            .expect("JOBSEARCH_LLM_CLI must be set to an LLM CLI command"),
         "Europe",
         "https://hn.algolia.com/api/v1/search_by_date",
     )
