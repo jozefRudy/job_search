@@ -224,9 +224,8 @@ async fn cmd_update(
             if settings.providers.hackernews.urls.is_empty() {
                 bail!("no URLs configured for hackernews in jobsearch.toml");
             }
-            let llm_cli = std::env::var("LLM_CLI").ok();
             for url in &settings.providers.hackernews.urls {
-                let scraper = HackerNewsScraper::new(llm_cli.clone(), &settings.location, url)?;
+                let scraper = HackerNewsScraper::new(&settings.llm.cli, &settings.location, url)?;
                 fetch_and_store(
                     db,
                     browser,

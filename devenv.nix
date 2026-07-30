@@ -8,6 +8,8 @@
   packages = [pkgs.git pkgs.sqlx-cli];
   env = {
     JOBSEARCH_BROWSER_BIN = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
+    JOBSEARCH_LLM_CLI = "pi --print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-v4-flash";
+
     SQLX_OFFLINE = "true";
     JOBSEARCH_DATABASE_URL = "sqlite:./jobsearch.db";
     JOBSEARCH_CONFIG_DIR = "./";

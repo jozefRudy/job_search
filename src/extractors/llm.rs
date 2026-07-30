@@ -6,8 +6,6 @@ use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
 
-pub const DEFAULT_LLM_CLI: &str = "pi --print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-v4-flash";
-
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_TEXT_LEN: usize = 4000;
 
@@ -72,8 +70,7 @@ pub trait Extractable: JsonSchema + for<'de> Deserialize<'de> {
 
 /// Generic LLM extractor that calls a local CLI.
 ///
-/// Configure by passing a command string to `from_cli`. When omitted,
-/// [`DEFAULT_LLM_CLI`] is used.
+/// Configure with a command string via `from_cli` (from `jobsearch.toml` `[llm] cli`).
 #[derive(Debug, Clone)]
 pub struct LlmExtractor<T: Extractable> {
     bin: String,
@@ -101,12 +98,10 @@ impl<T: Extractable> LlmExtractor<T> {
         self.extract(T::HEALTHCHECK_TEXT).await?.verify()
     }
 
+    /// Configure with a command string from `jobsearch.toml` `[llm] cli`.
     #[must_use]
-    pub fn from_cli(llm_cli: Option<String>) -> Self {
-        let command = llm_cli
-            .filter(|s| !s.is_empty())
-            .unwrap_or_else(|| DEFAULT_LLM_CLI.to_string());
-        let tokens = shell_words::split(&command).unwrap_or_default();
+    pub fn from_cli(llm_cli: &str) -> Self {
+        let tokens = shell_words::split(llm_cli).unwrap_or_default();
         let (bin, args) = tokens
             .split_first()
             .map(|(h, t)| (h.clone(), t.to_vec()))

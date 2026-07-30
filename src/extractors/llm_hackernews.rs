@@ -62,11 +62,15 @@ mod tests {
     use super::*;
     use crate::extractors::llm::LlmExtractor;
 
+    fn llm_cli() -> String {
+        todo!()
+    }
+
     #[tokio::test]
-    #[ignore = "requires LLM CLI reachable via --llm-cli or DEFAULT_LLM_CLI"]
+    #[ignore = "requires JOBSEARCH_LLM_CLI set to an LLM CLI command"]
     async fn test_extract_hackernews_job_from_fixture() {
         let text = include_str!("llm/fixtures/hackernews_job.md");
-        let fields = LlmExtractor::<ExtractFields>::from_cli(None)
+        let fields = LlmExtractor::<ExtractFields>::from_cli(&llm_cli())
             .with_prompt_context("Candidate location: Europe".to_string())
             .extract(text)
             .await
@@ -79,10 +83,10 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires LLM CLI reachable via --llm-cli or DEFAULT_LLM_CLI"]
+    #[ignore = "requires JOBSEARCH_LLM_CLI set to an LLM CLI command"]
     async fn test_extract_hackernews_multiple_roles() {
         let text = include_str!("llm/fixtures/hackernews_multiple_roles.md");
-        let fields = LlmExtractor::<ExtractFields>::from_cli(None)
+        let fields = LlmExtractor::<ExtractFields>::from_cli(&llm_cli())
             .with_prompt_context("Candidate location: Europe".to_string())
             .extract(text)
             .await

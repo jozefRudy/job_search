@@ -55,7 +55,7 @@ pub struct HackerNewsScraper {
 }
 
 impl HackerNewsScraper {
-    pub fn new(llm_cli: Option<String>, location: &str, url: &str) -> Result<Self> {
+    pub fn new(llm_cli: &str, location: &str, url: &str) -> Result<Self> {
         let parsed =
             url::Url::parse(url).map_err(|e| anyhow::anyhow!("invalid HackerNews URL: {e}"))?;
         if parsed.host_str() != Some("hn.algolia.com") {
@@ -369,30 +369,27 @@ mod tests {
 
     #[test]
     fn test_new_accepts_valid_algolia_url() {
-        let scraper = HackerNewsScraper::new(
-            None,
-            "Europe",
-            "https://hn.algolia.com/api/v1/search_by_date",
-        );
+        let scraper =
+            HackerNewsScraper::new("", "Europe", "https://hn.algolia.com/api/v1/search_by_date");
         assert!(scraper.is_ok());
     }
 
     #[test]
     fn test_new_rejects_wrong_host() {
         let scraper =
-            HackerNewsScraper::new(None, "Europe", "https://example.com/api/v1/search_by_date");
+            HackerNewsScraper::new("", "Europe", "https://example.com/api/v1/search_by_date");
         assert!(scraper.is_err());
     }
 
     #[test]
     fn test_new_rejects_wrong_path() {
-        let scraper = HackerNewsScraper::new(None, "Europe", "https://hn.algolia.com/api/v1/other");
+        let scraper = HackerNewsScraper::new("", "Europe", "https://hn.algolia.com/api/v1/other");
         assert!(scraper.is_err());
     }
 
     #[test]
     fn test_new_rejects_invalid_url() {
-        let scraper = HackerNewsScraper::new(None, "Europe", "not-a-url");
+        let scraper = HackerNewsScraper::new("", "Europe", "not-a-url");
         assert!(scraper.is_err());
     }
 }

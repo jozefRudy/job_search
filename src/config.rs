@@ -10,10 +10,20 @@ pub struct Settings {
     pub pause_ms: u64,
     pub providers: Providers,
     pub browser: BrowserConfig,
+    pub llm: LlmConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmConfig {
+    /// Command string for the LLM CLI, e.g. `pi --print --model ...`.
+    pub cli: String,
 }
 
 /// Placeholder written into the sample config by `jobsearch init`.
 pub const SAMPLE_BROWSER_BIN: &str = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
+
+/// Sample LLM CLI command written into the sample config by `jobsearch init`.
+pub const SAMPLE_LLM_BIN: &str = "pi --print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-v4-flash";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserConfig {
@@ -54,6 +64,9 @@ impl Settings {
             pause_ms: 2000,
             browser: BrowserConfig {
                 bin: SAMPLE_BROWSER_BIN.to_string(),
+            },
+            llm: LlmConfig {
+                cli: SAMPLE_LLM_BIN.to_string(),
             },
             providers: Providers {
                 upwork: ProviderConfig {
