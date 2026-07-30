@@ -56,7 +56,32 @@ jobsearch update upwork
 jobsearch update efinancialcareers
 jobsearch update hackernews
 jobsearch update linkedin
+```
 
+Example output:
+
+```text
+Fetching from hackernews: https://hn.algolia.com/api/v1/search_by_date
+    Fetched 276 top-level HN comments
+    Total checked: 0 (0 new, 0 existing, 0 skipped)
+
+Fetching from upwork: https://www.upwork.com/nx/search/jobs/?q=trading&sort=recency&per_page=50&t=0&hourly_rate=60-
+    Bot check at https://www.upwork.com/nx/search/jobs/?q=trading&sort=recency&per_page=50&t=0&hourly_rate=60-. Waiting up to 30s for user to solve...
+    Bot check cleared, resuming.
+    Total checked: 68 (2 new, 66 existing, 0 skipped)
+
+Fetching from nofluffjobs: https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur8000m%20jobLanguage%3Den&sort=newest
+    Error from nofluffjobs: NoFluffJobs requires open nofluffjobs.com tab in browser
+
+Fetching from efinancialcareers: https://www.efinancialcareers.com/jobs/remote/python?pageSize=50&filters.postedDate=SEVEN&language=en
+    Total checked: 28 (2 new, 10 existing, 16 skipped)
+
+Fetching from linkedin: https://www.linkedin.com/jobs/search/?f_I=4&f_T=39&f_TPR=r200000&f_WT=2&geoId=92000000
+    Total checked: 333 (13 new, 319 existing, 1 skipped)
+Fetching from linkedin: https://www.linkedin.com/jobs/search/?f_I=4&f_T=25201&f_TPR=r200000&f_WT=2&geoId=92000000
+```
+
+```bash
 # 3. Embed new postings for semantic/vector search
 jobsearch embed            # incremental; --force to re-embed everything
 
