@@ -55,6 +55,7 @@ pub struct HackerNewsScraper {
 }
 
 impl HackerNewsScraper {
+    // TODO: change signature to `new(llm_cli: String, location: &str, url: &str)` — required
     pub fn new(llm_cli: Option<String>, location: &str, url: &str) -> Result<Self> {
         let parsed =
             url::Url::parse(url).map_err(|e| anyhow::anyhow!("invalid HackerNews URL: {e}"))?;
@@ -358,6 +359,8 @@ mod tests {
         );
     }
 
+    // TODO: unit tests pass empty string (unused) instead of None after
+    //   HackerNewsScraper::new takes `llm_cli: String`
     #[test]
     fn test_title_strips_tags() {
         let html = "<p>Acme Inc | Rust Engineer | Remote</p><p>Full description here.</p>";

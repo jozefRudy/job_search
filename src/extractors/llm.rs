@@ -6,8 +6,7 @@ use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
 
-pub const DEFAULT_LLM_CLI: &str = "pi --print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-v4-flash";
-
+// TODO: remove DEFAULT_LLM_CLI const — llm cli comes from jobsearch.toml [llm] cli, no default
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_TEXT_LEN: usize = 4000;
 
@@ -101,6 +100,7 @@ impl<T: Extractable> LlmExtractor<T> {
         self.extract(T::HEALTHCHECK_TEXT).await?.verify()
     }
 
+    // TODO: change signature to `from_cli(llm_cli: String)` — required, drop Option/empty fallback
     #[must_use]
     pub fn from_cli(llm_cli: Option<String>) -> Self {
         let command = llm_cli

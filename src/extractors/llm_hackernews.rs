@@ -62,6 +62,11 @@ mod tests {
     use super::*;
     use crate::extractors::llm::LlmExtractor;
 
+    // TODO: helper `fn llm_cli() -> String` reading JOBSEARCH_LLM_CLI env var,
+    //   .expect("JOBSEARCH_LLM_CLI must be set to an LLM CLI command") — same pattern
+    //   as JOBSEARCH_BROWSER_BIN in tests/browser_integration.rs
+    // TODO: both ignored tests use `from_cli(llm_cli())` instead of `from_cli(None)`
+
     #[tokio::test]
     #[ignore = "requires LLM CLI reachable via --llm-cli or DEFAULT_LLM_CLI"]
     async fn test_extract_hackernews_job_from_fixture() {

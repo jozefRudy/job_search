@@ -10,7 +10,12 @@ pub struct Settings {
     pub pause_ms: u64,
     pub providers: Providers,
     pub browser: BrowserConfig,
+    // TODO: add `pub llm: LlmConfig` field (required, no default)
 }
+
+// TODO: add `pub struct LlmConfig { pub cli: String }` mirroring BrowserConfig
+// TODO: Settings::sample() — fill `llm` with pi command:
+//   "pi --print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-v4-flash"
 
 /// Placeholder written into the sample config by `jobsearch init`.
 pub const SAMPLE_BROWSER_BIN: &str = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
