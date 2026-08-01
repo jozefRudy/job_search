@@ -150,9 +150,9 @@ impl EmbeddingsStore {
         let mut scanner = dataset.scan();
         scanner.filter(&format!("job_id IN ({id_list})"))?;
         scanner.prefilter(true);
-        scanner.distance_metric(DistanceType::Cosine);
         let query_arr = Float32Array::from(embedding.to_vec());
         scanner.nearest("embedding", &query_arr, VECTOR_SEARCH_MAX_RESULTS)?;
+        scanner.distance_metric(DistanceType::Cosine);
         scanner.project(&["job_id", "_distance"])?;
 
         let batches: Vec<RecordBatch> = scanner.try_into_stream().await?.try_collect().await?;
@@ -169,7 +169,7 @@ impl EmbeddingsStore {
             for i in 0..batch.num_rows() {
                 let id = job_ids.value(i);
                 let distance = distances.value(i);
-                let similarity = 1.0 - distance / 2.0;
+                let similarity = 1.0 - distance;
                 results.push((id, similarity));
             }
         }
@@ -547,6 +547,49 @@ mod tests {
             assert_eq!(ranked.len(), 1, "search {i} should return one result");
             assert_eq!(ranked[0].0, id1);
         }
+    }
+
+    #[tokio::test]
+    async fn search_similarity_is_cosine_similarity() {
+        let (_tmp, db, store) = test_store().await;
+        let id1 = db
+            .upsert_job(&test_job(Platform::Upwork, "u1", "Rust backend developer"))
+            .await
+            .unwrap()
+            .id();
+        let id2 = db
+            .upsert_job(&test_job(
+                Platform::NoFluffJobs,
+                "n2",
+                "Python data scientist",
+            ))
+            .await
+            .unwrap()
+            .id();
+
+        let mut query = vec![0.0f32; TEST_DIM];
+        query[0] = 1.0;
+        let mut emb_same = vec![0.0f32; TEST_DIM];
+        emb_same[0] = 2.0;
+        let mut emb_orth = vec![0.0f32; TEST_DIM];
+        emb_orth[1] = 1.0;
+        store
+            .upsert_batch(&[id1, id2], &[emb_same, emb_orth])
+            .await
+            .unwrap();
+
+        let result = store.search(&query, &[id1, id2], 10, 0).await.unwrap();
+        assert_eq!(result.items.len(), 2);
+        assert!(
+            (result.items[0].1 - 1.0).abs() < 1e-6,
+            "identical direction should have similarity 1.0, got {}",
+            result.items[0].1
+        );
+        assert!(
+            result.items[1].1.abs() < 1e-6,
+            "orthogonal vector should have similarity 0.0, got {}",
+            result.items[1].1
+        );
     }
 
     #[tokio::test]
