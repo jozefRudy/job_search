@@ -45,7 +45,7 @@ const DEFAULT_WORKPLACE_TYPE: &str = "2";
 const DEFAULT_SORT_BY: &str = "DD";
 const DEFAULT_TIME_POSTED_RANGE: &str = "r2592000";
 
-const SUPPORTED_PARAMS: &[&str] = &["geoId", "f_T", "f_I", "f_WT", "f_TPR", "sortBy"];
+const SUPPORTED_PARAMS: &[&str] = &["geoId", "f_T", "f_I", "f_WT", "f_TPR", "sortBy", "keywords"];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LinkedInJobCard {
@@ -107,6 +107,7 @@ struct LinkedInParams {
     industry_ids: Vec<String>,
     workplace_types: Vec<String>,
     time_posted_range: String,
+    keywords: Option<String>,
 }
 
 impl Default for LinkedInParams {
@@ -121,6 +122,7 @@ impl Default for LinkedInParams {
             industry_ids: vec![DEFAULT_INDUSTRY_ID.to_string()],
             workplace_types: vec![DEFAULT_WORKPLACE_TYPE.to_string()],
             time_posted_range: DEFAULT_TIME_POSTED_RANGE.to_string(),
+            keywords: None,
         }
     }
 }
@@ -160,6 +162,7 @@ impl LinkedInParams {
         let time_posted_range = query
             .get("f_TPR")
             .map_or_else(|| DEFAULT_TIME_POSTED_RANGE.to_string(), String::clone);
+        let keywords = query.get("keywords").filter(|k| !k.is_empty()).cloned();
 
         if !time_posted_range.starts_with('r') {
             bail!("f_TPR must start with 'r' (e.g. r2592000)");
@@ -171,12 +174,19 @@ impl LinkedInParams {
             industry_ids,
             workplace_types,
             time_posted_range,
+            keywords,
         })
     }
 
     fn build_voyager_query(&self) -> String {
+        let keywords = self.keywords.as_ref().map_or_else(String::new, |k| {
+            let encoded: String = url::form_urlencoded::byte_serialize(k.as_bytes())
+                .collect::<String>()
+                .replace('+', "%20");
+            format!(",keywords:{encoded}")
+        });
         format!(
-            "(origin:JOB_SEARCH_PAGE_JOB_FILTER,locationUnion:(geoId:{}),selectedFilters:(sortBy:List({}),industry:List({}),title:List({}),timePostedRange:List({}),workplaceType:List({})))",
+            "(origin:JOB_SEARCH_PAGE_JOB_FILTER{keywords},locationUnion:(geoId:{}),selectedFilters:(sortBy:List({}),industry:List({}),title:List({}),timePostedRange:List({}),workplaceType:List({})))",
             self.geo_id,
             DEFAULT_SORT_BY,
             self.industry_ids.join(","),
@@ -200,13 +210,12 @@ pub struct LinkedInScraper {
 }
 
 impl LinkedInScraper {
-    #[must_use]
-    pub fn new(url: &str) -> Self {
-        let params = LinkedInParams::parse_url(url).unwrap_or_default();
-        Self {
+    pub fn try_new(url: &str) -> Result<Self> {
+        let params = LinkedInParams::parse_url(url)?;
+        Ok(Self {
             params,
             lang: crate::language::LanguageService::new(),
-        }
+        })
     }
 
     async fn ensure_linkedin_tab(&self, browser: &Browser) -> Result<()> {
@@ -425,6 +434,29 @@ mod tests {
     fn test_parse_url_rejects_unknown_param() {
         let url = "https://www.linkedin.com/jobs/search/?f_T=9&foo=bar";
         assert!(LinkedInParams::parse_url(url).is_err());
+    }
+
+    #[test]
+    fn test_parse_url_keywords() {
+        let url = "https://www.linkedin.com/jobs/search/?keywords=trading";
+        let params = LinkedInParams::parse_url(url).unwrap();
+        assert_eq!(params.keywords.as_deref(), Some("trading"));
+
+        let params = LinkedInParams::parse_url("https://www.linkedin.com/jobs/search/").unwrap();
+        assert_eq!(params.keywords, None);
+    }
+
+    #[test]
+    fn test_build_voyager_query_includes_keywords() {
+        let params = LinkedInParams {
+            keywords: Some("trading OR quant".to_string()),
+            ..LinkedInParams::default()
+        };
+        let query = params.build_voyager_query();
+        assert!(query.contains("keywords:trading%20OR%20quant"));
+
+        let query = LinkedInParams::default().build_voyager_query();
+        assert!(!query.contains("keywords"));
     }
 
     #[test]

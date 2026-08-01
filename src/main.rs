@@ -241,7 +241,7 @@ async fn cmd_update(
                 bail!("no URLs configured for linkedin in jobsearch.toml");
             }
             for url in &settings.providers.linkedin.urls {
-                let scraper = LinkedInScraper::new(url);
+                let scraper = LinkedInScraper::try_new(url)?;
                 fetch_and_store(
                     db,
                     browser,

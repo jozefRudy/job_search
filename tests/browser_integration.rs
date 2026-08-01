@@ -510,10 +510,56 @@ async fn test_efinancialcareers_zero_results_returns_count_zero() {
 // --- LinkedIn: search page ---
 
 #[tokio::test]
+#[ignore = "requires browser with CDP and linkedin.com logged in"]
+async fn test_linkedin_keywords_narrow_results() {
+    with_browser(60, |browser| async move {
+        let page = browser
+            .new_tab("https://www.linkedin.com/jobs/search/")
+            .await
+            .expect("open LinkedIn search page");
+        assert!(
+            LinkedInScraper::wait_for_jobs(&page)
+                .await
+                .expect("wait_for_jobs"),
+            "search page should load"
+        );
+
+        let base = "https://www.linkedin.com/jobs/search/?f_I=4&f_T=9,25201,39,25194&f_TPR=r2592000&f_WT=2&geoId=92000000";
+        let with_kw = LinkedInScraper::try_new(&format!("{base}&keywords=trading"))
+            .expect("valid url");
+        let without_kw = LinkedInScraper::try_new(base).expect("valid url");
+
+        let a = with_kw.fetch_page(&page, 0).await.expect("fetch with keywords");
+        let b = without_kw
+            .fetch_page(&page, 0)
+            .await
+            .expect("fetch without keywords");
+
+        println!("with keywords=trading: total={}", a.total);
+        for card in a.cards.iter().take(15) {
+            println!("  {}", card.title);
+        }
+        println!("without keywords: total={}", b.total);
+
+        assert!(a.total > 0, "keywords search should return results");
+        assert!(
+            a.total < b.total,
+            "keywords=trading ({}) should narrow default search ({})",
+            a.total,
+            b.total
+        );
+
+        page.close().await.ok();
+    })
+    .await;
+}
+
+#[tokio::test]
 #[ignore = "requires Chromium browser running with CDP and linkedin.com logged in"]
 async fn test_linkedin_search_page_has_cards() {
     with_browser(60, |browser| async move {
-        let scraper = LinkedInScraper::new("https://www.linkedin.com/jobs/search/");
+        let scraper = LinkedInScraper::try_new("https://www.linkedin.com/jobs/search/")
+            .expect("valid linkedin url");
         let search_url = "https://www.linkedin.com/jobs/search/";
         let page = browser
             .new_tab(search_url)
@@ -556,7 +602,8 @@ async fn test_linkedin_search_page_has_cards() {
 #[ignore = "requires Chromium browser running with CDP and linkedin.com logged in"]
 async fn test_linkedin_job_detail_fetch() {
     with_browser(60, |browser| async move {
-        let scraper = LinkedInScraper::new("https://www.linkedin.com/jobs/search/");
+        let scraper = LinkedInScraper::try_new("https://www.linkedin.com/jobs/search/")
+            .expect("valid linkedin url");
         let search_url = "https://www.linkedin.com/jobs/search/";
         let page = browser
             .new_tab(search_url)
@@ -655,7 +702,8 @@ async fn test_linkedin_csrf_extracted_from_unquoted_jsessionid() {
 #[ignore = "requires Chromium browser running with CDP and linkedin.com logged in"]
 async fn test_linkedin_pagination_has_next_page() {
     with_browser(60, |browser| async move {
-        let scraper = LinkedInScraper::new("https://www.linkedin.com/jobs/search/");
+        let scraper = LinkedInScraper::try_new("https://www.linkedin.com/jobs/search/")
+            .expect("valid linkedin url");
         let search_url = "https://www.linkedin.com/jobs/search/";
         let page = browser
             .new_tab(search_url)
