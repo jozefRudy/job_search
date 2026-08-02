@@ -14,9 +14,10 @@ use jobsearch::embeddings_store::embeddings_dir;
 use jobsearch::language::LanguageService;
 use jobsearch::models::{JobFilter, Platform, Rating, Sort};
 use jobsearch::platforms::{
-    PlatformClient, efinancialcareers::EfinancialcareersScraper, hackernews::HackerNewsScraper,
-    linkedin::LinkedInScraper, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper,
-    // TODO(phase2): reddit::RedditScraper,
+    PlatformClient, efinancialcareers::EfinancialcareersScraper,
+    hackernews::{ALGOLIA_URL, HackerNewsScraper},
+    linkedin::LinkedInScraper, nofluffjobs::NoFluffJobsScraper, reddit::RedditScraper,
+    upwork::UpworkScraper,
 };
 use jobsearch::server;
 use owo_colors::OwoColorize;
@@ -222,20 +223,15 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Hackernews => {
-            if settings.providers.hackernews.urls.is_empty() {
-                bail!("no URLs configured for hackernews in jobsearch.toml");
-            }
-            for url in &settings.providers.hackernews.urls {
-                let scraper = HackerNewsScraper::new(&settings.llm.cli, &settings.location, url)?;
-                fetch_and_store(
-                    db,
-                    browser,
-                    &scraper,
-                    url,
-                    settings.provider_pause_ms("hackernews"),
-                )
-                .await?;
-            }
+            let scraper = HackerNewsScraper::new(&settings.llm.cli, &settings.location);
+            fetch_and_store(
+                db,
+                browser,
+                &scraper,
+                ALGOLIA_URL,
+                settings.provider_pause_ms("hackernews"),
+            )
+            .await?;
         }
         UpdatePlatform::LinkedIn => {
             if settings.providers.linkedin.urls.is_empty() {
@@ -253,13 +249,17 @@ async fn cmd_update(
                 .await?;
             }
         }
-        // TODO(phase2): UpdatePlatform::Reddit => {
-        //   bail if settings.providers.reddit.sources.is_empty();
-        //   let scraper = RedditScraper::new(&settings.llm.cli, &settings.location,
-        //     settings.providers.reddit.sources.clone())?;
-        //   fetch_and_store(db, browser, &scraper, "https://www.reddit.com",
-        //     settings.provider_pause_ms("reddit")).await?;
-        // }
+        UpdatePlatform::Reddit => {
+            let scraper = RedditScraper::new(&settings.llm.cli, &settings.location)?;
+            fetch_and_store(
+                db,
+                browser,
+                &scraper,
+                "https://www.reddit.com",
+                settings.provider_pause_ms("reddit"),
+            )
+            .await?;
+        }
     }
     Ok(())
 }
@@ -349,7 +349,19 @@ async fn cmd_list_with_target(
             };
             cmd_list(db, filter, sort, args.common.search, db_path).await?;
         }
-        // TODO(phase2): ListTarget::Reddit(args) => same pattern with Platform::Reddit
+        ListTarget::Reddit(args) => {
+            let filter = JobFilter {
+                platform: Some(Platform::Reddit),
+                applied: args.common.applied,
+                rating: args.common.rating,
+                remote: args.common.remote,
+            };
+            let sort = match args.sort {
+                CommonSortBy::Created => Sort::Created,
+                CommonSortBy::Applied => Sort::Applied,
+            };
+            cmd_list(db, filter, sort, args.common.search, db_path).await?;
+        }
     }
     Ok(())
 }

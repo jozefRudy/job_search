@@ -56,8 +56,8 @@ macro_rules! define_prompts {
 
 define_prompts! {
     (HackerNews, HackerNewsPrompt, "hackernews_fields.md"),
-    // TODO(phase2): (RedditJobbit, RedditJobbitPrompt, "reddit_jobbit_fields.md"),
-    // TODO(phase2): (RedditMegathread, RedditMegathreadPrompt, "reddit_megathread_fields.md"),
+    (RedditJobbit, RedditJobbitPrompt, "reddit_jobbit_fields.md"),
+    (RedditMegathread, RedditMegathreadPrompt, "reddit_megathread_fields.md"),
 }
 
 /// A type that can be extracted from LLM output.

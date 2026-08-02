@@ -35,5 +35,5 @@ pub mod hackernews;
 pub mod html;
 pub mod linkedin;
 pub mod nofluffjobs;
-// TODO(phase2): pub mod reddit;
+pub mod reddit;
 pub mod upwork;

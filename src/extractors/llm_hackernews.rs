@@ -6,7 +6,6 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
 pub struct ExtractFields {
     #[schemars(description = "true only if the comment is an actual job advertisement")]
-    #[serde(default)]
     pub is_job_ad: bool,
     #[schemars(description = "company or organization name")]
     pub company: Option<String>,
@@ -20,11 +19,9 @@ pub struct ExtractFields {
         description = "true only if fully remote work is allowed from the candidate's
     location"
     )]
-    #[serde(default)]
     pub remote: Option<bool>,
     #[schemars(description = "raw compensation snippet (e.g. '$150k-$175k' or 'EUR 80k-100k')")]
     pub budget: Option<String>,
-    #[serde(default)]
     #[schemars(description = "tech/stack keywords")]
     pub tags: Vec<String>,
 }

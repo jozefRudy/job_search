@@ -66,9 +66,7 @@ async fn test_hackernews_fetch_comments() {
     let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(
         &llm_cli,
         "Europe",
-        "https://hn.algolia.com/api/v1/search_by_date",
-    )
-    .expect("HackerNewsScraper should be created");
+    );
     let comments = scraper
         .fetch_top_level_comments("rust", Some(5))
         .await

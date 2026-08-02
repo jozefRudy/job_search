@@ -1,4 +1,4 @@
-//! TODO(phase2): Reddit LLM extraction fields.
+//! Reddit LLM extraction fields.
 //!
 //! Two structs, SAME field shape, different prompts:
 //! - JobbitFields: r/jobbit posts — semi-structured titles
@@ -13,22 +13,74 @@
 //! Extractable::PROMPT is a per-struct const, hence two structs (no shared
 //! abstraction — YAGNI).
 
-// TODO(phase2): shared shape for both structs (derive Deserialize, JsonSchema, Default):
-//   is_job_ad: bool, company: Option<String>, role: Option<String>,
-//   location: Option<String>, remote: Option<bool>, budget: Option<String>,
-//   tags: Vec<String>
-//   + schemars descriptions per-struct (jobbit mentions [HIRING] title,
-//     megathread mentions prose comment + seeker exclusion)
+use crate::extractors::llm::{Extractable, PromptKind};
+use anyhow::Result;
+use schemars::JsonSchema;
+use serde::Deserialize;
 
-// TODO(phase2): pub struct JobbitFields — impl Extractable
-//   const PROMPT: PromptKind = PromptKind::RedditJobbit;
-//   const HEALTHCHECK_TEXT: include_str!("llm/fixtures/reddit_jobbit_healthcheck.md");
-//   fn verify() — is_job_ad, company contains "acme", role contains "rust", remote Some(true)
+#[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
+pub struct JobbitFields {
+    #[schemars(description = "true only if the post is an actual job advertisement; false for meta posts, challenges, and job-seeker posts")]
+    pub is_job_ad: bool,
+    #[schemars(description = "company or organization name")]
+    pub company: Option<String>,
+    #[schemars(description = "job title or role; if multiple listed, join them with ' + '")]
+    pub role: Option<String>,
+    #[schemars(
+        description = "location mentioned in the post, if multiple listed, join them with ' + '"
+    )]
+    pub location: Option<String>,
+    #[schemars(
+        description = "true only if fully remote work is allowed from the candidate's location"
+    )]
+    pub remote: Option<bool>,
+    #[schemars(description = "raw compensation snippet (e.g. '$150k-$175k' or 'EUR 80k-100k')")]
+    pub budget: Option<String>,
+    #[schemars(description = "tech/stack keywords")]
+    pub tags: Vec<String>,
+}
 
-// TODO(phase2): pub struct MegathreadFields — impl Extractable
-//   const PROMPT: PromptKind = PromptKind::RedditMegathread;
-//   const HEALTHCHECK_TEXT: include_str!("llm/fixtures/reddit_megathread_healthcheck.md");
-//   fn verify() — same expectations
+#[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
+pub struct MegathreadFields {
+    #[schemars(description = "true only if the comment is an actual job offer; false for job-seeker presentations, mod/meta comments, and non-employment posts like grant funding or open calls")]
+    pub is_job_ad: bool,
+    #[schemars(description = "company or organization name")]
+    pub company: Option<String>,
+    #[schemars(description = "job title or role; if multiple listed, join them with ' + '")]
+    pub role: Option<String>,
+    #[schemars(
+        description = "location mentioned in the comment, if multiple listed, join them with ' + '"
+    )]
+    pub location: Option<String>,
+    #[schemars(
+        description = "true only if fully remote work is allowed from the candidate's location"
+    )]
+    pub remote: Option<bool>,
+    #[schemars(description = "raw compensation snippet (e.g. '$150k-$175k' or 'EUR 80k-100k')")]
+    pub budget: Option<String>,
+    #[schemars(description = "tech/stack keywords")]
+    pub tags: Vec<String>,
+}
+
+impl Extractable for JobbitFields {
+    const PROMPT: PromptKind = PromptKind::RedditJobbit;
+    const HEALTHCHECK_TEXT: &'static str =
+        include_str!("llm/fixtures/reddit_jobbit_healthcheck.md");
+
+    fn verify(&self) -> Result<()> {
+        todo!("phase3: is_job_ad, company contains \"acme\", role contains \"rust\", remote Some(true)")
+    }
+}
+
+impl Extractable for MegathreadFields {
+    const PROMPT: PromptKind = PromptKind::RedditMegathread;
+    const HEALTHCHECK_TEXT: &'static str =
+        include_str!("llm/fixtures/reddit_megathread_healthcheck.md");
+
+    fn verify(&self) -> Result<()> {
+        todo!("phase3: same expectations as JobbitFields::verify")
+    }
+}
 
 // TODO(phase3): ignored integration tests mirroring llm_hackernews.rs tests
 //   (#[ignore = "requires JOBSEARCH_LLM_CLI set to an LLM CLI command"];
