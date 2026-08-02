@@ -17,6 +17,9 @@ use std::collections::HashSet;
 use std::pin::pin;
 
 const THREAD_QUERY: &str = "Ask HN: Who is hiring";
+// TODO(phase2): const ALGOLIA_URL: &str = "https://hn.algolia.com/api/v1/search_by_date";
+//   hardcoded like reddit sources — config offered fake choice (only one valid value).
+//   Drop url param from new(); remove URL validation; drop algolia_url field.
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct StoryHit {

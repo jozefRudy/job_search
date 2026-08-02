@@ -39,6 +39,7 @@ pub struct Providers {
     pub efinancialcareers: ProviderConfig,
     pub linkedin: ProviderConfig,
     pub hackernews: ProviderConfig,
+    // TODO(phase2): add `pub reddit: ProviderConfig` (pause_ms only; sources hardcoded in platforms/reddit.rs)
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -86,9 +87,12 @@ impl Settings {
                     pause_ms: None,
                 },
                 hackernews: ProviderConfig {
+                    // TODO(phase2): urls no longer read for hackernews (hardcoded
+                    //   ALGOLIA_URL); sample drops urls entry, keeps pause_ms only
                     urls: vec!["https://hn.algolia.com/api/v1/search_by_date".to_string()],
                     pause_ms: None,
                 },
+                // TODO(phase2): reddit: ProviderConfig::default(),
             },
         }
     }
@@ -105,6 +109,7 @@ impl Settings {
                 .unwrap_or(self.pause_ms),
             "linkedin" => self.providers.linkedin.pause_ms.unwrap_or(self.pause_ms),
             "hackernews" => self.providers.hackernews.pause_ms.unwrap_or(self.pause_ms),
+            // TODO(phase2): "reddit" => self.providers.reddit.pause_ms.unwrap_or(self.pause_ms),
             _ => self.pause_ms,
         }
     }

@@ -19,7 +19,13 @@ pub enum Data {
     Efinancialcareers { detail: EfinancialcareersJobDetail },
     Hackernews { detail: HackerNewsJobDetail },
     LinkedIn { detail: LinkedInJobDetail },
+    // TODO(phase2): add arm `Reddit { detail: RedditJobDetail }`
 }
+
+// TODO(phase2): add `pub struct RedditJobDetail` (Default + ToSchema) with fields:
+//   subreddit: String, author: String, permalink: String,
+//   company: Option<String>, role: Option<String>, location: Option<String>,
+//   description: String, posted_at: DateTime<Utc>
 
 /// Full detail scraped from an individual Hacker News "Who is hiring?" comment.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
@@ -210,6 +216,7 @@ pub enum Platform {
     NoFluffJobs,
     Upwork,
     LinkedIn,
+    // TODO(phase2): add variant `Reddit`
 }
 
 impl fmt::Display for Platform {
@@ -220,6 +227,7 @@ impl fmt::Display for Platform {
             Platform::NoFluffJobs => write!(f, "nofluffjobs"),
             Platform::Upwork => write!(f, "upwork"),
             Platform::LinkedIn => write!(f, "linkedin"),
+            // TODO(phase2): Platform::Reddit => write!(f, "reddit"),
         }
     }
 }
@@ -232,6 +240,7 @@ impl From<String> for Platform {
             "nofluffjobs" => Platform::NoFluffJobs,
             "upwork" => Platform::Upwork,
             "linkedin" => Platform::LinkedIn,
+            // TODO(phase2): "reddit" => Platform::Reddit,
             _ => panic!("unknown platform in db: '{s}'"),
         }
     }

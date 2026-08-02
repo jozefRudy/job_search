@@ -19,6 +19,7 @@ pub const DEFAULT_INIT_URLS: &[&str] = &[
     "https://nofluffjobs.com",
     "https://www.efinancialcareers.com",
     "https://www.linkedin.com/",
+    // TODO(phase2): add "https://www.reddit.com/",
 ];
 
 pub const REQUIRED_HOSTS: &[&str] = &[
@@ -26,6 +27,7 @@ pub const REQUIRED_HOSTS: &[&str] = &[
     "nofluffjobs.com",
     "efinancialcareers.com",
     "linkedin.com",
+    // TODO(phase2): add "reddit.com",
 ];
 
 /// Open the given URLs in background tabs for any host that is not already open.

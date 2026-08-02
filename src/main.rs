@@ -16,6 +16,7 @@ use jobsearch::models::{JobFilter, Platform, Rating, Sort};
 use jobsearch::platforms::{
     PlatformClient, efinancialcareers::EfinancialcareersScraper, hackernews::HackerNewsScraper,
     linkedin::LinkedInScraper, nofluffjobs::NoFluffJobsScraper, upwork::UpworkScraper,
+    // TODO(phase2): reddit::RedditScraper,
 };
 use jobsearch::server;
 use owo_colors::OwoColorize;
@@ -252,6 +253,13 @@ async fn cmd_update(
                 .await?;
             }
         }
+        // TODO(phase2): UpdatePlatform::Reddit => {
+        //   bail if settings.providers.reddit.sources.is_empty();
+        //   let scraper = RedditScraper::new(&settings.llm.cli, &settings.location,
+        //     settings.providers.reddit.sources.clone())?;
+        //   fetch_and_store(db, browser, &scraper, "https://www.reddit.com",
+        //     settings.provider_pause_ms("reddit")).await?;
+        // }
     }
     Ok(())
 }
@@ -341,6 +349,7 @@ async fn cmd_list_with_target(
             };
             cmd_list(db, filter, sort, args.common.search, db_path).await?;
         }
+        // TODO(phase2): ListTarget::Reddit(args) => same pattern with Platform::Reddit
     }
     Ok(())
 }

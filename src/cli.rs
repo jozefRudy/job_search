@@ -54,6 +54,7 @@ pub enum ListTarget {
     Efinancialcareers(PlatformListArgs),
     Hackernews(PlatformListArgs),
     LinkedIn(PlatformListArgs),
+    // TODO(phase2): add `Reddit(PlatformListArgs)`
 }
 
 #[derive(Args)]
@@ -173,4 +174,5 @@ pub enum UpdatePlatform {
     Hackernews,
     /// Fetch LinkedIn jobs
     LinkedIn,
+    // TODO(phase2): add `/// Fetch Reddit jobs` + `Reddit,`
 }
