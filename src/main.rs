@@ -188,7 +188,7 @@ async fn cmd_update(
                     browser,
                     &scraper,
                     url,
-                    settings.provider_pause_ms("upwork"),
+                    settings.pause_ms,
                 )
                 .await?;
             }
@@ -204,7 +204,7 @@ async fn cmd_update(
                     browser,
                     &scraper,
                     url,
-                    settings.provider_pause_ms("nofluffjobs"),
+                    settings.pause_ms,
                 )
                 .await?;
             }
@@ -220,7 +220,7 @@ async fn cmd_update(
                     browser,
                     &scraper,
                     url,
-                    settings.provider_pause_ms("efinancialcareers"),
+                    settings.pause_ms,
                 )
                 .await?;
             }
@@ -232,7 +232,7 @@ async fn cmd_update(
                 browser,
                 &scraper,
                 ALGOLIA_URL,
-                settings.provider_pause_ms("hackernews"),
+                settings.pause_ms,
             )
             .await?;
         }
@@ -247,7 +247,7 @@ async fn cmd_update(
                     browser,
                     &scraper,
                     url,
-                    settings.provider_pause_ms("linkedin"),
+                    settings.pause_ms,
                 )
                 .await?;
             }
@@ -259,7 +259,7 @@ async fn cmd_update(
                 browser,
                 &scraper,
                 "https://www.reddit.com/r/rust",
-                settings.provider_pause_ms("reddit"),
+                settings.pause_ms,
             )
             .await?;
         }

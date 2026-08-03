@@ -38,16 +38,12 @@ pub struct Providers {
     pub nofluffjobs: ProviderConfig,
     pub efinancialcareers: ProviderConfig,
     pub linkedin: ProviderConfig,
-    pub hackernews: ProviderConfig,
-    /// pause_ms only; sources hardcoded in platforms/reddit.rs
-    pub reddit: ProviderConfig,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ProviderConfig {
     #[serde(default)]
     pub urls: Vec<String>,
-    pub pause_ms: Option<u64>,
 }
 
 impl Settings {
@@ -73,40 +69,17 @@ impl Settings {
             providers: Providers {
                 upwork: ProviderConfig {
                     urls: vec!["https://www.upwork.com/nx/search/jobs/?q=trading&sort=recency&per_page=50&t=0&hourly_rate=60-".to_string()],
-                    pause_ms: None,
                 },
                 nofluffjobs: ProviderConfig {
                     urls: vec!["https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur8000m%20jobLanguage%3Den&sort=newest".to_string()],
-                    pause_ms: None,
                 },
                 efinancialcareers: ProviderConfig {
                     urls: vec!["https://www.efinancialcareers.com/jobs/remote/python?pageSize=50&filters.postedDate=SEVEN&language=en".to_string()],
-                    pause_ms: None,
                 },
                 linkedin: ProviderConfig {
                     urls: vec!["https://www.linkedin.com/jobs/search/?f_I=4&f_T=9%2C25201%2C39&f_TPR=r200000&f_WT=2&geoId=92000000".to_string()],
-                    pause_ms: None,
                 },
-                hackernews: ProviderConfig::default(),
-                reddit: ProviderConfig::default(),
             },
-        }
-    }
-
-    #[must_use]
-    pub fn provider_pause_ms(&self, name: &str) -> u64 {
-        match name {
-            "upwork" => self.providers.upwork.pause_ms.unwrap_or(self.pause_ms),
-            "nofluffjobs" => self.providers.nofluffjobs.pause_ms.unwrap_or(self.pause_ms),
-            "efinancialcareers" => self
-                .providers
-                .efinancialcareers
-                .pause_ms
-                .unwrap_or(self.pause_ms),
-            "linkedin" => self.providers.linkedin.pause_ms.unwrap_or(self.pause_ms),
-            "hackernews" => self.providers.hackernews.pause_ms.unwrap_or(self.pause_ms),
-            "reddit" => self.providers.reddit.pause_ms.unwrap_or(self.pause_ms),
-            _ => self.pause_ms,
         }
     }
 }
