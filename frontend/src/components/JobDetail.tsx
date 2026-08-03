@@ -194,6 +194,9 @@ export function JobDetailContent(props: { job: Job }) {
       <Show when={j.platform === "linkedin"}>
         <LinkedInDetail job={j} />
       </Show>
+      <Show when={j.platform === "reddit"}>
+        <RedditDetail job={j} />
+      </Show>
 
       <ApplicationCard appliedAt={j.applied_at} note={j.note} />
 
@@ -320,6 +323,44 @@ export function HackerNewsDetail(props: { job: Job }) {
             <DetailRow label="Company" value={d.company ?? props.job.company} />
             <DetailRow label="Role" value={d.role} />
             <DetailRow label="Location" value={d.location} />
+          </DetailList>
+          <Show when={d.description} keyed>
+            {(text) => <MarkdownDescription label="Description" text={text} />}
+          </Show>
+        </Stack>
+      </div>
+    </div>
+  );
+}
+
+export function RedditDetail(props: { job: Job }) {
+  const raw = props.job.raw;
+  if (raw.platform !== "reddit") return null;
+  const d = raw.detail;
+  return (
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h3 class="card-title text-lg">Details</h3>
+        <Stack gap="sm">
+          <DetailList>
+            <DetailRow label="Subreddit" value={`r/${d.subreddit}`} />
+            <DetailRow
+              label="Author"
+              value={
+                <a
+                  class="link link-primary"
+                  href={`https://www.reddit.com${d.permalink}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {d.author}
+                </a>
+              }
+            />
+            <DetailRow label="Company" value={d.company ?? props.job.company} />
+            <DetailRow label="Role" value={d.role} />
+            <DetailRow label="Location" value={d.location} />
+            <DetailRow label="Posted" value={fmtRelative(d.posted_at)} />
           </DetailList>
           <Show when={d.description} keyed>
             {(text) => <MarkdownDescription label="Description" text={text} />}
