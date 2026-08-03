@@ -176,4 +176,6 @@ pub enum UpdatePlatform {
     LinkedIn,
     /// Fetch Reddit jobs
     Reddit,
+    // TODO(phase2): /// Fetch Work at a Startup (YC) jobs
+    // TODO(phase2): Workatastartup,
 }

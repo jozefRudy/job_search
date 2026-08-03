@@ -38,6 +38,7 @@ pub struct Providers {
     pub nofluffjobs: ProviderConfig,
     pub efinancialcareers: ProviderConfig,
     pub linkedin: ProviderConfig,
+    // TODO(phase2): pub workatastartup: ProviderConfig, (+ sample URL in Settings::sample)
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

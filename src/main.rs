@@ -228,6 +228,11 @@ async fn cmd_update(
             )
             .await?;
         }
+        // TODO(phase2): UpdatePlatform::Workatastartup => {
+        //   bail if settings.providers.workatastartup.urls empty;
+        //   scraper = WorkatastartupScraper::new();
+        //   for url in &settings.providers.workatastartup.urls { fetch_and_store(...) }
+        // }
     }
     Ok(())
 }
@@ -318,6 +323,7 @@ async fn cmd_list_with_target(
             cmd_list(db, filter, sort, args.common.search, db_path).await?;
         }
         ListTarget::Reddit(args) => {
+            // TODO(phase2): ListTarget::Workatastartup(args) arm — platform: Some(Platform::Workatastartup)
             let filter = JobFilter {
                 platform: Some(Platform::Reddit),
                 applied: args.common.applied,

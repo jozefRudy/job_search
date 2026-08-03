@@ -19,7 +19,16 @@ pub enum Data {
     Efinancialcareers { detail: EfinancialcareersJobDetail },
     Hackernews { detail: HackerNewsJobDetail },
     LinkedIn { detail: LinkedInJobDetail },
-    Reddit { detail: RedditJobDetail },
+    // TODO(phase2): pub struct WorkAtStartupJobDetail {
+//   description, job_type, remote, role, eng_type: Vec<String>, min_experience: u32,
+//   skills: Vec<String>, has_salary: bool, has_equity: bool,
+//   has_interview_process: bool, us_visa_required: String,
+//   company_name, company_website: Option<String>, company_description: Option<String>,
+//   company_parent_sector: Option<String>, company_team_size: Option<u32>,
+//   company_waas_stage: Option<String>
+// }
+// TODO(phase2): Data::Workatastartup { detail: WorkAtStartupJobDetail } variant + company() arm returning detail.company_name
+Reddit { detail: RedditJobDetail },
 }
 
 impl Data {
@@ -256,7 +265,8 @@ pub enum Platform {
     NoFluffJobs,
     Upwork,
     LinkedIn,
-    Reddit,
+    // TODO(phase2): Platform::Workatastartup variant — Display "workatastartup", FromStr "workatastartup"
+Reddit,
 }
 
 impl fmt::Display for Platform {
