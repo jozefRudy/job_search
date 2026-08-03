@@ -20,6 +20,7 @@ use jobsearch::platforms::{
     linkedin::LinkedInScraper,
     nofluffjobs::NoFluffJobsScraper,
     reddit::RedditScraper,
+    workatastartup::WorkatastartupScraper,
     upwork::UpworkScraper,
 };
 use jobsearch::server;
@@ -228,11 +229,15 @@ async fn cmd_update(
             )
             .await?;
         }
-        // TODO(phase2): UpdatePlatform::Workatastartup => {
-        //   bail if settings.providers.workatastartup.urls empty;
-        //   scraper = WorkatastartupScraper::new();
-        //   for url in &settings.providers.workatastartup.urls { fetch_and_store(...) }
-        // }
+        UpdatePlatform::Workatastartup => {
+            if settings.providers.workatastartup.urls.is_empty() {
+                bail!("no URLs configured for workatastartup in jobsearch.toml");
+            }
+            let scraper = WorkatastartupScraper::new();
+            for url in &settings.providers.workatastartup.urls {
+                fetch_and_store(db, browser, &scraper, url, settings.pause_ms).await?;
+            }
+        }
     }
     Ok(())
 }
@@ -323,9 +328,21 @@ async fn cmd_list_with_target(
             cmd_list(db, filter, sort, args.common.search, db_path).await?;
         }
         ListTarget::Reddit(args) => {
-            // TODO(phase2): ListTarget::Workatastartup(args) arm — platform: Some(Platform::Workatastartup)
             let filter = JobFilter {
                 platform: Some(Platform::Reddit),
+                applied: args.common.applied,
+                rating: args.common.rating,
+                remote: args.common.remote,
+            };
+            let sort = match args.sort {
+                CommonSortBy::Created => Sort::Created,
+                CommonSortBy::Applied => Sort::Applied,
+            };
+            cmd_list(db, filter, sort, args.common.search, db_path).await?;
+        }
+        ListTarget::Workatastartup(args) => {
+            let filter = JobFilter {
+                platform: Some(Platform::Workatastartup),
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,

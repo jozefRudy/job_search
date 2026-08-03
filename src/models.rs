@@ -19,16 +19,8 @@ pub enum Data {
     Efinancialcareers { detail: EfinancialcareersJobDetail },
     Hackernews { detail: HackerNewsJobDetail },
     LinkedIn { detail: LinkedInJobDetail },
-    // TODO(phase2): pub struct WorkAtStartupJobDetail {
-//   description, job_type, remote, role, eng_type: Vec<String>, min_experience: u32,
-//   skills: Vec<String>, has_salary: bool, has_equity: bool,
-//   has_interview_process: bool, us_visa_required: String,
-//   company_name, company_website: Option<String>, company_description: Option<String>,
-//   company_parent_sector: Option<String>, company_team_size: Option<u32>,
-//   company_waas_stage: Option<String>
-// }
-// TODO(phase2): Data::Workatastartup { detail: WorkAtStartupJobDetail } variant + company() arm returning detail.company_name
-Reddit { detail: RedditJobDetail },
+    Workatastartup { detail: WorkAtStartupJobDetail },
+    Reddit { detail: RedditJobDetail },
 }
 
 impl Data {
@@ -42,9 +34,33 @@ impl Data {
             Data::Efinancialcareers { detail } => Some(detail.company.clone()),
             Data::Hackernews { detail } => detail.company.clone(),
             Data::LinkedIn { detail } => Some(detail.company.clone()),
+            Data::Workatastartup { detail } => Some(detail.company_name.clone()),
             Data::Reddit { detail } => detail.company.clone(),
         }
     }
+}
+
+/// Full detail of a Work at a Startup (Y Combinator) job from the Algolia
+/// `WaaSPublicCompanyJob` index.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct WorkAtStartupJobDetail {
+    pub description: String,
+    pub job_type: String,
+    pub remote: String,
+    pub role: String,
+    pub eng_type: Vec<String>,
+    pub min_experience: u32,
+    pub skills: Vec<String>,
+    pub has_salary: bool,
+    pub has_equity: bool,
+    pub has_interview_process: bool,
+    pub us_visa_required: String,
+    pub company_name: String,
+    pub company_website: Option<String>,
+    pub company_description: Option<String>,
+    pub company_parent_sector: Option<String>,
+    pub company_team_size: Option<u32>,
+    pub company_waas_stage: Option<String>,
 }
 
 /// Full detail from an individual Reddit post or megathread comment.
@@ -265,8 +281,8 @@ pub enum Platform {
     NoFluffJobs,
     Upwork,
     LinkedIn,
-    // TODO(phase2): Platform::Workatastartup variant — Display "workatastartup", FromStr "workatastartup"
-Reddit,
+    Workatastartup,
+    Reddit,
 }
 
 impl fmt::Display for Platform {
@@ -277,6 +293,7 @@ impl fmt::Display for Platform {
             Platform::NoFluffJobs => write!(f, "nofluffjobs"),
             Platform::Upwork => write!(f, "upwork"),
             Platform::LinkedIn => write!(f, "linkedin"),
+            Platform::Workatastartup => write!(f, "workatastartup"),
             Platform::Reddit => write!(f, "reddit"),
         }
     }
@@ -290,6 +307,7 @@ impl From<String> for Platform {
             "nofluffjobs" => Platform::NoFluffJobs,
             "upwork" => Platform::Upwork,
             "linkedin" => Platform::LinkedIn,
+            "workatastartup" => Platform::Workatastartup,
             "reddit" => Platform::Reddit,
             _ => panic!("unknown platform in db: '{s}'"),
         }
@@ -428,6 +446,10 @@ impl Job {
             }
             Data::LinkedIn { detail } => {
                 append(&detail.description);
+            }
+            Data::Workatastartup { detail } => {
+                append(&detail.description);
+                append(&detail.skills.join(", "));
             }
             Data::Reddit { detail } => {
                 append(&detail.description);
