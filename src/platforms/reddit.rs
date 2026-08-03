@@ -70,10 +70,10 @@ pub struct RedditScraper {
 }
 
 impl RedditScraper {
-    pub fn new(llm_cli: &str, location: &str) -> Result<Self> {
+    pub fn new(llm_bin: &str, location: &str) -> Result<Self> {
         let context = format!("Candidate location: {location}");
         Ok(Self {
-            rust_extractor: LlmExtractor::<RustFields>::from_cli(llm_cli)
+            rust_extractor: LlmExtractor::<RustFields>::from_bin(llm_bin)
                 .with_prompt_context(context),
         })
     }

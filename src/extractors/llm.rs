@@ -71,7 +71,7 @@ pub trait Extractable: JsonSchema + for<'de> Deserialize<'de> {
 
 /// Generic LLM extractor that calls a local CLI.
 ///
-/// Configure with a command string via `from_cli` (from `jobsearch.toml` `[llm] cli`).
+/// Configure with a command string via `from_bin` (from `jobsearch.toml` `[llm] bin`).
 #[derive(Debug, Clone)]
 pub struct LlmExtractor<T: Extractable> {
     bin: String,
@@ -99,10 +99,10 @@ impl<T: Extractable> LlmExtractor<T> {
         self.extract(T::HEALTHCHECK_TEXT).await?.verify()
     }
 
-    /// Configure with a command string from `jobsearch.toml` `[llm] cli`.
+    /// Configure with a command string from `jobsearch.toml` `[llm] bin`.
     #[must_use]
-    pub fn from_cli(llm_cli: &str) -> Self {
-        let tokens = shell_words::split(llm_cli).unwrap_or_default();
+    pub fn from_bin(llm_bin: &str) -> Self {
+        let tokens = shell_words::split(llm_bin).unwrap_or_default();
         let (bin, args) = tokens
             .split_first()
             .map(|(h, t)| (h.clone(), t.to_vec()))

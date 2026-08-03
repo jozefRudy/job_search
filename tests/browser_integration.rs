@@ -61,9 +61,9 @@ fn efc_search_url(keyword: &str) -> String {
 #[tokio::test]
 #[ignore = "requires network access to Hacker News Algolia API"]
 async fn test_hackernews_fetch_comments() {
-    let llm_cli = std::env::var("JOBSEARCH_LLM_CLI")
-        .expect("JOBSEARCH_LLM_CLI must be set to an LLM CLI command");
-    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(&llm_cli, "Europe");
+    let llm_bin = std::env::var("JOBSEARCH_LLM_BIN")
+        .expect("JOBSEARCH_LLM_BIN must be set to an LLM CLI command");
+    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(&llm_bin, "Europe");
     let comments = scraper
         .fetch_top_level_comments("rust", Some(5))
         .await

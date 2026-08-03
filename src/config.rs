@@ -16,7 +16,7 @@ pub struct Settings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmConfig {
     /// Command string for the LLM CLI, e.g. `pi --print --model ...`.
-    pub cli: String,
+    pub bin: String,
 }
 
 /// Placeholder written into the sample config by `jobsearch init`.
@@ -64,7 +64,7 @@ impl Settings {
                 bin: SAMPLE_BROWSER_BIN.to_string(),
             },
             llm: LlmConfig {
-                cli: SAMPLE_LLM_BIN.to_string(),
+                bin: SAMPLE_LLM_BIN.to_string(),
             },
             providers: Providers {
                 upwork: ProviderConfig {

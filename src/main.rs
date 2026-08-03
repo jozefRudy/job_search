@@ -183,14 +183,7 @@ async fn cmd_update(
             }
             let scraper = UpworkScraper::new();
             for url in &settings.providers.upwork.urls {
-                fetch_and_store(
-                    db,
-                    browser,
-                    &scraper,
-                    url,
-                    settings.pause_ms,
-                )
-                .await?;
+                fetch_and_store(db, browser, &scraper, url, settings.pause_ms).await?;
             }
         }
         UpdatePlatform::Nofluff => {
@@ -199,14 +192,7 @@ async fn cmd_update(
             }
             let scraper = NoFluffJobsScraper::new(lang);
             for url in &settings.providers.nofluffjobs.urls {
-                fetch_and_store(
-                    db,
-                    browser,
-                    &scraper,
-                    url,
-                    settings.pause_ms,
-                )
-                .await?;
+                fetch_and_store(db, browser, &scraper, url, settings.pause_ms).await?;
             }
         }
         UpdatePlatform::Efinancialcareers => {
@@ -215,26 +201,12 @@ async fn cmd_update(
             }
             let scraper = EfinancialcareersScraper::new(lang);
             for url in &settings.providers.efinancialcareers.urls {
-                fetch_and_store(
-                    db,
-                    browser,
-                    &scraper,
-                    url,
-                    settings.pause_ms,
-                )
-                .await?;
+                fetch_and_store(db, browser, &scraper, url, settings.pause_ms).await?;
             }
         }
         UpdatePlatform::Hackernews => {
-            let scraper = HackerNewsScraper::new(&settings.llm.cli, &settings.location);
-            fetch_and_store(
-                db,
-                browser,
-                &scraper,
-                ALGOLIA_URL,
-                settings.pause_ms,
-            )
-            .await?;
+            let scraper = HackerNewsScraper::new(&settings.llm.bin, &settings.location);
+            fetch_and_store(db, browser, &scraper, ALGOLIA_URL, settings.pause_ms).await?;
         }
         UpdatePlatform::LinkedIn => {
             if settings.providers.linkedin.urls.is_empty() {
@@ -242,18 +214,11 @@ async fn cmd_update(
             }
             for url in &settings.providers.linkedin.urls {
                 let scraper = LinkedInScraper::try_new(url)?;
-                fetch_and_store(
-                    db,
-                    browser,
-                    &scraper,
-                    url,
-                    settings.pause_ms,
-                )
-                .await?;
+                fetch_and_store(db, browser, &scraper, url, settings.pause_ms).await?;
             }
         }
         UpdatePlatform::Reddit => {
-            let scraper = RedditScraper::new(&settings.llm.cli, &settings.location)?;
+            let scraper = RedditScraper::new(&settings.llm.bin, &settings.location)?;
             fetch_and_store(
                 db,
                 browser,

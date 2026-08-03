@@ -56,13 +56,13 @@ pub struct HackerNewsScraper {
 
 impl HackerNewsScraper {
     #[must_use]
-    pub fn new(llm_cli: &str, location: &str) -> Self {
+    pub fn new(llm_bin: &str, location: &str) -> Self {
         Self {
             client: Client::builder()
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
                 .build()
                 .unwrap_or_else(|_| Client::new()),
-            extractor: LlmExtractor::<llm_hackernews::ExtractFields>::from_cli(llm_cli)
+            extractor: LlmExtractor::<llm_hackernews::ExtractFields>::from_bin(llm_bin)
                 .with_prompt_context(format!("Candidate location: {location}")),
         }
     }
