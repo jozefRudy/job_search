@@ -4,12 +4,13 @@ Unified job search CLI that scrapes job boards, stores results in a local SQLite
 
 Supported providers:
 
-- **Upwork**
-- **NoFluffJobs**
-- **eFinancialCareers**
-- **LinkedIn**
-- **Hacker News** ("Who is hiring?" threads)
-- **Reddit** (r/rust "Who's Hiring" thread)
+- [Upwork](https://www.upwork.com/nx/search/jobs/)
+- [NoFluffJobs](https://nofluffjobs.com/)
+- [eFinancialCareers](https://www.efinancialcareers.com/)
+- [LinkedIn](https://www.linkedin.com/jobs/)
+- [Hacker News](https://hn.algolia.com/?query=who%20is%20hiring) ("Who is hiring?" threads)
+- [Reddit](https://www.reddit.com/r/rust/search/?q=who%27s%20hiring) (r/rust "Who's Hiring" thread)
+- [Work at a Startup](https://www.workatastartup.com/companies) (Y Combinator job board)
 
 ## Installation
 
@@ -45,7 +46,7 @@ urls = ["https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur
 urls = ["https://www.upwork.com/nx/search/jobs/?q=trading&sort=recency&per_page=50&t=0&hourly_rate=60-"]
 ```
 
-Scraping runs through a real Chromium-based browser (configured under `[browser]`), driven over CDP. Before running `update`, make sure the browser is running with a tab open on the target site — and that you're logged in where required (Upwork, LinkedIn). Commands attach to the running browser session.
+Scraping runs through a real Chromium-based browser (configured under `[browser]`), driven over CDP. Before running `update`, make sure the browser is running with a tab open on the target site — and that you're logged in where required (Upwork, LinkedIn, Work at a Startup). Commands attach to the running browser session.
 
 ## Workflow
 
@@ -61,6 +62,7 @@ jobsearch update efinancialcareers
 jobsearch update hackernews
 jobsearch update linkedin
 jobsearch update reddit
+jobsearch update workatastartup
 ```
 
 Example output:
