@@ -35,6 +35,9 @@ pause_ms = 2000
 [browser]
 bin = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
 
+[llm]
+cli = "pi --print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-v4-flash"
+
 [providers.nofluffjobs]
 urls = ["https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur8000m%20jobLanguage%3Den&sort=newest"]
 
