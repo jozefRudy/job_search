@@ -14,9 +14,12 @@ use jobsearch::embeddings_store::embeddings_dir;
 use jobsearch::language::LanguageService;
 use jobsearch::models::{JobFilter, Platform, Rating, Sort};
 use jobsearch::platforms::{
-    PlatformClient, efinancialcareers::EfinancialcareersScraper,
+    PlatformClient,
+    efinancialcareers::EfinancialcareersScraper,
     hackernews::{ALGOLIA_URL, HackerNewsScraper},
-    linkedin::LinkedInScraper, nofluffjobs::NoFluffJobsScraper, reddit::RedditScraper,
+    linkedin::LinkedInScraper,
+    nofluffjobs::NoFluffJobsScraper,
+    reddit::RedditScraper,
     upwork::UpworkScraper,
 };
 use jobsearch::server;
@@ -255,7 +258,7 @@ async fn cmd_update(
                 db,
                 browser,
                 &scraper,
-                "https://www.reddit.com",
+                "https://www.reddit.com/r/rust",
                 settings.provider_pause_ms("reddit"),
             )
             .await?;

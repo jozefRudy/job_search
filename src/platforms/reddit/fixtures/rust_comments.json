@@ -1,0 +1,73 @@
+[
+  {
+    "kind": "Listing",
+    "data": {
+      "children": [
+        {
+          "kind": "t3",
+          "data": {
+            "id": "1ttbtf5",
+            "title": "Official /r/rust \"Who's Hiring\" thread for job-seekers and job-offerers [Rust 1.96]"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "kind": "Listing",
+    "data": {
+      "children": [
+        {
+          "kind": "t1",
+          "data": {
+            "name": "t1_n9aa001",
+            "body": "This is the top-level comment for individuals looking for work. Reply here if you would like employers to contact you.",
+            "author": "AutoModerator",
+            "permalink": "/r/rust/comments/1ttbtf5/official_rrust_whos_hiring_thread_for_jobseekers/n9aa001/",
+            "created_utc": 1754500100.0
+          }
+        },
+        {
+          "kind": "t1",
+          "data": {
+            "name": "t1_n9aa002",
+            "body": "[deleted]",
+            "author": "[deleted]",
+            "permalink": "/r/rust/comments/1ttbtf5/official_rrust_whos_hiring_thread_for_jobseekers/n9aa002/",
+            "created_utc": 1754500200.0
+          }
+        },
+        {
+          "kind": "t1",
+          "data": {
+            "name": "t1_n9aa003",
+            "body": "COMPANY: PgDog (https://pgdog.dev)\n\nTYPE: Full time\n\nLOCATION: San Francisco\n\nREMOTE: Yes\n\nDESCRIPTION: Horizontal sharding for PostgreSQL, written in Rust.",
+            "author": "pgdog_founder",
+            "permalink": "/r/rust/comments/1ttbtf5/official_rrust_whos_hiring_thread_for_jobseekers/n9aa003/",
+            "created_utc": 1754500300.0
+          }
+        },
+        {
+          "kind": "t1",
+          "data": {
+            "name": "t1_n9aa004",
+            "body": "**Company: Apollo GraphQL | Senior Software Engineer, Rust**\n\n**Type: Full-Time**\n\n**Location:** Remote, US",
+            "author": "apollo_talent",
+            "permalink": "/r/rust/comments/1ttbtf5/official_rrust_whos_hiring_thread_for_jobseekers/n9aa004/",
+            "created_utc": 1754500400.0
+          }
+        },
+        {
+          "kind": "more",
+          "data": {
+            "name": "t1_n9aa999",
+            "body": "more children placeholder",
+            "author": "nobody",
+            "permalink": "/r/rust/comments/1ttbtf5/x/n9aa999/",
+            "created_utc": 1754500500.0
+          }
+        }
+      ]
+    }
+  }
+]

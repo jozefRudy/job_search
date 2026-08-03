@@ -60,7 +60,8 @@ mod tests {
     use crate::extractors::llm::LlmExtractor;
 
     fn llm_cli() -> String {
-        todo!()
+        std::env::var("JOBSEARCH_LLM_CLI")
+            .expect("JOBSEARCH_LLM_CLI must be set to an LLM CLI command")
     }
 
     #[tokio::test]

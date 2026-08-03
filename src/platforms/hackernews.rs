@@ -3,9 +3,9 @@ use crate::db::{Db, UpsertResult};
 use crate::extractors::llm::LlmExtractor;
 use crate::extractors::llm_hackernews;
 use crate::models::{Data, HackerNewsJobDetail, Job, Platform, Rating};
-use crate::platforms::{FetchState, PlatformClient};
+use crate::platforms::{FetchState, PlatformClient, truncate_with_ellipsis};
 use crate::term::CursorGuard;
-use anyhow::{Result, bail};
+use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
@@ -55,6 +55,7 @@ pub struct HackerNewsScraper {
 }
 
 impl HackerNewsScraper {
+    #[must_use]
     pub fn new(llm_cli: &str, location: &str) -> Self {
         Self {
             client: Client::builder()
@@ -119,14 +120,6 @@ impl HackerNewsScraper {
             .to_string()
     }
 
-    fn truncate_with_ellipsis(text: &str, max_len: usize) -> String {
-        if text.chars().count() <= max_len {
-            text.to_string()
-        } else {
-            text.chars().take(max_len).collect::<String>() + "…"
-        }
-    }
-
     fn is_flagged(hit: &CommentHit) -> bool {
         hit.comment_text.contains("[flagged]") || hit.comment_text.contains("[dead]")
     }
@@ -147,7 +140,7 @@ impl HackerNewsScraper {
         let title = role
             .clone()
             .unwrap_or_else(|| Self::title_from_html(&hit.comment_text));
-        let title = Self::truncate_with_ellipsis(&title, MAX_TITLE_LEN);
+        let title = truncate_with_ellipsis(&title, MAX_TITLE_LEN);
 
         let remote = fields.remote.unwrap_or(false);
         let tags = fields.tags;
@@ -356,5 +349,4 @@ mod tests {
             "Acme Inc | Rust Engineer | Remote"
         );
     }
-
 }

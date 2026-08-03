@@ -22,6 +22,22 @@ pub enum Data {
     Reddit { detail: RedditJobDetail },
 }
 
+impl Data {
+    /// Company name from the platform detail (Upwork has none — client name
+    /// is not scraped). Computed from `raw` JSON; no DB column needed.
+    #[must_use]
+    pub fn company(&self) -> Option<String> {
+        match self {
+            Data::Upwork { .. } => None,
+            Data::Nofluffjobs { detail } => Some(detail.company.clone()),
+            Data::Efinancialcareers { detail } => Some(detail.company.clone()),
+            Data::Hackernews { detail } => detail.company.clone(),
+            Data::LinkedIn { detail } => Some(detail.company.clone()),
+            Data::Reddit { detail } => detail.company.clone(),
+        }
+    }
+}
+
 /// Full detail from an individual Reddit post or megathread comment.
 /// `is_job_ad` is an extraction-layer gate only and intentionally absent here.
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]

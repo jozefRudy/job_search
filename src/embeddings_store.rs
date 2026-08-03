@@ -348,6 +348,9 @@ mod tests {
             Platform::LinkedIn => Data::LinkedIn {
                 detail: LinkedInJobDetail::default(),
             },
+            Platform::Reddit => Data::Reddit {
+                detail: crate::models::RedditJobDetail::default(),
+            },
         };
         Job {
             id: 0,

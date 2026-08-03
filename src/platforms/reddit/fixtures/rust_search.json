@@ -1,0 +1,31 @@
+{
+  "kind": "Listing",
+  "data": {
+    "children": [
+      {
+        "kind": "t3",
+        "data": {
+          "id": "1v7vism",
+          "title": "Hey Rustaceans! Got a question? Ask here (31/2026)!",
+          "created_utc": 1755100000.0
+        }
+      },
+      {
+        "kind": "t3",
+        "data": {
+          "id": "1ttbtf5",
+          "title": "Official /r/rust \"Who's Hiring\" thread for job-seekers and job-offerers [Rust 1.96]",
+          "created_utc": 1754500000.0
+        }
+      },
+      {
+        "kind": "t3",
+        "data": {
+          "id": "1sobu1s",
+          "title": "Official /r/rust \"Who's Hiring\" thread for job-seekers and job-offerers [Rust 1.95]",
+          "created_utc": 1750900000.0
+        }
+      }
+    ]
+  }
+}
