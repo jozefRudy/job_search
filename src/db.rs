@@ -637,6 +637,9 @@ mod tests {
             Platform::Reddit => Data::Reddit {
                 detail: crate::models::RedditJobDetail::default(),
             },
+            Platform::Workatastartup => Data::Workatastartup {
+                detail: crate::models::WorkAtStartupJobDetail::default(),
+            },
         };
         Job {
             id: 0,

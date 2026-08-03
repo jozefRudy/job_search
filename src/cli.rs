@@ -55,6 +55,8 @@ pub enum ListTarget {
     Hackernews(PlatformListArgs),
     LinkedIn(PlatformListArgs),
     Reddit(PlatformListArgs),
+    /// List Work at a Startup (YC) jobs
+    Workatastartup(PlatformListArgs),
 }
 
 #[derive(Args)]
@@ -176,4 +178,6 @@ pub enum UpdatePlatform {
     LinkedIn,
     /// Fetch Reddit jobs
     Reddit,
+    /// Fetch Work at a Startup (YC) jobs
+    Workatastartup,
 }

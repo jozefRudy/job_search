@@ -38,6 +38,7 @@ pub struct Providers {
     pub nofluffjobs: ProviderConfig,
     pub efinancialcareers: ProviderConfig,
     pub linkedin: ProviderConfig,
+    pub workatastartup: ProviderConfig,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -78,6 +79,9 @@ impl Settings {
                 },
                 linkedin: ProviderConfig {
                     urls: vec!["https://www.linkedin.com/jobs/search/?f_I=4&f_T=9%2C25201%2C39&f_TPR=r200000&f_WT=2&geoId=92000000".to_string()],
+                },
+                workatastartup: ProviderConfig {
+                    urls: vec!["https://www.workatastartup.com/companies?role=eng&remote=only&usVisaNotRequired=true&sortBy=created_desc".to_string()],
                 },
             },
         }

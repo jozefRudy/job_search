@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from "@solidjs/router";
 import { createSignal, For, type JSX, Show } from "solid-js";
+import { match } from "ts-pattern";
 import {
   type Job,
   type Rating,
@@ -197,6 +198,9 @@ export function JobDetailContent(props: { job: Job }) {
       <Show when={j.platform === "reddit"}>
         <RedditDetail job={j} />
       </Show>
+      <Show when={j.platform === "workatastartup"}>
+        <WorkatastartupDetail job={j} />
+      </Show>
 
       <ApplicationCard appliedAt={j.applied_at} note={j.note} />
 
@@ -362,6 +366,72 @@ export function RedditDetail(props: { job: Job }) {
             <DetailRow label="Location" value={d.location} />
             <DetailRow label="Posted" value={fmtRelative(d.posted_at)} />
           </DetailList>
+          <Show when={d.description} keyed>
+            {(text) => <MarkdownDescription label="Description" text={text} />}
+          </Show>
+        </Stack>
+      </div>
+    </div>
+  );
+}
+
+export function WorkatastartupDetail(props: { job: Job }) {
+  const raw = props.job.raw;
+  if (raw.platform !== "workatastartup") return null;
+  const d = raw.detail;
+  return (
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h3 class="card-title text-lg">Details</h3>
+        <Stack gap="sm">
+          <DetailList>
+            <DetailRow label="Company" value={d.company_name} />
+            <DetailRow
+              label="Website"
+              value={
+                d.company_website ? (
+                  <a
+                    class="link link-primary"
+                    href={d.company_website}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {d.company_website}
+                  </a>
+                ) : undefined
+              }
+            />
+            <DetailRow label="Sector" value={d.company_parent_sector} />
+            <DetailRow label="Team size" value={d.company_team_size} />
+            <DetailRow label="Stage" value={d.company_waas_stage} />
+            <DetailRow label="Job type" value={d.job_type} />
+            <DetailRow label="Remote" value={d.remote} />
+            <DetailRow label="Eng type" value={d.eng_type.join(", ")} />
+            <DetailRow
+              label="Min experience"
+              value={match(d.min_experience)
+                .with(null, undefined, () => undefined)
+                .with(0, () => "Any (new grads OK)")
+                .otherwise((yrs) => `${yrs}+ yrs`)}
+            />
+            <DetailRow label="Skills" value={d.skills.join(", ")} />
+            <DetailRow label="US visa" value={d.us_visa_required} />
+            <DetailRow
+              label="Salary range"
+              value={d.has_salary ? "listed" : "not listed"}
+            />
+            <DetailRow
+              label="Equity range"
+              value={d.has_equity ? "listed" : "not listed"}
+            />
+            <DetailRow
+              label="Interview process"
+              value={d.has_interview_process ? "described" : "not described"}
+            />
+          </DetailList>
+          <Show when={d.company_description} keyed>
+            {(text) => <DetailRow label="About company" value={text} />}
+          </Show>
           <Show when={d.description} keyed>
             {(text) => <MarkdownDescription label="Description" text={text} />}
           </Show>
