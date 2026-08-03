@@ -59,6 +59,10 @@ const PLATFORM_SORTS: Record<
     { value: "created", label: "Created" },
     { value: "applied", label: "Applied" },
   ],
+  workatastartup: [
+    { value: "created", label: "Created" },
+    { value: "applied", label: "Applied" },
+  ],
 };
 
 const PLATFORM_LABELS: Record<Platform, string> = {
@@ -68,6 +72,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   hackernews: "Hacker News",
   linkedin: "LinkedIn",
   reddit: "Reddit",
+  workatastartup: "WorkAtStartup",
 };
 
 type WithAny<T extends string> = T | "any";
