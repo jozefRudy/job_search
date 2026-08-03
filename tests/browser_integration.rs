@@ -63,12 +63,7 @@ fn efc_search_url(keyword: &str) -> String {
 async fn test_hackernews_fetch_comments() {
     let llm_cli = std::env::var("JOBSEARCH_LLM_CLI")
         .expect("JOBSEARCH_LLM_CLI must be set to an LLM CLI command");
-    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(
-        &llm_cli,
-        "Europe",
-        "https://hn.algolia.com/api/v1/search_by_date",
-    )
-    .expect("HackerNewsScraper should be created");
+    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(&llm_cli, "Europe");
     let comments = scraper
         .fetch_top_level_comments("rust", Some(5))
         .await
@@ -742,6 +737,67 @@ async fn test_linkedin_pagination_has_next_page() {
         assert_ne!(
             first_page[0].id, second_page[0].id,
             "page 2 should start with a different job"
+        );
+
+        page.close().await.ok();
+    })
+    .await;
+}
+
+#[tokio::test]
+#[ignore = "requires Chromium browser running with CDP and reddit.com tab open"]
+async fn test_reddit_fetch_rust() {
+    with_browser(60, |browser| async move {
+        let scraper = jobsearch::platforms::reddit::RedditScraper::new("", "Europe")
+            .expect("RedditScraper should be created");
+        let page = browser
+            .new_tab("https://www.reddit.com")
+            .await
+            .expect("open reddit page");
+
+        let search_url = "https://www.reddit.com/r/rust/search.json?q=Who%27s%20Hiring&restrict_sr=1&sort=top&t=all&limit=25";
+        let json = scraper
+            .fetch_json(&page, search_url)
+            .await
+            .expect("search fetch should succeed");
+
+        let re = regex::Regex::new(r"(?i)who's hiring").expect("regex should compile");
+        let thread_id = jobsearch::platforms::reddit::RedditScraper::pick_megathread(&json, &re)
+            .expect("should find a Who's Hiring thread");
+        assert!(!thread_id.is_empty(), "thread id required");
+
+        let comments_url =
+            format!("https://www.reddit.com/comments/{thread_id}.json?limit=500&depth=1&sort=new");
+        let json = scraper
+            .fetch_json(&page, &comments_url)
+            .await
+            .expect("comments fetch should succeed");
+
+        let comments = jobsearch::platforms::reddit::RedditScraper::parse_comments(&json);
+        assert!(
+            !comments.is_empty(),
+            "should find at least one job comment in latest thread"
+        );
+
+        let first = &comments[0];
+        assert!(
+            first.external_id.starts_with("t1_"),
+            "external_id = t1_ name: {}",
+            first.external_id
+        );
+        assert!(!first.body.is_empty(), "comment body required");
+        assert!(
+            comments.iter().all(|c| c.author != "AutoModerator"),
+            "AutoModerator skipped"
+        );
+
+        println!(
+            "thread {thread_id}: {} job comments, first:",
+            comments.len()
+        );
+        println!(
+            "{}",
+            serde_json::to_string_pretty(first).expect("serialize first comment")
         );
 
         page.close().await.ok();

@@ -30,9 +30,18 @@ pub trait PlatformClient: Send + Sync {
 pub mod fetch_state;
 pub use fetch_state::FetchState;
 
+pub(crate) fn truncate_with_ellipsis(text: &str, max_len: usize) -> String {
+    if text.chars().count() <= max_len {
+        text.to_string()
+    } else {
+        text.chars().take(max_len).collect::<String>() + "…"
+    }
+}
+
 pub mod efinancialcareers;
 pub mod hackernews;
 pub mod html;
 pub mod linkedin;
 pub mod nofluffjobs;
+pub mod reddit;
 pub mod upwork;

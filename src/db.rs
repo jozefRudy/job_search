@@ -155,7 +155,7 @@ impl Db {
             r"
             SELECT
                 j.id, j.platform, j.external_id, j.title,
-                j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
+                j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
                 j.rating, j.remote, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
@@ -201,7 +201,7 @@ impl Db {
             r"
             SELECT
                 j.id, j.platform, j.external_id, j.title,
-                j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
+                j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
                 j.rating, j.remote, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
@@ -236,7 +236,7 @@ impl Db {
             r"
             SELECT
                 j.id, j.platform, j.external_id, j.title,
-                j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
+                j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
                 j.rating, j.remote, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
@@ -260,7 +260,7 @@ impl Db {
             r#"
             SELECT
                 j.id, j.platform, j.external_id, j.title,
-                j.url, j.budget, j.tags, j.raw, j.company, j.created_at, j.updated_at,
+                j.url, j.budget, j.tags, j.raw, j.created_at, j.updated_at,
                 j.rating, j.remote, r.note, r.applied_at
             FROM jobs j
             LEFT JOIN reactions r ON r.job_id = j.id
@@ -436,7 +436,7 @@ impl Db {
             SELECT COUNT(*)
             FROM jobs
             WHERE platform = 'hackernews'
-              AND company = ?1
+              AND json_extract(raw, '$.detail.company') = ?1
               AND json_extract(raw, '$.detail.role') = ?2
               AND created_at > ?3
             "#,
@@ -565,7 +565,6 @@ struct JobRow {
     budget: Option<String>,
     tags: String,
     raw: String,
-    company: Option<String>,
     created_at: chrono::NaiveDateTime,
     updated_at: chrono::NaiveDateTime,
     rating: Rating,
@@ -578,6 +577,7 @@ impl From<JobRow> for Job {
     fn from(r: JobRow) -> Self {
         let raw: Data = serde_json::from_str(&r.raw)
             .unwrap_or_else(|e| panic!("failed to deserialize raw for job {}: {}", r.id, e));
+        let company = raw.company();
 
         Job {
             id: r.id,
@@ -588,7 +588,7 @@ impl From<JobRow> for Job {
             budget: r.budget,
             tags: serde_json::from_str(&r.tags).unwrap_or_default(),
             raw,
-            company: r.company,
+            company,
             created_at: r.created_at.and_utc(),
             updated_at: r.updated_at.and_utc(),
             note: r.note,
@@ -633,6 +633,9 @@ mod tests {
             },
             Platform::LinkedIn => Data::LinkedIn {
                 detail: LinkedInJobDetail::default(),
+            },
+            Platform::Reddit => Data::Reddit {
+                detail: crate::models::RedditJobDetail::default(),
             },
         };
         Job {

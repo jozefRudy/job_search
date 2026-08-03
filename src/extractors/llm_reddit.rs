@@ -1,23 +1,32 @@
+//! Reddit LLM extraction fields.
+//!
+//! RustFields: r/rust "Who's Hiring" comments — prose; prompt must
+//! reject job-SEEKER presentations (single thread for seekers + offerers;
+//! seekers reply under designated top-level comment), mod/meta/deleted
+//! comments, and non-employment content (grant funding, open calls);
+//! extract only job offers.
+
 use crate::extractors::llm::{Extractable, PromptKind};
-use anyhow::{Result, ensure};
+use anyhow::Result;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
-pub struct ExtractFields {
-    #[schemars(description = "true only if the comment is an actual job advertisement")]
+pub struct RustFields {
+    #[schemars(
+        description = "true only if the comment is an actual job offer; false for job-seeker presentations, mod/meta comments, and non-employment posts like grant funding or open calls"
+    )]
     pub is_job_ad: bool,
     #[schemars(description = "company or organization name")]
     pub company: Option<String>,
     #[schemars(description = "job title or role; if multiple listed, join them with ' + '")]
     pub role: Option<String>,
     #[schemars(
-        description = "location mentioned in the post, if multiple listed, join them with ' + '"
+        description = "location mentioned in the comment, if multiple listed, join them with ' + '"
     )]
     pub location: Option<String>,
     #[schemars(
-        description = "true only if fully remote work is allowed from the candidate's
-    location"
+        description = "true only if fully remote work is allowed from the candidate's location"
     )]
     pub remote: Option<bool>,
     #[schemars(description = "raw compensation snippet (e.g. '$150k-$175k' or 'EUR 80k-100k')")]
@@ -26,26 +35,26 @@ pub struct ExtractFields {
     pub tags: Vec<String>,
 }
 
-impl Extractable for ExtractFields {
-    const PROMPT: PromptKind = PromptKind::HackerNews;
-    const HEALTHCHECK_TEXT: &'static str = include_str!("llm/fixtures/hackernews_healthcheck.md");
+impl Extractable for RustFields {
+    const PROMPT: PromptKind = PromptKind::RedditRust;
+    const HEALTHCHECK_TEXT: &'static str = include_str!("llm/fixtures/reddit_rust_healthcheck.md");
 
     fn verify(&self) -> Result<()> {
-        ensure!(
+        anyhow::ensure!(
             self.is_job_ad,
             "healthcheck text must be classified as a job ad"
         );
         let company = self.company.as_deref().unwrap_or_default();
-        ensure!(
+        anyhow::ensure!(
             company.to_lowercase().contains("acme"),
             "healthcheck company extraction failed: {company:?}"
         );
         let role = self.role.as_deref().unwrap_or_default();
-        ensure!(
+        anyhow::ensure!(
             role.to_lowercase().contains("rust"),
             "healthcheck role extraction failed: {role:?}"
         );
-        ensure!(
+        anyhow::ensure!(
             self.remote == Some(true),
             "healthcheck remote extraction failed: {:?}",
             self.remote
@@ -66,40 +75,42 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires JOBSEARCH_LLM_CLI set to an LLM CLI command"]
-    async fn test_extract_hackernews_job_from_fixture() {
-        let text = include_str!("llm/fixtures/hackernews_job.md");
-        let fields = LlmExtractor::<ExtractFields>::from_cli(&llm_cli())
+    async fn test_extract_rust_from_fixture() {
+        let text = include_str!("llm/fixtures/reddit_rust_job.md");
+        let fields = LlmExtractor::<RustFields>::from_cli(&llm_cli())
             .with_prompt_context("Candidate location: Europe".to_string())
             .extract(text)
             .await
             .expect("llm extraction failed");
         assert!(fields.is_job_ad, "expected job ad");
-        assert_eq!(fields.company.as_deref(), Some("Stripe"));
-        assert_eq!(fields.role.as_deref(), Some("Senior Backend Engineer"));
-        assert_eq!(fields.remote, Some(false), "us only");
+        assert_eq!(fields.company.as_deref(), Some("PgDog"));
         assert!(fields.budget.is_some(), "expected budget");
     }
 
     #[tokio::test]
     #[ignore = "requires JOBSEARCH_LLM_CLI set to an LLM CLI command"]
-    async fn test_extract_hackernews_multiple_roles() {
-        let text = include_str!("llm/fixtures/hackernews_multiple_roles.md");
-        let fields = LlmExtractor::<ExtractFields>::from_cli(&llm_cli())
+    async fn test_extract_rust_rejects_seeker() {
+        let text = include_str!("llm/fixtures/reddit_rust_seeker.md");
+        let fields = LlmExtractor::<RustFields>::from_cli(&llm_cli())
             .with_prompt_context("Candidate location: Europe".to_string())
             .extract(text)
             .await
             .expect("llm extraction failed");
-        assert!(fields.is_job_ad, "expected job ad");
-        assert_eq!(fields.company.as_deref(), Some("Close"));
-        let role = fields.role.as_deref().unwrap_or_default();
+        assert!(!fields.is_job_ad, "job-seeker comment must not be a job ad");
+    }
+
+    #[tokio::test]
+    #[ignore = "requires JOBSEARCH_LLM_CLI set to an LLM CLI command"]
+    async fn test_extract_rust_rejects_grant() {
+        let text = include_str!("llm/fixtures/reddit_rust_grant.md");
+        let fields = LlmExtractor::<RustFields>::from_cli(&llm_cli())
+            .with_prompt_context("Candidate location: Europe".to_string())
+            .extract(text)
+            .await
+            .expect("llm extraction failed");
         assert!(
-            role.to_lowercase().contains("backend"),
-            "expected backend in joined roles, got {role:?}"
+            !fields.is_job_ad,
+            "grant funding / open call must not be a job ad"
         );
-        assert!(
-            role.chars().filter(|c| *c == '+').count() == 3,
-            "expected 4 roles joined, got {role:?}"
-        );
-        assert_eq!(fields.remote, Some(false), "expected not remote (us only)");
     }
 }

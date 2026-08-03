@@ -19,6 +19,52 @@ pub enum Data {
     Efinancialcareers { detail: EfinancialcareersJobDetail },
     Hackernews { detail: HackerNewsJobDetail },
     LinkedIn { detail: LinkedInJobDetail },
+    Reddit { detail: RedditJobDetail },
+}
+
+impl Data {
+    /// Company name from the platform detail (Upwork has none — client name
+    /// is not scraped). Computed from `raw` JSON; no DB column needed.
+    #[must_use]
+    pub fn company(&self) -> Option<String> {
+        match self {
+            Data::Upwork { .. } => None,
+            Data::Nofluffjobs { detail } => Some(detail.company.clone()),
+            Data::Efinancialcareers { detail } => Some(detail.company.clone()),
+            Data::Hackernews { detail } => detail.company.clone(),
+            Data::LinkedIn { detail } => Some(detail.company.clone()),
+            Data::Reddit { detail } => detail.company.clone(),
+        }
+    }
+}
+
+/// Full detail from an individual Reddit post or megathread comment.
+/// `is_job_ad` is an extraction-layer gate only and intentionally absent here.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct RedditJobDetail {
+    pub subreddit: String,
+    pub author: String,
+    pub permalink: String,
+    pub company: Option<String>,
+    pub role: Option<String>,
+    pub location: Option<String>,
+    pub description: String,
+    pub posted_at: DateTime<Utc>,
+}
+
+impl Default for RedditJobDetail {
+    fn default() -> Self {
+        Self {
+            subreddit: String::new(),
+            author: String::new(),
+            permalink: String::new(),
+            company: None,
+            role: None,
+            location: None,
+            description: String::new(),
+            posted_at: Utc::now(),
+        }
+    }
 }
 
 /// Full detail scraped from an individual Hacker News "Who is hiring?" comment.
@@ -210,6 +256,7 @@ pub enum Platform {
     NoFluffJobs,
     Upwork,
     LinkedIn,
+    Reddit,
 }
 
 impl fmt::Display for Platform {
@@ -220,6 +267,7 @@ impl fmt::Display for Platform {
             Platform::NoFluffJobs => write!(f, "nofluffjobs"),
             Platform::Upwork => write!(f, "upwork"),
             Platform::LinkedIn => write!(f, "linkedin"),
+            Platform::Reddit => write!(f, "reddit"),
         }
     }
 }
@@ -232,6 +280,7 @@ impl From<String> for Platform {
             "nofluffjobs" => Platform::NoFluffJobs,
             "upwork" => Platform::Upwork,
             "linkedin" => Platform::LinkedIn,
+            "reddit" => Platform::Reddit,
             _ => panic!("unknown platform in db: '{s}'"),
         }
     }
@@ -368,6 +417,9 @@ impl Job {
                 append(&detail.description);
             }
             Data::LinkedIn { detail } => {
+                append(&detail.description);
+            }
+            Data::Reddit { detail } => {
                 append(&detail.description);
             }
         }
