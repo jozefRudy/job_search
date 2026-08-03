@@ -9,6 +9,7 @@ Supported providers:
 - **eFinancialCareers**
 - **LinkedIn**
 - **Hacker News** ("Who is hiring?" threads)
+- **Reddit** (r/rust "Who's Hiring" thread)
 
 ## Installation
 
@@ -56,6 +57,7 @@ jobsearch update upwork
 jobsearch update efinancialcareers
 jobsearch update hackernews
 jobsearch update linkedin
+jobsearch update reddit
 ```
 
 Example output:
