@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from "@solidjs/router";
 import { createSignal, For, type JSX, Show } from "solid-js";
+import { match } from "ts-pattern";
 import {
   type Job,
   type Rating,
@@ -408,9 +409,10 @@ export function WorkatastartupDetail(props: { job: Job }) {
             <DetailRow label="Eng type" value={d.eng_type.join(", ")} />
             <DetailRow
               label="Min experience"
-              value={
-                d.min_experience != null ? `${d.min_experience} yrs` : undefined
-              }
+              value={match(d.min_experience)
+                .with(null, undefined, () => undefined)
+                .with(0, () => "Any (new grads OK)")
+                .otherwise((yrs) => `${yrs}+ yrs`)}
             />
             <DetailRow label="Skills" value={d.skills.join(", ")} />
             <DetailRow label="US visa" value={d.us_visa_required} />
