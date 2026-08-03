@@ -804,3 +804,52 @@ async fn test_reddit_fetch_rust() {
     })
     .await;
 }
+
+// --- Work at a Startup: Algolia fetch via logged-in tab ---
+
+#[tokio::test]
+#[ignore = "requires Chromium browser running with CDP and workatastartup.com logged in"]
+async fn test_workatastartup_fetch_page() {
+    use jobsearch::platforms::workatastartup::{WaasFilters, WorkatastartupScraper};
+
+    with_browser(60, |browser| async move {
+        let url = "https://www.workatastartup.com/companies?role=eng&remote=only&usVisaNotRequired=true&sortBy=created_desc";
+        let filters = WaasFilters::from_url(url)
+            .expect("parse filters")
+            .to_algolia();
+        let page = browser.new_tab(url).await.expect("open companies page");
+
+        let scraper = WorkatastartupScraper::new();
+        let result = scraper
+            .fetch_page(&page, &filters, 0)
+            .await
+            .expect("fetch_page should succeed");
+
+        assert!(!result.hits.is_empty(), "should find at least one job hit");
+
+        let first = &result.hits[0];
+        assert!(!first.object_id.is_empty(), "object_id required");
+        assert!(!first.title.is_empty(), "title required");
+        assert!(!first.company_name.is_empty(), "company_name required");
+        assert!(
+            first.search_path.starts_with("https://www.ycombinator.com/"),
+            "search_path must be a ycombinator.com job URL: {}",
+            first.search_path
+        );
+        assert_eq!(first.role, "eng", "role filter applied");
+        assert_eq!(first.remote, "only", "remote filter applied");
+
+        let job = WorkatastartupScraper::hit_to_job(first);
+        assert_eq!(job.platform, jobsearch::models::Platform::Workatastartup);
+        assert!(job.remote, "hit mapped to remote job");
+
+        println!("found {} hits ({} pages), first:", result.hits.len(), result.nb_pages);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(first).expect("serialize hit")
+        );
+
+        page.close().await.ok();
+    })
+    .await;
+}

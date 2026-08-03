@@ -49,7 +49,7 @@ pub struct WorkAtStartupJobDetail {
     pub remote: String,
     pub role: String,
     pub eng_type: Vec<String>,
-    pub min_experience: u32,
+    pub min_experience: Option<u32>,
     pub skills: Vec<String>,
     pub has_salary: bool,
     pub has_equity: bool,

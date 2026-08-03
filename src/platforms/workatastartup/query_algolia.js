@@ -1,7 +1,23 @@
-// TODO(phase3): args: (filters: string, page: number, indexName: string)
-// 1. Find secured-key Algolia URL in performance.getEntriesByType('resource')
-//    (name contains "algolia.net/1/indexes" and "x-algolia-api-key").
-//    If none, return { error: "no algolia key — log in at workatastartup.com" }.
-// 2. POST to that URL with body
-//    {requests:[{indexName, params: `query=&hitsPerPage=100&page=${page}&filters=${encodeURIComponent(filters)}`}]}
-// 3. Return {hits, nbPages} from response.results[0]; on HTTP error return {error}.
+(async function (config) {
+  const entry = performance
+    .getEntriesByType("resource")
+    .find((e) => e.name.includes("algolia.net/1/indexes") && e.name.includes("x-algolia-api-key"));
+  if (!entry) {
+    return { error: "no algolia key — log in at workatastartup.com and load /companies" };
+  }
+  const params = `query=&hitsPerPage=100&page=${config.page}&filters=${encodeURIComponent(config.filters)}`;
+  const resp = await fetch(entry.name, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: JSON.stringify({ requests: [{ indexName: config.indexName, params }] }),
+  });
+  if (!resp.ok) {
+    return { error: `algolia http ${resp.status}` };
+  }
+  const data = await resp.json();
+  const result = data.results?.[0];
+  if (!result) {
+    return { error: "empty algolia response" };
+  }
+  return { hits: result.hits, nbPages: result.nbPages };
+})(__CONFIG__)

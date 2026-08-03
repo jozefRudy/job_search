@@ -20,8 +20,8 @@ use jobsearch::platforms::{
     linkedin::LinkedInScraper,
     nofluffjobs::NoFluffJobsScraper,
     reddit::RedditScraper,
-    workatastartup::WorkatastartupScraper,
     upwork::UpworkScraper,
+    workatastartup::WorkatastartupScraper,
 };
 use jobsearch::server;
 use owo_colors::OwoColorize;
@@ -247,20 +247,28 @@ async fn cmd_list_with_target(
     db: &Db,
     db_path: &std::path::Path,
 ) -> Result<()> {
+    async fn list_common(
+        common: jobsearch::cli::CommonListArgs,
+        sort_by: CommonSortBy,
+        platform: Option<Platform>,
+        db: &Db,
+        db_path: &std::path::Path,
+    ) -> Result<()> {
+        let filter = JobFilter {
+            platform,
+            applied: common.applied,
+            rating: common.rating,
+            remote: common.remote,
+        };
+        let sort = match sort_by {
+            CommonSortBy::Created => Sort::Created,
+            CommonSortBy::Applied => Sort::Applied,
+        };
+        cmd_list(db, filter, sort, common.search, db_path).await
+    }
+
     match cmd.target {
-        ListTarget::All(args) => {
-            let filter = JobFilter {
-                platform: None,
-                applied: args.common.applied,
-                rating: args.common.rating,
-                remote: args.common.remote,
-            };
-            let sort = match args.sort {
-                CommonSortBy::Created => Sort::Created,
-                CommonSortBy::Applied => Sort::Applied,
-            };
-            cmd_list(db, filter, sort, args.common.search, db_path).await?;
-        }
+        ListTarget::All(args) => list_common(args.common, args.sort, None, db, db_path).await?,
         ListTarget::Upwork(args) => {
             let filter = JobFilter {
                 platform: Some(Platform::Upwork),
@@ -276,82 +284,57 @@ async fn cmd_list_with_target(
             cmd_list(db, filter, sort, args.common.search, db_path).await?;
         }
         ListTarget::Nofluff(args) => {
-            let filter = JobFilter {
-                platform: Some(Platform::NoFluffJobs),
-                applied: args.common.applied,
-                rating: args.common.rating,
-                remote: args.common.remote,
-            };
-            let sort = match args.sort {
-                CommonSortBy::Created => Sort::Created,
-                CommonSortBy::Applied => Sort::Applied,
-            };
-            cmd_list(db, filter, sort, args.common.search, db_path).await?;
+            list_common(
+                args.common,
+                args.sort,
+                Some(Platform::NoFluffJobs),
+                db,
+                db_path,
+            )
+            .await?;
         }
         ListTarget::Efinancialcareers(args) => {
-            let filter = JobFilter {
-                platform: Some(Platform::Efinancialcareers),
-                applied: args.common.applied,
-                rating: args.common.rating,
-                remote: args.common.remote,
-            };
-            let sort = match args.sort {
-                CommonSortBy::Created => Sort::Created,
-                CommonSortBy::Applied => Sort::Applied,
-            };
-            cmd_list(db, filter, sort, args.common.search, db_path).await?;
+            list_common(
+                args.common,
+                args.sort,
+                Some(Platform::Efinancialcareers),
+                db,
+                db_path,
+            )
+            .await?;
         }
         ListTarget::Hackernews(args) => {
-            let filter = JobFilter {
-                platform: Some(Platform::Hackernews),
-                applied: args.common.applied,
-                rating: args.common.rating,
-                remote: args.common.remote,
-            };
-            let sort = match args.sort {
-                CommonSortBy::Created => Sort::Created,
-                CommonSortBy::Applied => Sort::Applied,
-            };
-            cmd_list(db, filter, sort, args.common.search, db_path).await?;
+            list_common(
+                args.common,
+                args.sort,
+                Some(Platform::Hackernews),
+                db,
+                db_path,
+            )
+            .await?;
         }
         ListTarget::LinkedIn(args) => {
-            let filter = JobFilter {
-                platform: Some(Platform::LinkedIn),
-                applied: args.common.applied,
-                rating: args.common.rating,
-                remote: args.common.remote,
-            };
-            let sort = match args.sort {
-                CommonSortBy::Created => Sort::Created,
-                CommonSortBy::Applied => Sort::Applied,
-            };
-            cmd_list(db, filter, sort, args.common.search, db_path).await?;
+            list_common(
+                args.common,
+                args.sort,
+                Some(Platform::LinkedIn),
+                db,
+                db_path,
+            )
+            .await?;
         }
         ListTarget::Reddit(args) => {
-            let filter = JobFilter {
-                platform: Some(Platform::Reddit),
-                applied: args.common.applied,
-                rating: args.common.rating,
-                remote: args.common.remote,
-            };
-            let sort = match args.sort {
-                CommonSortBy::Created => Sort::Created,
-                CommonSortBy::Applied => Sort::Applied,
-            };
-            cmd_list(db, filter, sort, args.common.search, db_path).await?;
+            list_common(args.common, args.sort, Some(Platform::Reddit), db, db_path).await?;
         }
         ListTarget::Workatastartup(args) => {
-            let filter = JobFilter {
-                platform: Some(Platform::Workatastartup),
-                applied: args.common.applied,
-                rating: args.common.rating,
-                remote: args.common.remote,
-            };
-            let sort = match args.sort {
-                CommonSortBy::Created => Sort::Created,
-                CommonSortBy::Applied => Sort::Applied,
-            };
-            cmd_list(db, filter, sort, args.common.search, db_path).await?;
+            list_common(
+                args.common,
+                args.sort,
+                Some(Platform::Workatastartup),
+                db,
+                db_path,
+            )
+            .await?;
         }
     }
     Ok(())
