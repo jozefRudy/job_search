@@ -10,7 +10,7 @@ Supported providers:
 - [LinkedIn](https://www.linkedin.com/jobs/)
 - [Hacker News](https://hn.algolia.com/?query=who%20is%20hiring) ("Who is hiring?" threads)
 - [Reddit](https://www.reddit.com/r/rust/search/?q=who%27s%20hiring) (r/rust "Who's Hiring" thread)
-- [Work at a Startup](https://www.workatastartup.com/companies) (Y Combinator job board)
+- [Work at a Startup](https://www.workatastartup.com/jobs) (Y Combinator job board)
 
 ## Installation
 
