@@ -853,3 +853,15 @@ async fn test_workatastartup_fetch_page() {
     })
     .await;
 }
+
+// TODO Phase 3: Wellfound integration test (run FIRST against live session before
+// trusting field types — lesson 1):
+//   #[tokio::test]
+//   #[ignore = "requires Chromium browser running with CDP and wellfound.com logged in"]
+//   async fn test_wellfound_fetch_page() — with_browser(60, ...):
+//     open tab https://wellfound.com/role/r/software-engineer
+//     WellfoundScraper::fetch_page(&page, "https://wellfound.com/role/r/software-engineer?page=1")
+//     assert jobs non-empty; first job: id/title/company_name non-empty,
+//     live_start_at Some, description non-empty;
+//     hit_to_job -> platform Wellfound, url starts with https://wellfound.com/jobs/;
+//     println! pretty JSON of first hit

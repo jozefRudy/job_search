@@ -22,6 +22,7 @@ use jobsearch::platforms::{
     reddit::RedditScraper,
     upwork::UpworkScraper,
     workatastartup::WorkatastartupScraper,
+    wellfound::WellfoundScraper,
 };
 use jobsearch::server;
 use owo_colors::OwoColorize;
@@ -238,6 +239,15 @@ async fn cmd_update(
                 fetch_and_store(db, browser, &scraper, url, settings.pause_ms).await?;
             }
         }
+        UpdatePlatform::Wellfound => {
+            if settings.providers.wellfound.urls.is_empty() {
+                bail!("no URLs configured for wellfound in jobsearch.toml");
+            }
+            let scraper = WellfoundScraper::new();
+            for url in &settings.providers.wellfound.urls {
+                fetch_and_store(db, browser, &scraper, url, settings.pause_ms).await?;
+            }
+        }
     }
     Ok(())
 }
@@ -331,6 +341,16 @@ async fn cmd_list_with_target(
                 args.common,
                 args.sort,
                 Some(Platform::Workatastartup),
+                db,
+                db_path,
+            )
+            .await?;
+        }
+        ListTarget::Wellfound(args) => {
+            list_common(
+                args.common,
+                args.sort,
+                Some(Platform::Wellfound),
                 db,
                 db_path,
             )

@@ -57,6 +57,8 @@ pub enum ListTarget {
     Reddit(PlatformListArgs),
     /// List Work at a Startup (YC) jobs
     Workatastartup(PlatformListArgs),
+    /// List Wellfound jobs
+    Wellfound(PlatformListArgs),
 }
 
 #[derive(Args)]
@@ -180,4 +182,6 @@ pub enum UpdatePlatform {
     Reddit,
     /// Fetch Work at a Startup (YC) jobs
     Workatastartup,
+    /// Fetch Wellfound jobs
+    Wellfound,
 }

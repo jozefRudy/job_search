@@ -63,6 +63,7 @@ const PLATFORM_SORTS: Record<
     { value: "created", label: "Created" },
     { value: "applied", label: "Applied" },
   ],
+  // TODO Phase 3: wellfound: [created, applied] (after regen-api adds Platform)
 };
 
 const PLATFORM_LABELS: Record<Platform, string> = {
@@ -73,6 +74,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   linkedin: "LinkedIn",
   reddit: "Reddit",
   workatastartup: "WorkAtStartup",
+  // TODO Phase 3: wellfound: "Wellfound",
 };
 
 type WithAny<T extends string> = T | "any";

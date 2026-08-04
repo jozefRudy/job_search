@@ -201,6 +201,10 @@ export function JobDetailContent(props: { job: Job }) {
       <Show when={j.platform === "workatastartup"}>
         <WorkatastartupDetail job={j} />
       </Show>
+      {/* TODO Phase 3: <Show when={j.platform === "wellfound"}><WellfoundDetail job={j} /></Show>
+          + export function WellfoundDetail(props: { job: Job }) — card with
+          compensation, jobType, locationNames, remoteKind, yearsExperience,
+          company size/highConcept, description (after regen-api) */}
 
       <ApplicationCard appliedAt={j.applied_at} note={j.note} />
 

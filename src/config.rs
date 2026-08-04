@@ -39,6 +39,7 @@ pub struct Providers {
     pub efinancialcareers: ProviderConfig,
     pub linkedin: ProviderConfig,
     pub workatastartup: ProviderConfig,
+    pub wellfound: ProviderConfig,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -82,6 +83,9 @@ impl Settings {
                 },
                 workatastartup: ProviderConfig {
                     urls: vec!["https://www.workatastartup.com/companies?role=eng&remote=only&usVisaNotRequired=true&sortBy=created_desc".to_string()],
+                },
+                wellfound: ProviderConfig {
+                    urls: vec!["https://wellfound.com/role/r/software-engineer".to_string()],
                 },
             },
         }
