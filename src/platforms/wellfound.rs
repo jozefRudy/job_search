@@ -20,7 +20,8 @@
 
 use crate::browser::{BrowserExt, host_of};
 use crate::db::{Db, UpsertResult};
-use crate::models::{Data, Job, Platform, Rating, WellfoundJobDetail};
+use crate::language::LanguageService;
+use crate::models::{Data, Job, Platform, Rating, WellfoundJobDetail, classify_language};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
@@ -107,12 +108,14 @@ pub struct WellfoundPage {
     pub error: Option<String>,
 }
 
-pub struct WellfoundScraper;
+pub struct WellfoundScraper {
+    lang: LanguageService,
+}
 
 impl WellfoundScraper {
     #[must_use]
-    pub fn new() -> Self {
-        Self
+    pub fn new(lang: LanguageService) -> Self {
+        Self { lang }
     }
 
     /// Bail unless an open tab host contains wellfound.com (user must be
@@ -208,12 +211,6 @@ impl WellfoundScraper {
     }
 }
 
-impl Default for WellfoundScraper {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[async_trait]
 impl PlatformClient for WellfoundScraper {
     fn name(&self) -> &'static str {
@@ -255,8 +252,18 @@ impl PlatformClient for WellfoundScraper {
                     .is_some()
                 {
                     state.inc_existing();
+                } else if db.is_rejected(&Platform::Wellfound, &hit.id).await? {
+                    // Rejected in a previous run (non_english) — auto-skip
+                    // like nofluffjobs: no re-classify, no re-mark.
+                    state.inc_skipped();
                 } else {
                     let job = Self::hit_to_job(hit);
+                    if !classify_language(&self.lang, &job).await? {
+                        db.mark_rejected(&Platform::Wellfound, &hit.id, "non_english")
+                            .await?;
+                        state.inc_skipped();
+                        continue;
+                    }
                     match db.upsert_job(&job).await? {
                         UpsertResult::New(_) => state.inc_new(),
                         UpsertResult::Updated(_) | UpsertResult::Duplicate(_) => {

@@ -865,7 +865,7 @@ async fn test_wellfound_fetch_page() {
         let url = "https://wellfound.com/role/r/software-engineer";
         let page = browser.new_tab(url).await.expect("open role page");
 
-        let scraper = WellfoundScraper::new();
+        let scraper = WellfoundScraper::new(jobsearch::language::LanguageService::new());
         let result = scraper
             .fetch_page(&page, &page_url(url, 1).expect("page_url"), 1)
             .await

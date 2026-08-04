@@ -243,7 +243,7 @@ async fn cmd_update(
             if settings.providers.wellfound.urls.is_empty() {
                 bail!("no URLs configured for wellfound in jobsearch.toml");
             }
-            let scraper = WellfoundScraper::new();
+            let scraper = WellfoundScraper::new(lang);
             for url in &settings.providers.wellfound.urls {
                 fetch_and_store(db, browser, &scraper, url, settings.pause_ms).await?;
             }
