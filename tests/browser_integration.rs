@@ -854,14 +854,56 @@ async fn test_workatastartup_fetch_page() {
     .await;
 }
 
-// TODO Phase 3: Wellfound integration test (run FIRST against live session before
-// trusting field types — lesson 1):
-//   #[tokio::test]
-//   #[ignore = "requires Chromium browser running with CDP and wellfound.com logged in"]
-//   async fn test_wellfound_fetch_page() — with_browser(60, ...):
-//     open tab https://wellfound.com/role/r/software-engineer
-//     WellfoundScraper::fetch_page(&page, "https://wellfound.com/role/r/software-engineer?page=1")
-//     assert jobs non-empty; first job: id/title/company_name non-empty,
-//     live_start_at Some, description non-empty;
-//     hit_to_job -> platform Wellfound, url starts with https://wellfound.com/jobs/;
-//     println! pretty JSON of first hit
+// --- Wellfound: SSR Apollo-state fetch via logged-in tab ---
+
+#[tokio::test]
+#[ignore = "requires Chromium browser running with CDP and wellfound.com logged in"]
+async fn test_wellfound_fetch_page() {
+    use jobsearch::platforms::wellfound::{WellfoundScraper, page_url};
+
+    with_browser(60, |browser| async move {
+        let url = "https://wellfound.com/role/r/software-engineer";
+        let page = browser.new_tab(url).await.expect("open role page");
+
+        let scraper = WellfoundScraper::new();
+        let result = scraper
+            .fetch_page(&page, &page_url(url, 1).expect("page_url"), 1)
+            .await
+            .expect("fetch_page should succeed");
+
+        assert!(!result.jobs.is_empty(), "should find at least one job");
+        assert!(!result.end, "page 1 must not signal end");
+
+        // Out-of-range pages redirect to page 1 — must signal end, not loop.
+        let far = scraper
+            .fetch_page(&page, &page_url(url, 10_000).expect("page_url"), 10_000)
+            .await
+            .expect("fetch_page far page should succeed");
+        assert!(far.end, "out-of-range page must signal end");
+        assert!(far.jobs.is_empty(), "end page returns no jobs");
+
+        let first = &result.jobs[0];
+        assert!(!first.id.is_empty(), "id required");
+        assert!(!first.title.is_empty(), "title required");
+        assert!(!first.company_name.is_empty(), "company_name required");
+        assert!(!first.description.is_empty(), "description required");
+        assert!(first.live_start_at > 0, "live_start_at required");
+
+        let job = WellfoundScraper::hit_to_job(first);
+        assert_eq!(job.platform, jobsearch::models::Platform::Wellfound);
+        assert!(
+            job.url.starts_with("https://wellfound.com/jobs/"),
+            "job url: {}",
+            job.url
+        );
+
+        println!("found {} jobs, first:", result.jobs.len());
+        println!(
+            "{}",
+            serde_json::to_string_pretty(first).expect("serialize hit")
+        );
+
+        page.close().await.ok();
+    })
+    .await;
+}

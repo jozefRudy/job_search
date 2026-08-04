@@ -21,8 +21,8 @@ use jobsearch::platforms::{
     nofluffjobs::NoFluffJobsScraper,
     reddit::RedditScraper,
     upwork::UpworkScraper,
-    workatastartup::WorkatastartupScraper,
     wellfound::WellfoundScraper,
+    workatastartup::WorkatastartupScraper,
 };
 use jobsearch::server;
 use owo_colors::OwoColorize;
@@ -252,31 +252,31 @@ async fn cmd_update(
     Ok(())
 }
 
+async fn list_common(
+    common: jobsearch::cli::CommonListArgs,
+    sort_by: CommonSortBy,
+    platform: Option<Platform>,
+    db: &Db,
+    db_path: &std::path::Path,
+) -> Result<()> {
+    let filter = JobFilter {
+        platform,
+        applied: common.applied,
+        rating: common.rating,
+        remote: common.remote,
+    };
+    let sort = match sort_by {
+        CommonSortBy::Created => Sort::Created,
+        CommonSortBy::Applied => Sort::Applied,
+    };
+    cmd_list(db, filter, sort, common.search, db_path).await
+}
+
 async fn cmd_list_with_target(
     cmd: jobsearch::cli::ListCmd,
     db: &Db,
     db_path: &std::path::Path,
 ) -> Result<()> {
-    async fn list_common(
-        common: jobsearch::cli::CommonListArgs,
-        sort_by: CommonSortBy,
-        platform: Option<Platform>,
-        db: &Db,
-        db_path: &std::path::Path,
-    ) -> Result<()> {
-        let filter = JobFilter {
-            platform,
-            applied: common.applied,
-            rating: common.rating,
-            remote: common.remote,
-        };
-        let sort = match sort_by {
-            CommonSortBy::Created => Sort::Created,
-            CommonSortBy::Applied => Sort::Applied,
-        };
-        cmd_list(db, filter, sort, common.search, db_path).await
-    }
-
     match cmd.target {
         ListTarget::All(args) => list_common(args.common, args.sort, None, db, db_path).await?,
         ListTarget::Upwork(args) => {

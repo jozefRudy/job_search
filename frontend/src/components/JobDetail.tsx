@@ -201,10 +201,9 @@ export function JobDetailContent(props: { job: Job }) {
       <Show when={j.platform === "workatastartup"}>
         <WorkatastartupDetail job={j} />
       </Show>
-      {/* TODO Phase 3: <Show when={j.platform === "wellfound"}><WellfoundDetail job={j} /></Show>
-          + export function WellfoundDetail(props: { job: Job }) — card with
-          compensation, jobType, locationNames, remoteKind, yearsExperience,
-          company size/highConcept, description (after regen-api) */}
+      <Show when={j.platform === "wellfound"}>
+        <WellfoundDetail job={j} />
+      </Show>
 
       <ApplicationCard appliedAt={j.applied_at} note={j.note} />
 
@@ -436,6 +435,68 @@ export function WorkatastartupDetail(props: { job: Job }) {
           <Show when={d.company_description} keyed>
             {(text) => <DetailRow label="About company" value={text} />}
           </Show>
+          <Show when={d.description} keyed>
+            {(text) => <MarkdownDescription label="Description" text={text} />}
+          </Show>
+        </Stack>
+      </div>
+    </div>
+  );
+}
+
+export function WellfoundDetail(props: { job: Job }) {
+  const raw = props.job.raw;
+  if (raw.platform !== "wellfound") return null;
+  const d = raw.detail;
+  return (
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h3 class="card-title text-lg">Details</h3>
+        <Stack gap="sm">
+          <DetailList>
+            <DetailRow
+              label="Company"
+              value={
+                <span class="inline-flex items-center gap-2">
+                  <Show when={d.company_logo_url} keyed>
+                    {(url) => (
+                      <img
+                        src={url}
+                        alt={`${d.company_name} logo`}
+                        class="h-5 w-5 rounded object-contain"
+                      />
+                    )}
+                  </Show>
+                  {d.company_name}
+                </span>
+              }
+            />
+            <DetailRow label="About company" value={d.company_high_concept} />
+            <DetailRow
+              label="Company size"
+              value={d.company_size?.replace("SIZE_", "").replaceAll("_", "-")}
+            />
+            <DetailRow label="Compensation" value={d.compensation} />
+            <DetailRow label="Job type" value={d.job_type} />
+            <DetailRow label="Locations" value={d.location_names.join(", ")} />
+            <DetailRow label="Remote" value={d.remote ? "yes" : "no"} />
+            <DetailRow label="Remote kind" value={d.remote_kind} />
+            <DetailRow
+              label="Remote accepted"
+              value={d.accepted_remote_location_names.join(", ")}
+            />
+            <DetailRow
+              label="Experience"
+              value={match([d.years_experience_min, d.years_experience_max])
+                .with([null, null], [undefined, null], () => undefined)
+                .otherwise(
+                  ([min, max]) =>
+                    `${min ?? 0}+${max != null ? `–${max}` : ""} yrs`,
+                )}
+            />
+            <DetailRow label="Role" value={d.primary_role_title} />
+            <DetailRow label="Posted" value={fmtRelative(d.posted_at)} />
+          </DetailList>
           <Show when={d.description} keyed>
             {(text) => <MarkdownDescription label="Description" text={text} />}
           </Show>

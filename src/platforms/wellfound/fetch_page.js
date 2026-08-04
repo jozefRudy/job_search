@@ -1,25 +1,93 @@
 // Fetch one SSR page and extract jobs from embedded Apollo state.
 // config = { "url": pageUrl }
-//
-// Steps:
-//   1. html = await (await fetch(config.url, { credentials: "include" })).text()
-//      — return { error: `http ${resp.status}` } on !resp.ok
-//   2. Locate marker '"apolloState":{"data":{' in html; if absent return
-//      { error: "no apolloState — not logged in or markup changed" }
-//   3. Brace-match from the '{' after '"data":' to extract the data object;
-//      JSON.parse it (keys: "JobListingSearchResult:<id>", "StartupResult:<id>", ...)
-//   4. Build jobId→startup map: for each StartupResult entry, for each ref in
-//      highlightedJobListings, map ref id → startup (two passes — startup may
-//      appear after the job in key order; one startup can highlight 2+ jobs)
-//   5. For each JobListingSearchResult entry:
-//      - look up startup via reverse map
-//      - flatten remoteConfig?.kind -> remote_kind (null when remoteConfig absent,
-//        ~75% of jobs)
-//      - emit camelCase->snake_case mapped object matching RawWellfoundJob
-//   6. Return { jobs: [...] } (order = object key insertion order, fine)
-//
-// Note: JS regex caveats per AGENTS.md; brace matching avoids regex on JSON.
 (async function (config) {
-  // TODO Phase 3: implement steps above
-  return { error: "TODO Phase 3" };
+  const resp = await fetch(config.url, { credentials: "include" });
+  if (!resp.ok) {
+    return { error: `http ${resp.status}` };
+  }
+  // Out-of-range pages redirect to page 1 (no ?page in final URL) — signal end
+  // instead of looping on duplicate page-1 jobs forever.
+  const finalPage = new URL(resp.url).searchParams.get("page");
+  if (String(config.page) !== (finalPage ?? "1")) {
+    return { jobs: [], end: true };
+  }
+  const html = await resp.text();
+
+  const marker = '"apolloState":{"data":{';
+  const i = html.indexOf(marker);
+  if (i < 0) {
+    return { error: "no apolloState — not logged in or markup changed" };
+  }
+
+  // Brace-match the data object (avoids regex on JSON). String-aware: braces
+  // inside quoted values (code snippets, `${}` in descriptions) must not
+  // affect depth.
+  const start = i + marker.length - 1;
+  let depth = 0;
+  let end = start;
+  let inString = false;
+  let escaped = false;
+  for (; end < html.length; end++) {
+    const c = html[end];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === "{") depth++;
+    else if (c === "}") {
+      depth--;
+      if (depth === 0) {
+        end++;
+        break;
+      }
+    }
+  }
+  let data;
+  try {
+    data = JSON.parse(html.slice(start, end));
+  } catch (e) {
+    return { error: `apolloState JSON parse failed: ${e.message}` };
+  }
+
+  // jobId -> startup reverse map (jobs have no startup field; one startup can
+  // highlight 2+ jobs; startup may appear after the job in key order).
+  const startupByJobId = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (!key.startsWith("StartupResult:")) continue;
+    for (const ref of value.highlightedJobListings || []) {
+      const jobId = ref.__ref?.split(":")[1];
+      if (jobId) startupByJobId[jobId] = value;
+    }
+  }
+
+  const jobs = [];
+  for (const [key, j] of Object.entries(data)) {
+    if (!key.startsWith("JobListingSearchResult:")) continue;
+    const s = startupByJobId[j.id];
+    jobs.push({
+      id: j.id,
+      title: j.title,
+      slug: j.slug,
+      description: j.description,
+      compensation: j.compensation ?? null,
+      job_type: j.jobType,
+      live_start_at: j.liveStartAt ?? null,
+      location_names: j.locationNames ?? [],
+      remote: j.remote,
+      remote_kind: j.remoteConfig?.kind ?? null,
+      accepted_remote_location_names: j.acceptedRemoteLocationNames ?? [],
+      years_experience_min: j.yearsExperienceMin ?? null,
+      years_experience_max: j.yearsExperienceMax ?? null,
+      primary_role_title: j.primaryRoleTitle ?? null,
+      company_name: s?.name ?? "",
+      company_slug: s?.slug ?? null,
+      company_size: s?.companySize ?? null,
+      company_high_concept: s?.highConcept ?? null,
+      company_logo_url: s?.logoUrl ?? null,
+    });
+  }
+  return { jobs };
 })(__CONFIG__)
