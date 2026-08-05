@@ -56,6 +56,7 @@ pub struct HackerNewsScraper {
 
 impl HackerNewsScraper {
     #[must_use]
+    // TODO: `pub fn new(llm_bin: &str, location: Region) -> Self` — Display in prompt context
     pub fn new(llm_bin: &str, location: &str) -> Self {
         Self {
             client: Client::builder()

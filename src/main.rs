@@ -207,6 +207,7 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Hackernews => {
+            // TODO: pass settings.location (Region) directly
             let scraper = HackerNewsScraper::new(&settings.llm.bin, &settings.location);
             fetch_and_store(db, browser, &scraper, ALGOLIA_URL, settings.pause_ms).await?;
         }
@@ -220,6 +221,7 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Reddit => {
+            // TODO: pass settings.location (Region) directly
             let scraper = RedditScraper::new(&settings.llm.bin, &settings.location)?;
             fetch_and_store(
                 db,
@@ -243,6 +245,7 @@ async fn cmd_update(
             if settings.providers.wellfound.urls.is_empty() {
                 bail!("no URLs configured for wellfound in jobsearch.toml");
             }
+            // TODO: WellfoundScraper::new(lang, settings.location)
             let scraper = WellfoundScraper::new(lang);
             for url in &settings.providers.wellfound.urls {
                 fetch_and_store(db, browser, &scraper, url, settings.pause_ms).await?;

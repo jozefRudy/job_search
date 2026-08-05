@@ -6,6 +6,8 @@ use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
+    // TODO: change `location: String` to `location: Region` (crate::region::Region);
+    // sample() uses Region::Europe. LLM prompt call sites pass Display string.
     pub location: String,
     pub pause_ms: u64,
     pub providers: Providers,
@@ -85,6 +87,7 @@ impl Settings {
                     urls: vec!["https://www.workatastartup.com/companies?role=eng&remote=only&usVisaNotRequired=true&sortBy=created_desc".to_string()],
                 },
                 wellfound: ProviderConfig {
+                    // TODO: sample URL -> https://wellfound.com/role/l/software-engineer/europe
                     urls: vec!["https://wellfound.com/role/r/software-engineer".to_string()],
                 },
             },

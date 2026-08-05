@@ -70,6 +70,7 @@ pub struct RedditScraper {
 }
 
 impl RedditScraper {
+    // TODO: `pub fn new(llm_bin: &str, location: Region) -> Result<Self>` — Display in prompt context
     pub fn new(llm_bin: &str, location: &str) -> Result<Self> {
         let context = format!("Candidate location: {location}");
         Ok(Self {

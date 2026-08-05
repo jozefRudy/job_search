@@ -43,6 +43,10 @@ const MAX_JOB_AGE_DAYS: i64 = 31;
 /// Validate `url` (host wellfound.com, path starts with `/role/`) and return
 /// it with the `page` query param set. All other params are kept but ignored
 /// by the server — only the path filters.
+/// TODO: page_url(url, page, region: Region) — additionally require path shape
+///   `/role/l/<role>/<slug>` and `slug == region.slug()`; bail otherwise
+///   ("wellfound URL must filter by configured region, e.g. /role/l/software-engineer/europe").
+///   Remote flag correctness then comes from server-side region filtering.
 pub fn page_url(url: &str, page: u32) -> Result<String> {
     let mut parsed = url::Url::parse(url)?;
     let host = parsed.host_str().unwrap_or_default();
@@ -110,9 +114,11 @@ pub struct WellfoundPage {
 
 pub struct WellfoundScraper {
     lang: LanguageService,
+    // TODO: add field `region: Region`
 }
 
 impl WellfoundScraper {
+    // TODO: `pub fn new(lang: LanguageService, region: Region) -> Self`
     #[must_use]
     pub fn new(lang: LanguageService) -> Self {
         Self { lang }
@@ -156,6 +162,8 @@ impl WellfoundScraper {
 
     /// Map a raw job to a `Job`: external_id = id,
     /// url = https://wellfound.com/jobs/{id}-{slug},
+    /// NOTE: remote flag stays `hit.remote` — correctness now guaranteed by
+    /// region-filtered URL enforced in page_url (no remote_ok/location table).
     /// created_at = live_start_at (Utc::now() fallback),
     /// budget = compensation parsed as yearly range (raw string fallback),
     /// company = company_name, remote = remote,
