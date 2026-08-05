@@ -56,8 +56,7 @@ pub struct HackerNewsScraper {
 
 impl HackerNewsScraper {
     #[must_use]
-    // TODO: `pub fn new(llm_bin: &str, location: Region) -> Self` — Display in prompt context
-    pub fn new(llm_bin: &str, location: &str) -> Self {
+    pub fn new(llm_bin: &str, location: crate::region::Region) -> Self {
         Self {
             client: Client::builder()
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")

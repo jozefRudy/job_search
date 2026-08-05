@@ -63,7 +63,10 @@ fn efc_search_url(keyword: &str) -> String {
 async fn test_hackernews_fetch_comments() {
     let llm_bin = std::env::var("JOBSEARCH_LLM_BIN")
         .expect("JOBSEARCH_LLM_BIN must be set to an LLM CLI command");
-    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(&llm_bin, "Europe");
+    let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(
+        &llm_bin,
+        jobsearch::region::Region::Europe,
+    );
     let comments = scraper
         .fetch_top_level_comments("rust", Some(5))
         .await
@@ -748,7 +751,7 @@ async fn test_linkedin_pagination_has_next_page() {
 #[ignore = "requires Chromium browser running with CDP and reddit.com tab open"]
 async fn test_reddit_fetch_rust() {
     with_browser(60, |browser| async move {
-        let scraper = jobsearch::platforms::reddit::RedditScraper::new("", "Europe")
+        let scraper = jobsearch::platforms::reddit::RedditScraper::new("", jobsearch::region::Region::Europe)
             .expect("RedditScraper should be created");
         let page = browser
             .new_tab("https://www.reddit.com")
@@ -862,12 +865,19 @@ async fn test_wellfound_fetch_page() {
     use jobsearch::platforms::wellfound::{WellfoundScraper, page_url};
 
     with_browser(60, |browser| async move {
-        let url = "https://wellfound.com/role/r/software-engineer";
+        let url = "https://wellfound.com/role/l/software-engineer/europe";
         let page = browser.new_tab(url).await.expect("open role page");
 
-        let scraper = WellfoundScraper::new(jobsearch::language::LanguageService::new());
+        let scraper = WellfoundScraper::new(
+            jobsearch::language::LanguageService::new(),
+            jobsearch::region::Region::Europe,
+        );
         let result = scraper
-            .fetch_page(&page, &page_url(url, 1).expect("page_url"), 1)
+            .fetch_page(
+                &page,
+                &page_url(url, 1, jobsearch::region::Region::Europe).expect("page_url"),
+                1,
+            )
             .await
             .expect("fetch_page should succeed");
 
@@ -876,7 +886,11 @@ async fn test_wellfound_fetch_page() {
 
         // Out-of-range pages redirect to page 1 — must signal end, not loop.
         let far = scraper
-            .fetch_page(&page, &page_url(url, 10_000).expect("page_url"), 10_000)
+            .fetch_page(
+                &page,
+                &page_url(url, 10_000, jobsearch::region::Region::Europe).expect("page_url"),
+                10_000,
+            )
             .await
             .expect("fetch_page far page should succeed");
         assert!(far.end, "out-of-range page must signal end");
