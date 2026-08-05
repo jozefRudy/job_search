@@ -11,6 +11,7 @@ Supported providers:
 - [Hacker News](https://hn.algolia.com/?query=who%20is%20hiring) ("Who is hiring?" threads)
 - [Reddit](https://www.reddit.com/r/rust/search/?q=who%27s%20hiring) (r/rust "Who's Hiring" thread)
 - [Work at a Startup](https://www.workatastartup.com/jobs) (Y Combinator job board)
+- [Wellfound](https://wellfound.com/jobs) (startup job board, requires login)
 
 ## Installation
 
@@ -63,6 +64,7 @@ jobsearch update hackernews
 jobsearch update linkedin
 jobsearch update reddit
 jobsearch update workatastartup
+jobsearch update wellfound
 ```
 
 Example output:

@@ -21,6 +21,7 @@ pub enum Data {
     LinkedIn { detail: LinkedInJobDetail },
     Workatastartup { detail: WorkAtStartupJobDetail },
     Reddit { detail: RedditJobDetail },
+    Wellfound { detail: WellfoundJobDetail },
 }
 
 impl Data {
@@ -36,8 +37,36 @@ impl Data {
             Data::LinkedIn { detail } => Some(detail.company.clone()),
             Data::Workatastartup { detail } => Some(detail.company_name.clone()),
             Data::Reddit { detail } => detail.company.clone(),
+            Data::Wellfound { detail } => Some(detail.company_name.clone()),
         }
     }
+}
+
+/// Full detail of a Wellfound job from the SSR Apollo cache
+/// (`JobListingSearchResult` + resolved `StartupResult`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct WellfoundJobDetail {
+    pub description: String,
+    pub compensation: Option<String>,
+    pub job_type: String,
+    pub location_names: Vec<String>,
+    pub remote: bool,
+    pub remote_kind: Option<String>,
+    pub accepted_remote_location_names: Vec<String>,
+    pub years_experience_min: Option<u32>,
+    pub years_experience_max: Option<u32>,
+    pub primary_role_title: Option<String>,
+    pub company_name: String,
+    pub company_slug: Option<String>,
+    pub company_size: Option<String>,
+    pub company_high_concept: Option<String>,
+    pub company_logo_url: Option<String>,
+    pub posted_at: DateTime<Utc>,
+}
+
+impl WellfoundJobDetail {
+    // Default derive leaves posted_at as epoch; keep consistent with other
+    // platforms that default posted_at to now.
 }
 
 /// Full detail of a Work at a Startup (Y Combinator) job from the Algolia
@@ -283,6 +312,7 @@ pub enum Platform {
     LinkedIn,
     Workatastartup,
     Reddit,
+    Wellfound,
 }
 
 impl fmt::Display for Platform {
@@ -295,6 +325,7 @@ impl fmt::Display for Platform {
             Platform::LinkedIn => write!(f, "linkedin"),
             Platform::Workatastartup => write!(f, "workatastartup"),
             Platform::Reddit => write!(f, "reddit"),
+            Platform::Wellfound => write!(f, "wellfound"),
         }
     }
 }
@@ -309,6 +340,7 @@ impl From<String> for Platform {
             "linkedin" => Platform::LinkedIn,
             "workatastartup" => Platform::Workatastartup,
             "reddit" => Platform::Reddit,
+            "wellfound" => Platform::Wellfound,
             _ => panic!("unknown platform in db: '{s}'"),
         }
     }
@@ -452,6 +484,9 @@ impl Job {
                 append(&detail.skills.join(", "));
             }
             Data::Reddit { detail } => {
+                append(&detail.description);
+            }
+            Data::Wellfound { detail } => {
                 append(&detail.description);
             }
         }

@@ -45,4 +45,5 @@ pub mod linkedin;
 pub mod nofluffjobs;
 pub mod reddit;
 pub mod upwork;
+pub mod wellfound;
 pub mod workatastartup;

@@ -354,6 +354,9 @@ mod tests {
             Platform::Workatastartup => Data::Workatastartup {
                 detail: crate::models::WorkAtStartupJobDetail::default(),
             },
+            Platform::Wellfound => Data::Wellfound {
+                detail: crate::models::WellfoundJobDetail::default(),
+            },
         };
         Job {
             id: 0,

@@ -21,6 +21,7 @@ use jobsearch::platforms::{
     nofluffjobs::NoFluffJobsScraper,
     reddit::RedditScraper,
     upwork::UpworkScraper,
+    wellfound::WellfoundScraper,
     workatastartup::WorkatastartupScraper,
 };
 use jobsearch::server;
@@ -238,8 +239,37 @@ async fn cmd_update(
                 fetch_and_store(db, browser, &scraper, url, settings.pause_ms).await?;
             }
         }
+        UpdatePlatform::Wellfound => {
+            if settings.providers.wellfound.urls.is_empty() {
+                bail!("no URLs configured for wellfound in jobsearch.toml");
+            }
+            let scraper = WellfoundScraper::new(lang);
+            for url in &settings.providers.wellfound.urls {
+                fetch_and_store(db, browser, &scraper, url, settings.pause_ms).await?;
+            }
+        }
     }
     Ok(())
+}
+
+async fn list_common(
+    common: jobsearch::cli::CommonListArgs,
+    sort_by: CommonSortBy,
+    platform: Option<Platform>,
+    db: &Db,
+    db_path: &std::path::Path,
+) -> Result<()> {
+    let filter = JobFilter {
+        platform,
+        applied: common.applied,
+        rating: common.rating,
+        remote: common.remote,
+    };
+    let sort = match sort_by {
+        CommonSortBy::Created => Sort::Created,
+        CommonSortBy::Applied => Sort::Applied,
+    };
+    cmd_list(db, filter, sort, common.search, db_path).await
 }
 
 async fn cmd_list_with_target(
@@ -247,26 +277,6 @@ async fn cmd_list_with_target(
     db: &Db,
     db_path: &std::path::Path,
 ) -> Result<()> {
-    async fn list_common(
-        common: jobsearch::cli::CommonListArgs,
-        sort_by: CommonSortBy,
-        platform: Option<Platform>,
-        db: &Db,
-        db_path: &std::path::Path,
-    ) -> Result<()> {
-        let filter = JobFilter {
-            platform,
-            applied: common.applied,
-            rating: common.rating,
-            remote: common.remote,
-        };
-        let sort = match sort_by {
-            CommonSortBy::Created => Sort::Created,
-            CommonSortBy::Applied => Sort::Applied,
-        };
-        cmd_list(db, filter, sort, common.search, db_path).await
-    }
-
     match cmd.target {
         ListTarget::All(args) => list_common(args.common, args.sort, None, db, db_path).await?,
         ListTarget::Upwork(args) => {
@@ -331,6 +341,16 @@ async fn cmd_list_with_target(
                 args.common,
                 args.sort,
                 Some(Platform::Workatastartup),
+                db,
+                db_path,
+            )
+            .await?;
+        }
+        ListTarget::Wellfound(args) => {
+            list_common(
+                args.common,
+                args.sort,
+                Some(Platform::Wellfound),
                 db,
                 db_path,
             )
