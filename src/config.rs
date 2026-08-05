@@ -6,7 +6,7 @@ use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
-    pub location: String,
+    pub location: crate::region::Region,
     pub pause_ms: u64,
     pub providers: Providers,
     pub browser: BrowserConfig,
@@ -60,7 +60,7 @@ impl Settings {
     #[must_use]
     pub fn sample() -> Self {
         Self {
-            location: "Europe".to_string(),
+            location: crate::region::Region::Europe,
             pause_ms: 2000,
             browser: BrowserConfig {
                 bin: SAMPLE_BROWSER_BIN.to_string(),
@@ -85,7 +85,7 @@ impl Settings {
                     urls: vec!["https://www.workatastartup.com/companies?role=eng&remote=only&usVisaNotRequired=true&sortBy=created_desc".to_string()],
                 },
                 wellfound: ProviderConfig {
-                    urls: vec!["https://wellfound.com/role/r/software-engineer".to_string()],
+                    urls: vec!["https://wellfound.com/role/l/software-engineer/europe".to_string()],
                 },
             },
         }

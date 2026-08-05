@@ -207,7 +207,7 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Hackernews => {
-            let scraper = HackerNewsScraper::new(&settings.llm.bin, &settings.location);
+            let scraper = HackerNewsScraper::new(&settings.llm.bin, settings.location);
             fetch_and_store(db, browser, &scraper, ALGOLIA_URL, settings.pause_ms).await?;
         }
         UpdatePlatform::LinkedIn => {
@@ -220,7 +220,7 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Reddit => {
-            let scraper = RedditScraper::new(&settings.llm.bin, &settings.location)?;
+            let scraper = RedditScraper::new(&settings.llm.bin, settings.location)?;
             fetch_and_store(
                 db,
                 browser,
@@ -243,7 +243,7 @@ async fn cmd_update(
             if settings.providers.wellfound.urls.is_empty() {
                 bail!("no URLs configured for wellfound in jobsearch.toml");
             }
-            let scraper = WellfoundScraper::new(lang);
+            let scraper = WellfoundScraper::new(lang, settings.location);
             for url in &settings.providers.wellfound.urls {
                 fetch_and_store(db, browser, &scraper, url, settings.pause_ms).await?;
             }

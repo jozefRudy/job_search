@@ -70,7 +70,7 @@ pub struct RedditScraper {
 }
 
 impl RedditScraper {
-    pub fn new(llm_bin: &str, location: &str) -> Result<Self> {
+    pub fn new(llm_bin: &str, location: crate::region::Region) -> Result<Self> {
         let context = format!("Candidate location: {location}");
         Ok(Self {
             rust_extractor: LlmExtractor::<RustFields>::from_bin(llm_bin)

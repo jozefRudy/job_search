@@ -23,6 +23,7 @@ use crate::db::{Db, UpsertResult};
 use crate::language::LanguageService;
 use crate::models::{Data, Job, Platform, Rating, WellfoundJobDetail, classify_language};
 use crate::platforms::{FetchState, PlatformClient};
+use crate::region::Region;
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
 use async_trait::async_trait;
@@ -40,17 +41,40 @@ const CONFIG_PLACEHOLDER: &str = "__CONFIG__";
 /// to intra-page reordering, everything after is older still.
 const MAX_JOB_AGE_DAYS: i64 = 31;
 
-/// Validate `url` (host wellfound.com, path starts with `/role/`) and return
-/// it with the `page` query param set. All other params are kept but ignored
-/// by the server — only the path filters.
-pub fn page_url(url: &str, page: u32) -> Result<String> {
+/// Wellfound location URL slug for `region` (`/role/l/<role>/<slug>`).
+/// Verified 1:1 against live wellfound URLs; provider-specific, hence not on `Region`.
+fn wf_location_slug(region: Region) -> &'static str {
+    match region {
+        Region::Europe => "europe",
+        Region::NorthAmerica => "north-america",
+        Region::SouthAmerica => "south-america",
+        Region::Asia => "asia",
+        Region::Africa => "africa",
+        Region::Oceania => "oceania",
+        Region::MiddleEast => "middle-east",
+    }
+}
+
+/// Validate `url` and return it with the `page` query param set.
+/// Host must be wellfound.com; path must be `/role/l/<role>/<slug>` with
+/// `slug == wf_location_slug(region)` — remote correctness comes from this
+/// server-side region filter. All other params are kept but ignored by the server.
+pub fn page_url(url: &str, page: u32, region: Region) -> Result<String> {
     let mut parsed = url::Url::parse(url)?;
     let host = parsed.host_str().unwrap_or_default();
     if host != "wellfound.com" && !host.ends_with(".wellfound.com") {
         bail!("Wellfound URL must be on wellfound.com");
     }
-    if !parsed.path().starts_with("/role/") {
-        bail!("Wellfound URL path must start with /role/");
+    let segments: Vec<&str> = parsed.path().trim_matches('/').split('/').collect();
+    let ["role", "l", _role, slug] = segments[..] else {
+        bail!(
+            "Wellfound URL must filter by configured region, e.g. \
+             https://wellfound.com/role/l/software-engineer/{}",
+            wf_location_slug(region)
+        );
+    };
+    if slug != wf_location_slug(region) {
+        bail!("Wellfound URL region {slug:?} does not match configured region {region}");
     }
     let kept: Vec<(String, String)> = parsed
         .query_pairs()
@@ -110,12 +134,13 @@ pub struct WellfoundPage {
 
 pub struct WellfoundScraper {
     lang: LanguageService,
+    region: Region,
 }
 
 impl WellfoundScraper {
     #[must_use]
-    pub fn new(lang: LanguageService) -> Self {
-        Self { lang }
+    pub fn new(lang: LanguageService, region: Region) -> Self {
+        Self { lang, region }
     }
 
     /// Bail unless an open tab host contains wellfound.com (user must be
@@ -156,6 +181,8 @@ impl WellfoundScraper {
 
     /// Map a raw job to a `Job`: external_id = id,
     /// url = https://wellfound.com/jobs/{id}-{slug},
+    /// NOTE: remote flag stays `hit.remote` — correctness now guaranteed by
+    /// region-filtered URL enforced in page_url (no remote_ok/location table).
     /// created_at = live_start_at (Utc::now() fallback),
     /// budget = compensation parsed as yearly range (raw string fallback),
     /// company = company_name, remote = remote,
@@ -232,7 +259,7 @@ impl PlatformClient for WellfoundScraper {
         let mut page_num = 1u32;
         loop {
             let result = self
-                .fetch_page(&page, &page_url(url, page_num)?, page_num)
+                .fetch_page(&page, &page_url(url, page_num, self.region)?, page_num)
                 .await?;
             if result.end || result.jobs.is_empty() {
                 break;
@@ -288,33 +315,96 @@ mod tests {
 
     #[test]
     fn test_page_url_appends_page() {
-        let u = page_url("https://wellfound.com/role/r/software-engineer", 3).expect("valid url");
-        assert_eq!(u, "https://wellfound.com/role/r/software-engineer?page=3");
+        let u = page_url(
+            "https://wellfound.com/role/l/software-engineer/europe",
+            3,
+            Region::Europe,
+        )
+        .expect("valid url");
+        assert_eq!(
+            u,
+            "https://wellfound.com/role/l/software-engineer/europe?page=3"
+        );
     }
 
     #[test]
     fn test_page_url_allows_subdomain() {
-        let u = page_url("https://www.wellfound.com/role/r/software-engineer", 1)
-            .expect("www subdomain valid");
+        let u = page_url(
+            "https://www.wellfound.com/role/l/software-engineer/europe",
+            1,
+            Region::Europe,
+        )
+        .expect("www subdomain valid");
         assert!(u.starts_with("https://www.wellfound.com/"));
     }
 
     #[test]
     fn test_page_url_replaces_existing_page() {
-        let u = page_url("https://wellfound.com/role/r/software-engineer?page=1", 2)
-            .expect("valid url");
-        assert_eq!(u, "https://wellfound.com/role/r/software-engineer?page=2");
+        let u = page_url(
+            "https://wellfound.com/role/l/software-engineer/europe?page=1",
+            2,
+            Region::Europe,
+        )
+        .expect("valid url");
+        assert_eq!(
+            u,
+            "https://wellfound.com/role/l/software-engineer/europe?page=2"
+        );
     }
 
     #[test]
     fn test_page_url_rejects_foreign_host() {
-        assert!(page_url("https://example.com/role/r/software-engineer", 1).is_err());
-        assert!(page_url("https://evilwellfound.com/role/r/x", 1).is_err());
+        assert!(
+            page_url(
+                "https://example.com/role/l/software-engineer/europe",
+                1,
+                Region::Europe
+            )
+            .is_err()
+        );
+        assert!(
+            page_url(
+                "https://evilwellfound.com/role/l/x/europe",
+                1,
+                Region::Europe
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn test_page_url_rejects_non_role_path() {
-        assert!(page_url("https://wellfound.com/jobs", 1).is_err());
+        assert!(page_url("https://wellfound.com/jobs", 1, Region::Europe).is_err());
+    }
+
+    #[test]
+    fn test_page_url_rejects_unfiltered_or_wrong_region() {
+        // /role/r/ remote listing has no region filter
+        assert!(
+            page_url(
+                "https://wellfound.com/role/r/software-engineer",
+                1,
+                Region::Europe
+            )
+            .is_err()
+        );
+        // region slug must match configured region
+        assert!(
+            page_url(
+                "https://wellfound.com/role/l/software-engineer/asia",
+                1,
+                Region::Europe
+            )
+            .is_err()
+        );
+        assert!(
+            page_url(
+                "https://wellfound.com/role/l/software-engineer/asia",
+                1,
+                Region::Asia
+            )
+            .is_ok()
+        );
     }
 
     // Recorded from a live /role/r/software-engineer page (Keeper listing).

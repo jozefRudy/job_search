@@ -8,5 +8,6 @@ pub mod extractors;
 pub mod language;
 pub mod models;
 pub mod platforms;
+pub mod region;
 pub mod server;
 pub mod term;
