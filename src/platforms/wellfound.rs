@@ -66,6 +66,13 @@ pub fn page_url(url: &str, page: u32, region: Region) -> Result<String> {
         bail!("Wellfound URL must be on wellfound.com");
     }
     let segments: Vec<&str> = parsed.path().trim_matches('/').split('/').collect();
+    if let ["role", "r", ..] = segments[..] {
+        bail!(
+            "Wellfound /role/r/ listing has no region filter; use \
+             https://wellfound.com/role/l/software-engineer/{}",
+            wf_location_slug(region)
+        );
+    }
     let ["role", "l", _role, slug] = segments[..] else {
         bail!(
             "Wellfound URL must filter by configured region, e.g. \
@@ -380,14 +387,13 @@ mod tests {
     #[test]
     fn test_page_url_rejects_unfiltered_or_wrong_region() {
         // /role/r/ remote listing has no region filter
-        assert!(
-            page_url(
-                "https://wellfound.com/role/r/software-engineer",
-                1,
-                Region::Europe
-            )
-            .is_err()
-        );
+        let err = page_url(
+            "https://wellfound.com/role/r/software-engineer",
+            1,
+            Region::Europe,
+        )
+        .expect_err("remote listing must be rejected");
+        assert!(err.to_string().contains("/role/r/"), "{err}");
         // region slug must match configured region
         assert!(
             page_url(
