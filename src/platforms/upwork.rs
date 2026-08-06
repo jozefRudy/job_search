@@ -44,20 +44,20 @@ fn set_url_page_param(url: &str, page: u32) -> Result<String> {
 }
 
 /// Upwork canonical external id prefix.
-const UPWORK_ID_PREFIX: &str = "~02";
+pub const UPWORK_ID_PREFIX: &str = "~02";
 
 /// Normalize Upwork external id to `~02{digits}`.
+/// Observed live forms: bare digits (data-ev-job-uid attribute) and
+/// canonical `~02{digits}` (job URLs). Presence of `~` decides the form —
+/// digit sniffing can't distinguish a prefix from digits starting with 0.
 fn normalize_upwork_external_id(id: &str) -> String {
-    let digits = id
-        .trim()
-        .trim_start_matches(UPWORK_ID_PREFIX)
-        .trim_start_matches("02")
-        .trim_start_matches('~')
-        .trim();
-    if digits.is_empty() {
+    let id = id.trim();
+    if id.is_empty() {
         String::new()
-    } else {
+    } else if let Some(digits) = id.strip_prefix(UPWORK_ID_PREFIX) {
         format!("{UPWORK_ID_PREFIX}{digits}")
+    } else {
+        format!("{UPWORK_ID_PREFIX}{id}")
     }
 }
 
@@ -384,20 +384,18 @@ mod tests {
     #[test]
     fn test_normalize_upwork_external_id_variants() {
         assert_eq!(
-            normalize_upwork_external_id("2062803789757972368"),
-            "~022062803789757972368"
+            normalize_upwork_external_id("2085239459006632127"),
+            "~022085239459006632127"
         );
         assert_eq!(
-            normalize_upwork_external_id("~022062803789757972368"),
-            "~022062803789757972368"
+            normalize_upwork_external_id("~022085239459006632127"),
+            "~022085239459006632127"
         );
+        // digits starting with 0 must survive intact
+        assert_eq!(normalize_upwork_external_id("021234567"), "~02021234567");
         assert_eq!(
-            normalize_upwork_external_id("022062803789757972368"),
-            "~022062803789757972368"
-        );
-        assert_eq!(
-            normalize_upwork_external_id("  ~022062803789757972368  "),
-            "~022062803789757972368"
+            normalize_upwork_external_id("  ~022085239459006632127  "),
+            "~022085239459006632127"
         );
         assert_eq!(normalize_upwork_external_id(""), "");
     }

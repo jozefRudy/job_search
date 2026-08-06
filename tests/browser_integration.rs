@@ -3,7 +3,7 @@ use futures::FutureExt;
 use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS};
 use jobsearch::language::LanguageService;
 use jobsearch::platforms::linkedin::{LinkedInScraper, fetch_job_detail};
-use jobsearch::platforms::upwork::UpworkScraper;
+use jobsearch::platforms::upwork::{UPWORK_ID_PREFIX, UpworkScraper};
 use std::sync::LazyLock;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -105,11 +105,24 @@ async fn test_upwork_search_page_has_cards() {
         let first = &jobs[0];
         assert!(!first.external_id.is_empty(), "external_id required");
         assert!(!first.title.is_empty(), "title required");
-        assert!(
-            first.url.starts_with("https://www.upwork.com/"),
-            "url must be on upwork.com: {}",
-            first.url
-        );
+        // Live-form invariant: ids are canonical ~02{digits} and URLs are
+        // normalized shortlinks derived from them (slug/referrer stripped).
+        for job in &jobs {
+            let digits = job
+                .external_id
+                .strip_prefix(UPWORK_ID_PREFIX)
+                .unwrap_or_else(|| panic!("external_id must start with ~02: {}", job.external_id));
+            assert!(
+                !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()),
+                "external_id must be ~02<digits>: {}",
+                job.external_id
+            );
+            assert_eq!(
+                job.url,
+                format!("https://www.upwork.com/jobs/{}", job.external_id),
+                "url must be normalized shortlink"
+            );
+        }
         println!("found {} cards, first card:", jobs.len());
         println!(
             "{}",
