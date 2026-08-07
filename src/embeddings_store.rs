@@ -1,11 +1,12 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
 use arrow::array::{Float32Array, RecordBatch, RecordBatchIterator, as_primitive_array};
-use arrow::datatypes::{DataType, Field, Float32Type, Int64Type, Schema, TimeUnit};
+use arrow::datatypes::{DataType, Field, Int64Type, Schema, TimeUnit};
 use arrow_array::builder::{
-    FixedSizeListBuilder, Float32Builder, Int64Builder, TimestampMicrosecondBuilder,
+    FixedSizeListBuilder, Float32Builder, Int64Builder, StringBuilder, TimestampMicrosecondBuilder,
 };
 use chrono::Utc;
 use futures::TryStreamExt;
@@ -17,6 +18,9 @@ use lance::index::DatasetIndexExt;
 use lance::index::vector::VectorIndexParams;
 use lance_index::IndexType;
 use lance_index::optimize::OptimizeOptions;
+use lance_index::scalar::FullTextSearchQuery;
+use lance_index::scalar::inverted::InvertedIndexParams;
+use lance_index::scalar::inverted::query::{FtsQuery, MatchQuery, Operator};
 use lance_index::vector::{hnsw::builder::HnswBuildParams, ivf::IvfBuildParams, pq::PQBuildParams};
 use lance_linalg::distance::DistanceType;
 
@@ -26,6 +30,7 @@ use crate::models::Job;
 use tokio::sync::Mutex;
 
 pub const VECTOR_SEARCH_MAX_RESULTS: usize = 1000;
+const RRF_K: f32 = 60.0;
 
 pub struct SearchResult {
     pub total: usize,
@@ -73,6 +78,10 @@ impl EmbeddingsStore {
             Dataset::open(&uri).await?
         };
 
+        if dataset.schema().field("search_text").is_none() {
+            bail!("embeddings dataset has legacy schema; run `jobsearch embed --force`");
+        }
+
         Ok(Self {
             db,
             embedder,
@@ -86,16 +95,22 @@ impl EmbeddingsStore {
         &self.embedder
     }
 
-    pub async fn upsert_embedding(&self, job_id: i64, embedding: &[f32]) -> Result<()> {
-        self.upsert_batch(&[job_id], &[embedding.to_vec()]).await
+    pub async fn upsert_embedding(&self, job_id: i64, embedding: &[f32], text: &str) -> Result<()> {
+        self.upsert_batch(&[job_id], &[embedding.to_vec()], &[text.to_string()])
+            .await
     }
 
-    pub async fn upsert_batch(&self, job_ids: &[i64], embeddings: &[Vec<f32>]) -> Result<()> {
+    pub async fn upsert_batch(
+        &self,
+        job_ids: &[i64],
+        embeddings: &[Vec<f32>],
+        texts: &[String],
+    ) -> Result<()> {
         if job_ids.is_empty() {
             return Ok(());
         }
 
-        let batch = embeddings_to_batch(job_ids, embeddings, self.dim)?;
+        let batch = embeddings_to_batch(job_ids, embeddings, texts, self.dim)?;
         let schema = batch.schema();
         let reader = RecordBatchIterator::new(vec![Ok(batch)], schema);
         let stream = lance_datafusion::utils::reader_to_stream(Box::new(reader));
@@ -123,6 +138,7 @@ impl EmbeddingsStore {
 
     pub async fn search(
         &self,
+        query: &str,
         embedding: &[f32],
         candidate_ids: &[i64],
         limit: usize,
@@ -146,42 +162,53 @@ impl EmbeddingsStore {
             .map(ToString::to_string)
             .collect::<Vec<_>>()
             .join(", ");
+        let filter = format!("job_id IN ({id_list})");
 
-        let mut scanner = dataset.scan();
-        scanner.filter(&format!("job_id IN ({id_list})"))?;
-        scanner.prefilter(true);
-        let query_arr = Float32Array::from(embedding.to_vec());
-        scanner.nearest("embedding", &query_arr, VECTOR_SEARCH_MAX_RESULTS)?;
-        scanner.distance_metric(DistanceType::Cosine);
-        scanner.project(&["job_id", "_distance"])?;
+        let vector_ranked = self.vector_leg(&dataset, embedding, &filter).await?;
+        let fts_ranked = self.fts_leg(&dataset, query, &filter).await?;
+        let merged = rrf_merge(&vector_ranked, &fts_ranked);
 
-        let batches: Vec<RecordBatch> = scanner.try_into_stream().await?.try_collect().await?;
-        let mut results = Vec::new();
-        for batch in &batches {
-            let job_ids = as_primitive_array::<Int64Type>(
-                batch.column_by_name("job_id").context("job_id column")?,
-            );
-            let distances = as_primitive_array::<Float32Type>(
-                batch
-                    .column_by_name("_distance")
-                    .context("_distance column")?,
-            );
-            for i in 0..batch.num_rows() {
-                let id = job_ids.value(i);
-                let distance = distances.value(i);
-                let similarity = 1.0 - distance;
-                results.push((id, similarity));
-            }
-        }
-
-        let total = results.len();
-        let capped = total == VECTOR_SEARCH_MAX_RESULTS;
-        let items = results.into_iter().skip(offset).take(limit).collect();
+        let total = merged.len();
+        let capped = vector_ranked.len() == VECTOR_SEARCH_MAX_RESULTS
+            || fts_ranked.len() == VECTOR_SEARCH_MAX_RESULTS;
+        let items = merged.into_iter().skip(offset).take(limit).collect();
         Ok(SearchResult {
             total,
             capped,
             items,
         })
+    }
+
+    async fn vector_leg(
+        &self,
+        dataset: &Dataset,
+        embedding: &[f32],
+        filter: &str,
+    ) -> Result<Vec<i64>> {
+        let mut scanner = dataset.scan();
+        scanner.filter(filter)?;
+        scanner.prefilter(true);
+        let query_arr = Float32Array::from(embedding.to_vec());
+        scanner.nearest("embedding", &query_arr, VECTOR_SEARCH_MAX_RESULTS)?;
+        scanner.distance_metric(DistanceType::Cosine);
+        scanner.project(&["job_id"])?;
+        collect_ids(scanner).await
+    }
+
+    async fn fts_leg(&self, dataset: &Dataset, query: &str, filter: &str) -> Result<Vec<i64>> {
+        let mut scanner = dataset.scan();
+        scanner.filter(filter)?;
+        let fts_query: FtsQuery = MatchQuery::new(query.to_string())
+            .with_operator(Operator::Or)
+            .with_column(Some("search_text".into()))
+            .into();
+        scanner.full_text_search(FullTextSearchQuery::new_query(fts_query))?;
+        scanner.project(&["job_id"])?;
+        scanner.limit(
+            Some(i64::try_from(VECTOR_SEARCH_MAX_RESULTS).expect("fits in i64")),
+            None,
+        )?;
+        collect_ids(scanner).await
     }
 
     pub async fn maintenance(&self) -> Result<()> {
@@ -202,6 +229,19 @@ impl EmbeddingsStore {
                 .replace(true)
                 .await
                 .context("creating vector index")?;
+        }
+
+        if row_count > 0 && !indices.iter().any(|idx| idx.name == "search_text_idx") {
+            dataset
+                .create_index_builder(
+                    &["search_text"],
+                    IndexType::Inverted,
+                    &InvertedIndexParams::default(),
+                )
+                .name("search_text_idx".into())
+                .replace(true)
+                .await
+                .context("creating inverted index on search_text")?;
         }
 
         compact_files(&mut dataset, CompactionOptions::default(), None)
@@ -233,7 +273,7 @@ impl EmbeddingsStore {
             let owned_texts: Vec<String> = jobs.iter().map(Job::advert_text).collect();
             let embeddings = self.embedder.embed_batch_documents(&owned_texts).await?;
             let ids: Vec<i64> = jobs.iter().map(|job| job.id).collect();
-            self.upsert_batch(&ids, &embeddings).await?;
+            self.upsert_batch(&ids, &embeddings, &owned_texts).await?;
             total += ids.len();
             on_progress(total);
         }
@@ -274,6 +314,7 @@ fn arrow_schema(dim: usize) -> Schema {
             ),
             false,
         ),
+        Field::new("search_text", DataType::Utf8, false),
         Field::new(
             "created_at",
             DataType::Timestamp(TimeUnit::Microsecond, None),
@@ -285,10 +326,11 @@ fn arrow_schema(dim: usize) -> Schema {
 fn embeddings_to_batch(
     job_ids: &[i64],
     embeddings: &[Vec<f32>],
+    texts: &[String],
     dim: usize,
 ) -> Result<RecordBatch> {
-    if job_ids.len() != embeddings.len() {
-        bail!("job_ids and embeddings must have the same length");
+    if job_ids.len() != embeddings.len() || job_ids.len() != texts.len() {
+        bail!("job_ids, embeddings and texts must have the same length");
     }
 
     let mut id_builder = Int64Builder::new();
@@ -296,16 +338,18 @@ fn embeddings_to_batch(
         Float32Builder::new(),
         i32::try_from(dim).expect("embedding dimension fits in i32"),
     );
+    let mut text_builder = StringBuilder::new();
     let mut ts_builder = TimestampMicrosecondBuilder::new();
     let now = Utc::now().timestamp_micros();
 
-    for (id, emb) in job_ids.iter().zip(embeddings.iter()) {
+    for ((id, emb), text) in job_ids.iter().zip(embeddings.iter()).zip(texts.iter()) {
         if emb.len() != dim {
             bail!("expected embedding dimension {dim}, got {}", emb.len());
         }
         id_builder.append_value(*id);
         emb_builder.values().append_slice(emb);
         emb_builder.append(true);
+        text_builder.append_value(text);
         ts_builder.append_value(now);
     }
 
@@ -315,16 +359,92 @@ fn embeddings_to_batch(
         vec![
             Arc::new(id_builder.finish()),
             Arc::new(emb_builder.finish()),
+            Arc::new(text_builder.finish()),
             Arc::new(ts_builder.finish()),
         ],
     )?;
     Ok(batch)
 }
 
+async fn collect_ids(scanner: lance::dataset::scanner::Scanner) -> Result<Vec<i64>> {
+    let batches: Vec<RecordBatch> = scanner.try_into_stream().await?.try_collect().await?;
+    let mut ids = Vec::new();
+    for batch in &batches {
+        let arr = as_primitive_array::<Int64Type>(
+            batch.column_by_name("job_id").context("job_id column")?,
+        );
+        for i in 0..batch.num_rows() {
+            ids.push(arr.value(i));
+        }
+    }
+    Ok(ids)
+}
+
+fn rrf_merge(vector_ranked: &[i64], fts_ranked: &[i64]) -> Vec<(i64, f32)> {
+    let mut scores: HashMap<i64, f32> = HashMap::new();
+    for (rank, id) in vector_ranked.iter().enumerate() {
+        *scores.entry(*id).or_default() += 1.0 / (RRF_K + rank as f32 + 1.0);
+    }
+    for (rank, id) in fts_ranked.iter().enumerate() {
+        *scores.entry(*id).or_default() += 1.0 / (RRF_K + rank as f32 + 1.0);
+    }
+    let mut merged: Vec<(i64, f32)> = scores.into_iter().collect();
+    merged.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(&b.0)));
+    merged
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::embed::DEFAULT_EMBEDDING_MODEL;
+
+    #[test]
+    fn rrf_merge_unions_both_legs() {
+        let merged = rrf_merge(&[1, 2], &[3]);
+        let ids: Vec<i64> = merged.iter().map(|(id, _)| *id).collect();
+        assert_eq!(ids.len(), 3);
+        assert!(ids.contains(&1) && ids.contains(&2) && ids.contains(&3));
+    }
+
+    #[test]
+    fn rrf_merge_boosts_ids_present_in_both_legs() {
+        // id 2 is rank 1 in vector leg and rank 0 in fts leg;
+        // id 1 is rank 0 in vector leg only -> 2 must outrank 1
+        let merged = rrf_merge(&[1, 2], &[2]);
+        assert_eq!(merged[0].0, 2);
+        assert!(merged[0].1 > merged[1].1);
+    }
+
+    #[test]
+    fn rrf_merge_respects_rank_order_within_leg() {
+        let merged = rrf_merge(&[1, 2, 3], &[]);
+        let ids: Vec<i64> = merged.iter().map(|(id, _)| *id).collect();
+        assert_eq!(ids, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn rrf_merge_breaks_ties_by_id() {
+        let merged = rrf_merge(&[2, 1], &[1, 2]);
+        assert_eq!(merged[0].0, 1);
+        assert_eq!(merged[1].0, 2);
+        assert!((merged[0].1 - merged[1].1).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn rrf_merge_empty_legs() {
+        assert!(rrf_merge(&[], &[]).is_empty());
+        let merged = rrf_merge(&[], &[7]);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].0, 7);
+    }
+
+    #[test]
+    fn rrf_merge_scores_match_formula() {
+        let merged = rrf_merge(&[5], &[5]);
+        let expected = 1.0 / (RRF_K + 1.0) + 1.0 / (RRF_K + 1.0);
+        assert!((merged[0].1 - expected).abs() < 1e-7);
+    }
+
     const TEST_DIM: usize = 768;
     use crate::models::{
         Data, EfinancialcareersJobDetail, LinkedInJobDetail, NoFluffJobDetail, Platform, Rating,
@@ -393,7 +513,7 @@ mod tests {
         let (_tmp, _db, store) = test_store().await;
         let uri = store.dataset.lock().await.uri().to_string();
         let dataset = Dataset::open(&uri).await.unwrap();
-        assert_eq!(dataset.schema().fields.len(), 3);
+        assert_eq!(dataset.schema().fields.len(), 4);
     }
 
     #[tokio::test]
@@ -461,11 +581,18 @@ mod tests {
         let mut emb2 = vec![0.0f32; TEST_DIM];
         emb2[1] = 1.0;
         store
-            .upsert_batch(&[id1, id2], &[emb1, emb2])
+            .upsert_batch(
+                &[id1, id2],
+                &[emb1, emb2],
+                &["rust backend".to_string(), "python data".to_string()],
+            )
             .await
             .unwrap();
 
-        let result = store.search(&query, &[id1, id2], 10, 0).await.unwrap();
+        let result = store
+            .search("rust", &query, &[id1, id2], 10, 0)
+            .await
+            .unwrap();
         let ranked = result.items;
         assert_eq!(result.total, 2);
         assert_eq!(ranked.len(), 2);
@@ -497,11 +624,15 @@ mod tests {
         let mut emb2 = vec![0.0f32; TEST_DIM];
         emb2[1] = 1.0;
         store
-            .upsert_batch(&[id1, id2], &[emb1, emb2])
+            .upsert_batch(
+                &[id1, id2],
+                &[emb1, emb2],
+                &["rust backend".to_string(), "python data".to_string()],
+            )
             .await
             .unwrap();
 
-        let result = store.search(&query, &[id2], 10, 0).await.unwrap();
+        let result = store.search("rust", &query, &[id2], 10, 0).await.unwrap();
         let ranked = result.items;
         assert_eq!(result.total, 1);
         assert_eq!(ranked.len(), 1);
@@ -523,10 +654,11 @@ mod tests {
 
         let embedding = vec![1.0f32; TEST_DIM];
         let embeddings: Vec<Vec<f32>> = (0..30).map(|_| embedding.clone()).collect();
-        store.upsert_batch(&ids, &embeddings).await.unwrap();
+        let texts: Vec<String> = (0..30).map(|_| "same description".to_string()).collect();
+        store.upsert_batch(&ids, &embeddings, &texts).await.unwrap();
 
         let query = vec![1.0f32; TEST_DIM];
-        let result = store.search(&query, &ids, 10, 0).await.unwrap();
+        let result = store.search("zzz", &query, &ids, 10, 0).await.unwrap();
         assert_eq!(result.items.len(), 10);
         assert_eq!(
             result.total, 30,
@@ -545,12 +677,15 @@ mod tests {
 
         let mut emb1 = vec![0.0f32; TEST_DIM];
         emb1[0] = 1.0;
-        store.upsert_batch(&[id1], &[emb1]).await.unwrap();
+        store
+            .upsert_batch(&[id1], &[emb1], &["rust backend".to_string()])
+            .await
+            .unwrap();
 
         let mut query = vec![0.0f32; TEST_DIM];
         query[0] = 1.0;
         for i in 0..30 {
-            let result = store.search(&query, &[id1], 10, 0).await.unwrap();
+            let result = store.search("zzz", &query, &[id1], 10, 0).await.unwrap();
             let ranked = result.items;
             assert_eq!(result.total, 1, "search {i} should return one result");
             assert_eq!(ranked.len(), 1, "search {i} should return one result");
@@ -559,7 +694,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn search_similarity_is_cosine_similarity() {
+    async fn search_ranks_by_vector_similarity() {
         let (_tmp, db, store) = test_store().await;
         let id1 = db
             .upsert_job(&test_job(Platform::Upwork, "u1", "Rust backend developer"))
@@ -583,21 +718,71 @@ mod tests {
         let mut emb_orth = vec![0.0f32; TEST_DIM];
         emb_orth[1] = 1.0;
         store
-            .upsert_batch(&[id1, id2], &[emb_same, emb_orth])
+            .upsert_batch(
+                &[id1, id2],
+                &[emb_same, emb_orth],
+                &["rust backend".to_string(), "python data".to_string()],
+            )
             .await
             .unwrap();
 
-        let result = store.search(&query, &[id1, id2], 10, 0).await.unwrap();
+        // query term matches nothing in search_text: FTS leg empty, pure vector ranking
+        let result = store
+            .search("zzz", &query, &[id1, id2], 10, 0)
+            .await
+            .unwrap();
         assert_eq!(result.items.len(), 2);
+        assert_eq!(result.items[0].0, id1);
         assert!(
-            (result.items[0].1 - 1.0).abs() < 1e-6,
-            "identical direction should have similarity 1.0, got {}",
-            result.items[0].1
+            result.items[0].1 > result.items[1].1,
+            "same-direction vector should outrank orthogonal one"
         );
-        assert!(
-            result.items[1].1.abs() < 1e-6,
-            "orthogonal vector should have similarity 0.0, got {}",
-            result.items[1].1
+    }
+
+    #[tokio::test]
+    async fn hybrid_search_surfaces_exact_term_matches_missed_by_vector() {
+        let (_tmp, db, store) = test_store().await;
+        let id1 = db
+            .upsert_job(&test_job(Platform::Upwork, "u1", "Rust backend developer"))
+            .await
+            .unwrap()
+            .id();
+        let id2 = db
+            .upsert_job(&test_job(
+                Platform::NoFluffJobs,
+                "n2",
+                "Python data scientist",
+            ))
+            .await
+            .unwrap()
+            .id();
+
+        // vector search ranks id1 far above id2
+        let mut query = vec![0.0f32; TEST_DIM];
+        query[0] = 1.0;
+        let mut emb1 = vec![0.0f32; TEST_DIM];
+        emb1[0] = 1.0;
+        let mut emb2 = vec![0.0f32; TEST_DIM];
+        emb2[1] = 1.0;
+        store
+            .upsert_batch(
+                &[id1, id2],
+                &[emb1, emb2],
+                &[
+                    "generic description".to_string(),
+                    "deploy to kubernetes clusters".to_string(),
+                ],
+            )
+            .await
+            .unwrap();
+
+        let result = store
+            .search("kubernetes", &query, &[id1, id2], 10, 0)
+            .await
+            .unwrap();
+        assert_eq!(
+            result.items[0].0, id2,
+            "exact term match should be boosted to top via FTS leg"
         );
     }
 
@@ -609,29 +794,59 @@ mod tests {
             .await
             .unwrap()
             .id();
+        let id2 = db
+            .upsert_job(&test_job(
+                Platform::NoFluffJobs,
+                "n2",
+                "Python data scientist",
+            ))
+            .await
+            .unwrap()
+            .id();
 
         let mut first = vec![0.0f32; TEST_DIM];
         first[0] = 1.0;
-        store.upsert_batch(&[id1], &[first]).await.unwrap();
+        store
+            .upsert_batch(&[id1], &[first], &["first".to_string()])
+            .await
+            .unwrap();
+        let mut other = vec![0.0f32; TEST_DIM];
+        other[2] = 1.0;
+        store
+            .upsert_batch(&[id2], &[other], &["other".to_string()])
+            .await
+            .unwrap();
 
+        // overwrite id1 embedding to align with dimension 1 instead of 0
         let mut second = vec![0.0f32; TEST_DIM];
         second[1] = 1.0;
-        store.upsert_batch(&[id1], &[second]).await.unwrap();
+        store
+            .upsert_batch(&[id1], &[second], &["first".to_string()])
+            .await
+            .unwrap();
 
         let mut query = vec![0.0f32; TEST_DIM];
         query[1] = 1.0;
-        let result = store.search(&query, &[id1], 10, 0).await.unwrap();
-        assert_eq!(result.total, 1);
-        assert_eq!(result.items.len(), 1);
+        let result = store
+            .search("zzz", &query, &[id1, id2], 10, 0)
+            .await
+            .unwrap();
+        assert_eq!(result.total, 2);
+        assert_eq!(
+            result.items[0].0, id1,
+            "overwritten embedding should rank id1 first for query[1]"
+        );
 
         let mut wrong_query = vec![0.0f32; TEST_DIM];
-        wrong_query[0] = 1.0;
-        let wrong_result = store.search(&wrong_query, &[id1], 10, 0).await.unwrap();
-        assert_eq!(wrong_result.total, 1);
-        assert_eq!(wrong_result.items.len(), 1);
-        assert!(
-            wrong_result.items[0].1 < result.items[0].1,
-            "second embedding should score higher for query[1]"
+        wrong_query[2] = 1.0;
+        let wrong_result = store
+            .search("zzz", &wrong_query, &[id1, id2], 10, 0)
+            .await
+            .unwrap();
+        assert_eq!(wrong_result.total, 2);
+        assert_eq!(
+            wrong_result.items[0].0, id2,
+            "old embedding should be gone: id1 must not rank first for query[2]"
         );
     }
 }
