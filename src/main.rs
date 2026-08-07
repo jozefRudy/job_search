@@ -396,6 +396,7 @@ async fn cmd_list(
         let query_embedding = store.embedder().embed_query(&query).await?;
         let result = store
             .search(
+                &query,
                 &query_embedding,
                 &candidate_ids,
                 VECTOR_SEARCH_MAX_RESULTS,

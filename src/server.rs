@@ -136,6 +136,7 @@ async fn list_jobs(
         let result = state
             .embeddings
             .search(
+                query_text,
                 &query_embedding,
                 &candidate_ids,
                 search_limit,
