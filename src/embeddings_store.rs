@@ -166,7 +166,8 @@ impl EmbeddingsStore {
 
         let vector_ranked = self.vector_leg(&dataset, embedding, &filter).await?;
         let fts_ranked = self.fts_leg(&dataset, query, &filter).await?;
-        let merged = rrf_merge(&vector_ranked, &fts_ranked);
+        let mut merged = rrf_merge(&vector_ranked, &fts_ranked);
+        merged.truncate(VECTOR_SEARCH_MAX_RESULTS);
 
         let total = merged.len();
         let capped = vector_ranked.len() == VECTOR_SEARCH_MAX_RESULTS
@@ -397,6 +398,17 @@ fn rrf_merge(vector_ranked: &[i64], fts_ranked: &[i64]) -> Vec<(i64, f32)> {
 mod tests {
     use super::*;
     use crate::embed::DEFAULT_EMBEDDING_MODEL;
+
+    #[test]
+    fn rrf_merge_disjoint_max_legs_truncated_to_max() {
+        let max = i64::try_from(VECTOR_SEARCH_MAX_RESULTS).expect("fits in i64");
+        let vector_leg: Vec<i64> = (0..max).collect();
+        let fts_leg: Vec<i64> = (max..2 * max).collect();
+        let mut merged = rrf_merge(&vector_leg, &fts_leg);
+        assert_eq!(merged.len(), 2 * VECTOR_SEARCH_MAX_RESULTS);
+        merged.truncate(VECTOR_SEARCH_MAX_RESULTS);
+        assert_eq!(merged.len(), VECTOR_SEARCH_MAX_RESULTS);
+    }
 
     #[test]
     fn rrf_merge_unions_both_legs() {
