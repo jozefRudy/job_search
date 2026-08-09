@@ -18,7 +18,10 @@ below) visible before any scraping code exists.
    - `fetch_with_browser(&Browser, &Db, url, pause_ms) -> Result<FetchState>`.
    - Pure mapping fn `hit_to_job` (or equivalent) — unit-testable without browser.
 3. **Raw + detail types** — `Raw<Name>Job` (deserialized from page/JSON) and
-   `<Name>JobDetail` stored in `Data::<Name> { detail }` (models.rs).
+   `<Name>JobDetail` stored in `Data::<Name> { detail }` (models.rs). New
+   `Data::` variant = exhaustive match arms in several places (`company()`,
+   searchable-text, `db.rs`, `embeddings_store.rs`). Compiler finds them,
+   but `grep "Data::Reddit"`-style sites proactively to be sure.
 4. **Wiring** — `src/main.rs`: provider subcommand match arm that builds the
    client from `Settings` and bails with `no URLs configured for <name> in
    jobsearch.toml` when empty.
@@ -26,7 +29,16 @@ below) visible before any scraping code exists.
    `jobsearch.toml`.
 6. **Tests** — unit tests on recorded fixtures (no live network); browser
    integration tests as `#[ignore]`, run via `cargo test -- --include-ignored`.
-7. **Validation** — `cargo build && cargo clippy --all-targets && cargo test && cargo fmt`.
+   Write the integration test early and run it against a live session
+   *before* finalizing field types — live data surfaces things fixtures
+   can't (e.g. Algolia hits with explicit `min_experience: null`).
+7. **Frontend** — run `regen-api` after the `Platform` enum change, then add
+   the label + sort map entry in `JobList.tsx` and a detail card in
+   `JobDetail.tsx`.
+8. **README** — add provider link entry.
+9. **Validation** — `cargo build && cargo clippy --all-targets && cargo test
+   && cargo fmt`; frontend `pnpm typecheck && pnpm check && pnpm test run &&
+   pnpm build`.
 
 ## Caveats learned the hard way
 
@@ -49,6 +61,19 @@ below) visible before any scraping code exists.
 Use `wait_for_with_challenge_recovery` (Cloudflare etc.) instead of plain
 waits on protected sites (linkedin, upwork) — challenges appear
 unpredictably and must be waited out, not treated as failure.
+
+### Nullable JSON fields
+
+`#[serde(default)]` does NOT cover explicit JSON `null` — use `Option<T>`
+for any field that can be null, and keep `Option` end-to-end. Don't "fix at
+boundary" with `unwrap_or(0)`: that conflates "new grads ok" with "unknown".
+
+### Pagination
+
+- Verify the pagination mechanism from the captured response, not from URL
+  params guess (cursor-based vs page param — don't assume).
+- No early-stop heuristics when full scan is cheap (hits complete, upsert
+  idempotent). Simpler = more robust.
 
 ### Identity for dedup
 
