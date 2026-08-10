@@ -377,7 +377,11 @@ async fn fetch_and_store(
             eprintln!("    {}", state.summary());
         }
         Err(e) => {
-            eprintln!("    Error from {}: {}", client.name(), e);
+            eprintln!(
+                "    {}: {}",
+                format!("Error from {}", client.name()).red(),
+                e
+            );
         }
     }
     Ok(())
