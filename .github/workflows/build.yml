@@ -54,11 +54,13 @@ jobs:
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             onnx: linux-x64
+            protoc: linux-x86_64
             rpath: '$ORIGIN/../lib'
           - build: aarch64-macos
             os: macos-latest
             target: aarch64-apple-darwin
             onnx: osx-arm64
+            protoc: osx-aarch_64
             rpath: '@loader_path/../lib'
 
     steps:
@@ -69,10 +71,13 @@ jobs:
         run: rustup default stable
 
       - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: '27.3'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLo protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v27.3/protoc-27.3-${{ matrix.protoc }}.zip"
+          unzip -o protoc.zip -d "$RUNNER_TEMP/protoc"
+          echo "$RUNNER_TEMP/protoc/bin" >> "$GITHUB_PATH"
+          rm protoc.zip
 
       - uses: Swatinem/rust-cache@v2
 
