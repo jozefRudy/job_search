@@ -381,16 +381,6 @@ export function JobList() {
             <option value="31">Last 31 days</option>
           </select>
 
-          <input
-            ref={(el) => {
-              el.value = search();
-            }}
-            type="text"
-            class="input input-sm"
-            placeholder="Search..."
-            onInput={handleSearchInput}
-          />
-
           <select
             class="select select-sm"
             value={sortBy()}
@@ -407,6 +397,16 @@ export function JobList() {
               )
             )}
           </select>
+
+          <input
+            ref={(el) => {
+              el.value = search();
+            }}
+            type="text"
+            class="input input-sm"
+            placeholder="Search..."
+            onInput={handleSearchInput}
+          />
         </Row>
 
         <Stack gap="md">
