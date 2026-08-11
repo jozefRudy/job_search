@@ -36,7 +36,7 @@ const JS_URL_PLACEHOLDER: &str = "__VOYAGER_URL__";
 const JOB_CONFIG_PLACEHOLDER: &str = "__JOB_CONFIG__";
 
 const PAGE_SIZE: usize = 100;
-const JOB_CARD_PRESENT_JS: &str = "!!document.querySelector('[data-job-id]')";
+const JOB_CARD_PRESENT_JS: &str = "!!document.querySelector('a[href*=\"currentJobId=\"], [data-job-id], a[href*=\"/jobs/view/\"]')";
 
 const DEFAULT_GEO_ID: &str = "92000000";
 const DEFAULT_INDUSTRY_ID: &str = "4";
