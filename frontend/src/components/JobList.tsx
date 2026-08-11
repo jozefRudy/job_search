@@ -26,6 +26,8 @@ const PAGE_SIZE = 20;
 
 type BoolFilter = "true" | "false" | "any";
 
+type RecencyFilter = "1" | "7" | "31" | "any";
+
 const PLATFORM_SORTS: Record<
   Platform | "any",
   ReadonlyArray<{ value: Sort; label: string }>
@@ -94,6 +96,8 @@ const RATINGS: ReadonlyArray<WithAny<Rating>> = [
 
 const BOOL_FILTERS: ReadonlyArray<BoolFilter> = ["any", "true", "false"];
 
+const RECENCY_FILTERS: ReadonlyArray<RecencyFilter> = ["any", "1", "7", "31"];
+
 const enumSchema = <T extends string>(
   values: ReadonlyArray<WithAny<T>>,
   fallback: WithAny<T>,
@@ -116,6 +120,8 @@ export function JobList() {
     enumSchema(BOOL_FILTERS, "any").parse(searchParams.applied);
   const remote = (): BoolFilter =>
     enumSchema(BOOL_FILTERS, "any").parse(searchParams.remote);
+  const recency = (): RecencyFilter =>
+    enumSchema(RECENCY_FILTERS, "any").parse(searchParams.recency);
 
   const search = (): string => {
     const s = searchParams.search;
@@ -171,6 +177,7 @@ export function JobList() {
         rating: rating() === "any" ? null : rating(),
         applied: applied() === "any" ? null : applied() === "true",
         remote: remote() === "any" ? null : remote() === "true",
+        recency: recency() === "any" ? null : Number(recency()),
         search: search() || undefined,
       },
       isNotNil,
@@ -361,6 +368,17 @@ export function JobList() {
             <option value="any">Remote: any</option>
             <option value="true">Remote</option>
             <option value="false">Not remote</option>
+          </select>
+
+          <select
+            class="select select-sm"
+            value={recency()}
+            onChange={(e) => updateSearch({ recency: e.currentTarget.value })}
+          >
+            <option value="any">Recency: any</option>
+            <option value="1">Today</option>
+            <option value="7">Last 7 days</option>
+            <option value="31">Last 31 days</option>
           </select>
 
           <input

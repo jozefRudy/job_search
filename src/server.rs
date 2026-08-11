@@ -107,6 +107,7 @@ async fn list_jobs(
         rating: query.rating,
         applied: query.applied,
         remote: query.remote,
+        recency: query.recency,
     };
 
     let search = query.search.as_deref().filter(|s| !s.is_empty());

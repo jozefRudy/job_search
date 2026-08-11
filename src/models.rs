@@ -416,6 +416,8 @@ pub struct ListQuery {
     pub rating: Option<Rating>,
     pub applied: Option<bool>,
     pub remote: Option<bool>,
+    /// Only jobs created within the last N days.
+    pub recency: Option<u32>,
     pub search: Option<String>,
     #[serde(default)]
     pub sort_by: Sort,
@@ -526,31 +528,6 @@ pub struct ApplyRequest {
     pub applied: bool,
 }
 
-/// Parsed recency like "1d" or "4w". Stores days.
-#[derive(Debug, Clone)]
-pub struct Recency(pub i64);
-
-impl std::str::FromStr for Recency {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.trim();
-        if s.len() < 2 {
-            anyhow::bail!("recency must be like 1d or 4w, got '{s}'");
-        }
-        let (num, unit) = s.split_at(s.len() - 1);
-        let n: i64 = num
-            .parse()
-            .map_err(|_| anyhow::anyhow!("invalid recency number '{num}'"))?;
-        let days = match unit {
-            "d" => n,
-            "w" => n * 7,
-            _ => anyhow::bail!("recency unit must be 'd' or 'w', got '{unit}'"),
-        };
-        Ok(Recency(days))
-    }
-}
-
 /// Filter criteria for job lists.
 #[derive(Debug, Clone, Default)]
 pub struct JobFilter {
@@ -558,6 +535,8 @@ pub struct JobFilter {
     pub applied: Option<bool>,
     pub rating: Option<Rating>,
     pub remote: Option<bool>,
+    /// Only jobs created within the last N days.
+    pub recency: Option<u32>,
 }
 
 /// Parsed budget value with consistent formatting.

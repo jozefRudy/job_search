@@ -264,6 +264,7 @@ async fn list_common(
         applied: common.applied,
         rating: common.rating,
         remote: common.remote,
+        recency: common.recency,
     };
     let sort = match sort_by {
         CommonSortBy::Created => Sort::Created,
@@ -285,6 +286,7 @@ async fn cmd_list_with_target(
                 applied: args.common.applied,
                 rating: args.common.rating,
                 remote: args.common.remote,
+                recency: args.common.recency,
             };
             let sort = match args.sort {
                 UpworkSortBy::Created => Sort::Created,

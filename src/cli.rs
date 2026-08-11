@@ -101,6 +101,10 @@ pub struct CommonListArgs {
     #[arg(long)]
     pub remote: Option<bool>,
 
+    /// Only include jobs created within the last N days.
+    #[arg(long)]
+    pub recency: Option<u32>,
+
     /// Search jobs by semantic query text.
     #[arg(long)]
     pub search: Option<String>,

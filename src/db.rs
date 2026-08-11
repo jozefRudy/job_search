@@ -189,11 +189,13 @@ impl Db {
               AND (?2 IS NULL OR j.rating = ?2)
               AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
+              AND (?5 IS NULL OR j.created_at >= datetime('now', '-' || ?5 || ' days'))
             "#,
             filter.platform,
             filter.rating,
             filter.applied,
             filter.remote,
+            filter.recency,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -209,7 +211,8 @@ impl Db {
               AND (?2 IS NULL OR j.rating = ?2)
               AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
-            ORDER BY {order_by} LIMIT ?5 OFFSET ?6
+              AND (?5 IS NULL OR j.created_at >= datetime('now', '-' || ?5 || ' days'))
+            ORDER BY {order_by} LIMIT ?6 OFFSET ?7
             "
         );
         let rows = sqlx::query_as::<_, JobRow>(&sql)
@@ -217,6 +220,7 @@ impl Db {
             .bind(filter.rating)
             .bind(filter.applied)
             .bind(filter.remote)
+            .bind(filter.recency)
             .bind(limit)
             .bind(offset)
             .fetch_all(&self.pool)
@@ -542,12 +546,14 @@ impl Db {
               AND (?3 IS NULL OR IIF(r.applied_at IS NOT NULL, 1, 0) = ?3)
               AND (?4 IS NULL OR j.remote = ?4)
               AND j.vectorized = TRUE
+              AND (?5 IS NULL OR j.created_at >= datetime('now', '-' || ?5 || ' days'))
             ORDER BY j.id
             "#,
             filter.platform,
             filter.rating,
             filter.applied,
             filter.remote,
+            filter.recency,
         )
         .fetch_all(&self.pool)
         .await?;
@@ -1020,6 +1026,53 @@ mod tests {
             .has_similar_hackernews_post("Acme", "Senior Rust Engineer", outside_cutoff)
             .await?;
         assert!(!outside, "post before cutoff is not a duplicate");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_jobs_filtered_recency() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let fresh = test_job(Platform::Upwork, "fresh", "Fresh");
+        let mut old = test_job(Platform::Upwork, "old", "Old");
+        old.created_at = chrono::Utc::now() - chrono::Duration::days(40);
+        let _ = db.upsert_job(&fresh).await?;
+        let _ = db.upsert_job(&old).await?;
+
+        let last_7 = db
+            .filter_jobs_paginated(
+                &JobFilter {
+                    recency: Some(7),
+                    ..Default::default()
+                },
+                Sort::Created,
+                10,
+                0,
+            )
+            .await?;
+        assert_eq!(last_7.items.len(), 1);
+        assert_eq!(last_7.items[0].title, "Fresh");
+        assert_eq!(last_7.total, 1);
+
+        let last_31 = db
+            .filter_jobs_paginated(
+                &JobFilter {
+                    recency: Some(31),
+                    ..Default::default()
+                },
+                Sort::Created,
+                10,
+                0,
+            )
+            .await?;
+        assert_eq!(last_31.items.len(), 1);
+
+        let none = db
+            .filter_jobs_paginated(&JobFilter::default(), Sort::Created, 10, 0)
+            .await?;
+        assert_eq!(none.items.len(), 2);
 
         Ok(())
     }
