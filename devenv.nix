@@ -5,7 +5,7 @@
   inputs,
   ...
 }: {
-  packages = [pkgs.git pkgs.sqlx-cli];
+  packages = [pkgs.git pkgs.sqlx-cli pkgs.actionlint pkgs.shellcheck];
   env = {
     JOBSEARCH_BROWSER_BIN = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
     JOBSEARCH_LLM_BIN = "pi --print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-v4-flash";
@@ -74,6 +74,9 @@
     '';
     test-integration.exec = ''
       cargo test -- --include-ignored
+    '';
+    lint-workflows.exec = ''
+      actionlint
     '';
     regen-api.exec = ''
       cargo run -- serve &

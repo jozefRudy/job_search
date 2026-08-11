@@ -1,0 +1,135 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  ONNX_VERSION: 1.24.2
+
+jobs:
+  version:
+    name: Check version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Check Cargo version against latest release
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n1)
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          if gh release view "v${version}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  dist:
+    name: Dist
+    needs: [version]
+    if: needs.version.outputs.release == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build: x86_64-linux
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            onnx: linux-x64
+            rpath: '$ORIGIN/../lib'
+          - build: aarch64-macos
+            os: macos-latest
+            target: aarch64-apple-darwin
+            onnx: osx-arm64
+            rpath: '@loader_path/../lib'
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        run: rustup default stable
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '27.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Download ONNX Runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fLo onnxruntime.tgz \
+            "https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-${{ matrix.onnx }}-${ONNX_VERSION}.tgz"
+          mkdir -p onnxruntime
+          tar xzf onnxruntime.tgz -C onnxruntime --strip-components 1
+          rm onnxruntime.tgz
+
+      - name: Build release binary
+        shell: bash
+        env:
+          SQLX_OFFLINE: "true"
+          ORT_PREFER_DYNAMIC_LINK: "1"
+          ORT_LIB_PATH: ${{ github.workspace }}/onnxruntime/lib
+          RUSTFLAGS: -Clink-arg=-Wl,-rpath,${{ matrix.rpath }}
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Stage dist
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="jobsearch-v${{ needs.version.outputs.version }}-${{ matrix.build }}"
+          mkdir -p "dist/${name}/bin"
+          cp "target/${{ matrix.target }}/release/jobsearch" "dist/${name}/bin/"
+          cp -RL onnxruntime/lib "dist/${name}/lib"
+
+      - name: Create tarball
+        shell: bash
+        run: tar czf "jobsearch-v${{ needs.version.outputs.version }}-${{ matrix.build }}.tar.gz" -C dist "jobsearch-v${{ needs.version.outputs.version }}-${{ matrix.build }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bins-${{ matrix.build }}
+          path: jobsearch-v${{ needs.version.outputs.version }}-${{ matrix.build }}.tar.gz
+          if-no-files-found: error
