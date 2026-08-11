@@ -225,7 +225,7 @@ async fn cmd_update(
                 db,
                 browser,
                 &scraper,
-                "https://www.reddit.com/r/rust",
+                "https://www.reddit.com",
                 settings.pause_ms,
             )
             .await?;
