@@ -20,6 +20,8 @@ pub const DEFAULT_INIT_URLS: &[&str] = &[
     "https://www.efinancialcareers.com",
     "https://www.linkedin.com/",
     "https://www.reddit.com/",
+    "https://wellfound.com/jobs",
+    "https://www.workatastartup.com/jobs",
 ];
 
 pub const REQUIRED_HOSTS: &[&str] = &[
@@ -28,6 +30,8 @@ pub const REQUIRED_HOSTS: &[&str] = &[
     "efinancialcareers.com",
     "linkedin.com",
     "reddit.com",
+    "wellfound.com",
+    "workatastartup.com",
 ];
 
 /// Open the given URLs in background tabs for any host that is not already open.
