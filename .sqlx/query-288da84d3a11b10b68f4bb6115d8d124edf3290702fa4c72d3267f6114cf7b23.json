@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO jobs (platform, external_id, title, url, budget, tags, raw, created_at, remote, content_hash, vectorized)\n            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, FALSE)\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "288da84d3a11b10b68f4bb6115d8d124edf3290702fa4c72d3267f6114cf7b23"
+}

@@ -8,7 +8,7 @@ use crate::browser::BrowserExt;
 use crate::db::{Db, UpsertResult};
 use crate::extractors::llm::LlmExtractor;
 use crate::extractors::llm_reddit::RustFields;
-use crate::models::{Data, Job, Platform, Rating, RedditJobDetail};
+use crate::models::{Data, NewJob, Platform, RedditJobDetail};
 use crate::platforms::{FetchState, PlatformClient, truncate_with_ellipsis};
 use crate::term::CursorGuard;
 use anyhow::{Context, Result, bail};
@@ -229,7 +229,7 @@ impl RedditScraper {
     /// LLM extract; !is_job_ad => None; fill remote/budget/tags/company/role/
     /// location; title = role or truncated first line (200 chars);
     /// url = https://www.reddit.com{permalink}.
-    async fn build_job(&self, source: &Source, candidate: &Candidate) -> Result<Option<Job>> {
+    async fn build_job(&self, source: &Source, candidate: &Candidate) -> Result<Option<NewJob>> {
         let fields = self.rust_extractor.extract(&candidate.body).await?;
         if !fields.is_job_ad {
             return Ok(None);
@@ -245,8 +245,7 @@ impl RedditScraper {
         let posted_at =
             DateTime::from_timestamp(candidate.created_utc as i64, 0).unwrap_or_else(Utc::now);
 
-        Ok(Some(Job {
-            id: 0,
+        Ok(Some(NewJob {
             platform: Platform::Reddit,
             external_id: candidate.external_id.clone(),
             title,
@@ -267,10 +266,6 @@ impl RedditScraper {
             },
             company,
             created_at: posted_at,
-            updated_at: Utc::now(),
-            note: None,
-            rating: Rating::Neutral,
-            applied_at: None,
             remote: fields.remote.unwrap_or(false),
         }))
     }

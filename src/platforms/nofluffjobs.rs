@@ -2,7 +2,7 @@ use super::html;
 use crate::browser::{BrowserExt, host_of, wait_for, wait_for_element};
 use crate::db::{Db, UpsertResult};
 use crate::language::LanguageService;
-use crate::models::{Data, Job, NoFluffJobDetail, Platform, Rating, classify_language};
+use crate::models::{Data, NewJob, NoFluffJobDetail, Platform, classify_language};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
@@ -323,8 +323,7 @@ impl NoFluffJobsScraper {
                         crate::extractors::budget::parse_nofluff_budget(b).map(|b| b.to_string())
                     }
                 });
-                let job = Job {
-                    id: 0,
+                let job = NewJob {
                     platform,
                     external_id: card.external_id.clone(),
                     title: card.title.clone(),
@@ -334,10 +333,6 @@ impl NoFluffJobsScraper {
                     raw: Data::Nofluffjobs { detail },
                     company: None,
                     created_at: posted,
-                    updated_at: chrono::Utc::now(),
-                    rating: Rating::Neutral,
-                    note: None,
-                    applied_at: None,
                     remote: true,
                 };
                 let is_english = classify_language(&self.lang, &job).await?;

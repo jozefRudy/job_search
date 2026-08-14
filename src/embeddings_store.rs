@@ -459,11 +459,11 @@ mod tests {
 
     const TEST_DIM: usize = 768;
     use crate::models::{
-        Data, EfinancialcareersJobDetail, LinkedInJobDetail, NoFluffJobDetail, Platform, Rating,
+        Data, EfinancialcareersJobDetail, LinkedInJobDetail, NewJob, NoFluffJobDetail, Platform,
         UpworkJobDetail,
     };
 
-    fn test_job(platform: Platform, external_id: &str, title: &str) -> Job {
+    fn test_job(platform: Platform, external_id: &str, title: &str) -> NewJob {
         let raw = match platform {
             Platform::Upwork => Data::Upwork {
                 detail: UpworkJobDetail::default(),
@@ -490,8 +490,7 @@ mod tests {
                 detail: crate::models::WellfoundJobDetail::default(),
             },
         };
-        Job {
-            id: 0,
+        NewJob {
             platform,
             external_id: external_id.to_string(),
             title: title.to_string(),
@@ -501,10 +500,6 @@ mod tests {
             raw,
             company: None,
             created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            rating: Rating::Neutral,
-            note: None,
-            applied_at: None,
             remote: true,
         }
     }

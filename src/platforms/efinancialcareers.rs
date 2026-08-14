@@ -2,7 +2,7 @@ use super::html;
 use crate::browser::{BrowserExt, host_of};
 use crate::db::{Db, UpsertResult};
 use crate::language::LanguageService;
-use crate::models::{Data, EfinancialcareersJobDetail, Job, Platform, Rating, classify_language};
+use crate::models::{Data, EfinancialcareersJobDetail, NewJob, Platform, classify_language};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
@@ -261,7 +261,7 @@ impl EfinancialcareersScraper {
         &self,
         card: &EfinancialcareersJobCard,
         detail: EfinancialcareersJobDetail,
-    ) -> Result<Option<Job>> {
+    ) -> Result<Option<NewJob>> {
         let created_at = detail.posted_at;
         let salary = if detail.salary.is_empty() {
             card.salary.clone()
@@ -274,8 +274,7 @@ impl EfinancialcareersScraper {
 
         let remote = Self::is_remote(&detail);
 
-        let job = Job {
-            id: 0,
+        let job = NewJob {
             platform: Platform::Efinancialcareers,
             external_id: card.external_id.clone(),
             title: card.title.clone(),
@@ -290,10 +289,6 @@ impl EfinancialcareersScraper {
             },
             company: None,
             created_at,
-            updated_at: Utc::now(),
-            rating: Rating::Neutral,
-            note: None,
-            applied_at: None,
             remote,
         };
         let is_english = classify_language(&self.lang, &job).await?;

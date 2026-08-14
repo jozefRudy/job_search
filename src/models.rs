@@ -427,6 +427,23 @@ pub struct ListQuery {
     pub page_size: usize,
 }
 
+/// Job as produced by platform fetchers, before persistence.
+/// Has no `rating`/`note`/`applied_at` — user state lives in the DB and is
+/// never overwritten by re-fetching.
+#[derive(Debug, Clone)]
+pub struct NewJob {
+    pub platform: Platform,
+    pub external_id: String,
+    pub title: String,
+    pub url: String,
+    pub budget: Option<String>,
+    pub tags: Vec<String>,
+    pub raw: Data,
+    pub company: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub remote: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Job {
     pub id: i64,
@@ -446,53 +463,58 @@ pub struct Job {
     pub remote: bool,
 }
 
-impl Job {
-    /// Single text blob from all available advert text for language detection and embedding.
+/// Single text blob from all available advert text for language detection and embedding.
+#[must_use]
+pub fn advert_text(title: &str, raw: &Data) -> String {
+    let mut text = String::new();
+    let mut seen = HashSet::new();
+    let mut append = |s: &str| {
+        if !s.is_empty() && !seen.contains(s) {
+            if !text.is_empty() {
+                text.push(' ');
+            }
+            text.push_str(s);
+            seen.insert(s.to_string());
+        }
+    };
+    append(title);
+    match raw {
+        Data::Upwork { detail } => {
+            append(&detail.description);
+        }
+        Data::Nofluffjobs { detail } => {
+            append(&detail.description);
+            append(&detail.requirements);
+            append(&detail.must_have.join(", "));
+            append(&detail.nice_to_have);
+        }
+        Data::Efinancialcareers { detail } => {
+            append(&detail.description);
+        }
+        Data::Hackernews { detail } => {
+            append(&detail.description);
+        }
+        Data::LinkedIn { detail } => {
+            append(&detail.description);
+        }
+        Data::Workatastartup { detail } => {
+            append(&detail.description);
+            append(&detail.skills.join(", "));
+        }
+        Data::Reddit { detail } => {
+            append(&detail.description);
+        }
+        Data::Wellfound { detail } => {
+            append(&detail.description);
+        }
+    }
+    text
+}
+
+impl NewJob {
     #[must_use]
     pub fn advert_text(&self) -> String {
-        let mut text = String::new();
-        let mut seen = HashSet::new();
-        let mut append = |s: &str| {
-            if !s.is_empty() && !seen.contains(s) {
-                if !text.is_empty() {
-                    text.push(' ');
-                }
-                text.push_str(s);
-                seen.insert(s.to_string());
-            }
-        };
-        append(&self.title);
-        match &self.raw {
-            Data::Upwork { detail } => {
-                append(&detail.description);
-            }
-            Data::Nofluffjobs { detail } => {
-                append(&detail.description);
-                append(&detail.requirements);
-                append(&detail.must_have.join(", "));
-                append(&detail.nice_to_have);
-            }
-            Data::Efinancialcareers { detail } => {
-                append(&detail.description);
-            }
-            Data::Hackernews { detail } => {
-                append(&detail.description);
-            }
-            Data::LinkedIn { detail } => {
-                append(&detail.description);
-            }
-            Data::Workatastartup { detail } => {
-                append(&detail.description);
-                append(&detail.skills.join(", "));
-            }
-            Data::Reddit { detail } => {
-                append(&detail.description);
-            }
-            Data::Wellfound { detail } => {
-                append(&detail.description);
-            }
-        }
-        text
+        advert_text(&self.title, &self.raw)
     }
 
     /// Returns true if the job has textual detail beyond the title, making it
@@ -506,8 +528,15 @@ impl Job {
     }
 }
 
+impl Job {
+    #[must_use]
+    pub fn advert_text(&self) -> String {
+        advert_text(&self.title, &self.raw)
+    }
+}
+
 /// Detect whether a job advert is English.
-pub async fn classify_language(svc: &LanguageService, job: &Job) -> Result<bool> {
+pub async fn classify_language(svc: &LanguageService, job: &NewJob) -> Result<bool> {
     svc.detect(&job.advert_text()).await
 }
 
@@ -976,8 +1005,7 @@ mod tests {
                 ..Default::default()
             },
         };
-        let job = Job {
-            id: 0,
+        let job = NewJob {
             platform: Platform::Upwork,
             external_id: "ext".to_string(),
             title: "Rust Developer".to_string(),
@@ -987,10 +1015,6 @@ mod tests {
             raw,
             company: None,
             created_at: Utc::now(),
-            updated_at: Utc::now(),
-            note: None,
-            rating: Rating::Neutral,
-            applied_at: None,
             remote: true,
         };
         let en = classify_language(&svc, &job)
@@ -1009,8 +1033,7 @@ mod tests {
                 ..Default::default()
             },
         };
-        let job = Job {
-            id: 0,
+        let job = NewJob {
             platform: Platform::NoFluffJobs,
             external_id: "nf-dedup".to_string(),
             title: "Senior Rust Engineer".to_string(),
@@ -1020,10 +1043,6 @@ mod tests {
             raw,
             company: None,
             created_at: Utc::now(),
-            updated_at: Utc::now(),
-            note: None,
-            rating: Rating::Neutral,
-            applied_at: None,
             remote: true,
         };
         let text = job.advert_text();
@@ -1045,8 +1064,7 @@ mod tests {
                 ..Default::default()
             },
         };
-        let job = Job {
-            id: 0,
+        let job = NewJob {
             platform: Platform::NoFluffJobs,
             external_id: "nf1".to_string(),
             title: "Backend Engineer".to_string(),
@@ -1056,10 +1074,6 @@ mod tests {
             raw,
             company: None,
             created_at: Utc::now(),
-            updated_at: Utc::now(),
-            note: None,
-            rating: Rating::Neutral,
-            applied_at: None,
             remote: true,
         };
         let text = job.advert_text();

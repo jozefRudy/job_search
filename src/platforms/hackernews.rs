@@ -2,7 +2,7 @@ use super::html;
 use crate::db::{Db, UpsertResult};
 use crate::extractors::llm::LlmExtractor;
 use crate::extractors::llm_hackernews;
-use crate::models::{Data, HackerNewsJobDetail, Job, Platform, Rating};
+use crate::models::{Data, HackerNewsJobDetail, NewJob, Platform};
 use crate::platforms::{FetchState, PlatformClient, truncate_with_ellipsis};
 use crate::term::CursorGuard;
 use anyhow::Result;
@@ -124,7 +124,7 @@ impl HackerNewsScraper {
         hit.comment_text.contains("[flagged]") || hit.comment_text.contains("[dead]")
     }
 
-    async fn build_job(&self, hit: CommentHit) -> Result<Option<Job>> {
+    async fn build_job(&self, hit: CommentHit) -> Result<Option<NewJob>> {
         const MAX_TITLE_LEN: usize = 200;
 
         let body = html::html_to_md(&hit.comment_text).unwrap_or_default();
@@ -148,8 +148,7 @@ impl HackerNewsScraper {
 
         let posted_at = DateTime::from_timestamp(hit.created_at_i, 0).unwrap_or_else(Utc::now);
 
-        Ok(Some(Job {
-            id: 0,
+        Ok(Some(NewJob {
             platform: Platform::Hackernews,
             external_id: hit.object_id.clone(),
             title,
@@ -171,10 +170,6 @@ impl HackerNewsScraper {
             },
             company: None,
             created_at: posted_at,
-            updated_at: Utc::now(),
-            rating: Rating::Neutral,
-            note: None,
-            applied_at: None,
             remote,
         }))
     }
@@ -209,7 +204,7 @@ impl HackerNewsScraper {
         &'a self,
         db: &'a Db,
         query: &'a str,
-    ) -> impl Stream<Item = Result<Job>> + Send + 'a {
+    ) -> impl Stream<Item = Result<NewJob>> + Send + 'a {
         try_stream! {
             const PENDING_CHUNK: usize = 1000;
 
@@ -261,7 +256,7 @@ impl HackerNewsScraper {
     async fn store_jobs(
         &self,
         db: &Db,
-        jobs: impl Stream<Item = Result<Job>>,
+        jobs: impl Stream<Item = Result<NewJob>>,
     ) -> Result<FetchState> {
         let mut state = FetchState::new();
         let _guard = CursorGuard::new();

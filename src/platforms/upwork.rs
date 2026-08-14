@@ -1,6 +1,6 @@
 use crate::browser::{BrowserExt, host_of, wait_for_element, wait_for_with_challenge_recovery};
 use crate::db::{Db, UpsertResult};
-use crate::models::{Data, Job, Platform, Rating, UpworkJobDetail};
+use crate::models::{Data, NewJob, Platform, UpworkJobDetail};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, anyhow, bail};
@@ -220,8 +220,7 @@ impl UpworkScraper {
 
         match self.fetch_job_detail(ctx.browser, &job_url).await {
             Ok(detail) => {
-                let job = Job {
-                    id: 0,
+                let job = NewJob {
                     platform: Platform::Upwork,
                     external_id: v.external_id.clone(),
                     title: v.title.clone(),
@@ -231,10 +230,6 @@ impl UpworkScraper {
                     raw: Data::Upwork { detail },
                     company: None,
                     created_at: v.posted_at_text.unwrap_or_else(chrono::Utc::now),
-                    updated_at: chrono::Utc::now(),
-                    rating: Rating::Neutral,
-                    note: None,
-                    applied_at: None,
                     remote: true,
                 };
                 match ctx.db.upsert_job(&job).await? {

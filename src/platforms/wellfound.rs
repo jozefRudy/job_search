@@ -21,7 +21,7 @@
 use crate::browser::{BrowserExt, host_of};
 use crate::db::{Db, UpsertResult};
 use crate::language::LanguageService;
-use crate::models::{Data, Job, Platform, Rating, WellfoundJobDetail, classify_language};
+use crate::models::{Data, NewJob, Platform, WellfoundJobDetail, classify_language};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::region::Region;
 use crate::term::CursorGuard;
@@ -195,10 +195,9 @@ impl WellfoundScraper {
     /// company = company_name, remote = remote,
     /// raw = Data::Wellfound { detail }.
     #[must_use]
-    pub fn hit_to_job(hit: &RawWellfoundJob) -> Job {
+    pub fn hit_to_job(hit: &RawWellfoundJob) -> NewJob {
         let created_at = DateTime::from_timestamp(hit.live_start_at, 0).unwrap_or_else(Utc::now);
-        Job {
-            id: 0,
+        NewJob {
             platform: Platform::Wellfound,
             external_id: hit.id.clone(),
             title: hit.title.clone(),
@@ -214,10 +213,6 @@ impl WellfoundScraper {
             },
             company: Some(hit.company_name.clone()).filter(|c| !c.is_empty()),
             created_at,
-            updated_at: Utc::now(),
-            note: None,
-            rating: Rating::Neutral,
-            applied_at: None,
             remote: hit.remote,
         }
     }

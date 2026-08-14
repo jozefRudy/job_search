@@ -1,6 +1,6 @@
 use crate::browser::{BrowserExt, wait_for_with_challenge_recovery};
 use crate::db::{Db, UpsertResult};
-use crate::models::{Budget, Data, Job, LinkedInJobDetail, Platform, Rating};
+use crate::models::{Budget, Data, LinkedInJobDetail, NewJob, Platform};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
@@ -279,8 +279,7 @@ impl LinkedInScraper {
             .and_then(DateTime::from_timestamp_millis)
             .unwrap_or_else(Utc::now);
 
-        let job = Job {
-            id: 0,
+        let job = NewJob {
             platform: Platform::LinkedIn,
             external_id: card.id.clone(),
             title: card.title.clone(),
@@ -290,10 +289,6 @@ impl LinkedInScraper {
             raw: Data::LinkedIn { detail },
             company,
             created_at: posted_at,
-            updated_at: Utc::now(),
-            note: None,
-            rating: Rating::Neutral,
-            applied_at: None,
             remote,
         };
         let is_english = crate::models::classify_language(&self.lang, &job).await?;

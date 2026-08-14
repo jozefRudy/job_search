@@ -1,11 +1,11 @@
-use crate::models::{Data, Job, JobFilter, Paginated, Platform, Rating, Sort};
+use crate::models::{Data, Job, JobFilter, NewJob, Paginated, Platform, Rating, Sort};
 use anyhow::Result;
 use sha2::{Digest, Sha256};
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqliteSynchronous};
 use std::collections::HashMap;
 use std::str::FromStr;
 
-fn job_content_hash(job: &Job) -> String {
+fn job_content_hash(job: &NewJob) -> String {
     let canonical = format!(
         "{} {}",
         job.company.as_deref().unwrap_or(""),
@@ -59,7 +59,7 @@ impl Db {
         Ok(Self { pool })
     }
 
-    pub async fn upsert_job(&self, job: &Job) -> Result<UpsertResult> {
+    pub async fn upsert_job(&self, job: &NewJob) -> Result<UpsertResult> {
         let tags = serde_json::to_string(&job.tags)?;
         let raw = serde_json::to_string(&job.raw)?;
         let created_at = job.created_at.naive_utc();
@@ -84,10 +84,9 @@ impl Db {
                     tags = ?4,
                     raw = ?5,
                     remote = ?6,
-                    rating = ?7,
-                    content_hash = ?8,
+                    content_hash = ?7,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?9
+                WHERE id = ?8
                 "#,
                 job.title,
                 job.url,
@@ -95,7 +94,6 @@ impl Db {
                 tags,
                 raw,
                 job.remote,
-                job.rating,
                 content_hash,
                 id,
             )
@@ -122,8 +120,8 @@ impl Db {
 
         let id = sqlx::query_scalar!(
             r#"
-            INSERT INTO jobs (platform, external_id, title, url, budget, tags, raw, created_at, remote, rating, content_hash, vectorized)
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, FALSE)
+            INSERT INTO jobs (platform, external_id, title, url, budget, tags, raw, created_at, remote, content_hash, vectorized)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, FALSE)
             RETURNING id
             "#,
             job.platform,
@@ -135,7 +133,6 @@ impl Db {
             raw,
             created_at,
             job.remote,
-            job.rating,
             content_hash,
         )
         .fetch_one(&self.pool)
@@ -615,15 +612,14 @@ pub struct Stats {
 mod tests {
     use super::*;
     use crate::models::{
-        EfinancialcareersJobDetail, Job, LinkedInJobDetail, NoFluffJobDetail, Platform,
-        UpworkJobDetail,
+        EfinancialcareersJobDetail, LinkedInJobDetail, NoFluffJobDetail, Platform, UpworkJobDetail,
     };
 
     fn temp_db() -> tempfile::NamedTempFile {
         tempfile::NamedTempFile::new().expect("temp db")
     }
 
-    fn test_job(platform: Platform, external_id: &str, title: &str) -> Job {
+    fn test_job(platform: Platform, external_id: &str, title: &str) -> NewJob {
         let raw = match platform {
             Platform::Upwork => Data::Upwork {
                 detail: UpworkJobDetail::default(),
@@ -650,8 +646,7 @@ mod tests {
                 detail: crate::models::WellfoundJobDetail::default(),
             },
         };
-        Job {
-            id: 0,
+        NewJob {
             platform,
             external_id: external_id.to_string(),
             title: title.to_string(),
@@ -661,10 +656,6 @@ mod tests {
             raw,
             company: None,
             created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            rating: Rating::Neutral,
-            note: None,
-            applied_at: None,
             remote: true,
         }
     }
@@ -790,8 +781,7 @@ mod tests {
             tags: vec!["rust".to_string(), "api".to_string()],
             posted_at: chrono::Utc::now(),
         };
-        let job = Job {
-            id: 0,
+        let job = NewJob {
             platform: Platform::Upwork,
             external_id: "uw-99".to_string(),
             title: "Rust Backend".to_string(),
@@ -803,10 +793,6 @@ mod tests {
             },
             company: None,
             created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            rating: Rating::Neutral,
-            note: None,
-            applied_at: None,
             remote: true,
         };
 
@@ -842,8 +828,7 @@ mod tests {
             posted_at: chrono::Utc::now(),
             employment_type: Some("b2b".to_string()),
         };
-        let job = Job {
-            id: 0,
+        let job = NewJob {
             platform: Platform::NoFluffJobs,
             external_id: "nf-88".to_string(),
             title: "Senior Rust".to_string(),
@@ -855,10 +840,6 @@ mod tests {
             },
             company: None,
             created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            rating: Rating::Neutral,
-            note: None,
-            applied_at: None,
             remote: true,
         };
 
@@ -977,8 +958,7 @@ mod tests {
         let tmp = temp_db();
         let db = Db::open(tmp.path()).await?;
 
-        let job = |ext: &str, company: &str, role: &str, days_ago: i64| Job {
-            id: 0,
+        let job = |ext: &str, company: &str, role: &str, days_ago: i64| NewJob {
             platform: Platform::Hackernews,
             external_id: ext.to_string(),
             title: format!("{company} | {role}"),
@@ -998,10 +978,6 @@ mod tests {
             },
             company: None,
             created_at: chrono::Utc::now() - chrono::Duration::days(days_ago),
-            updated_at: chrono::Utc::now(),
-            rating: Rating::Neutral,
-            note: None,
-            applied_at: None,
             remote: true,
         };
 

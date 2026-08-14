@@ -8,7 +8,7 @@
 
 use crate::browser::{BrowserExt, host_of};
 use crate::db::{Db, UpsertResult};
-use crate::models::{Data, Job, Platform, Rating, WorkAtStartupJobDetail};
+use crate::models::{Data, NewJob, Platform, WorkAtStartupJobDetail};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
 use anyhow::{Result, bail};
@@ -173,11 +173,10 @@ impl WorkatastartupScraper {
     /// Map an Algolia hit to a `Job` (external_id = objectID, url = search_path,
     /// remote = hit.remote == "only").
     #[must_use]
-    pub fn hit_to_job(hit: &RawWaasHit) -> Job {
+    pub fn hit_to_job(hit: &RawWaasHit) -> NewJob {
         let created_at = DateTime::parse_from_rfc3339(&hit.created_at)
             .map_or_else(|_| Utc::now(), |d| d.with_timezone(&Utc));
-        Job {
-            id: 0,
+        NewJob {
             platform: Platform::Workatastartup,
             external_id: hit.object_id.clone(),
             title: hit.title.clone(),
@@ -189,10 +188,6 @@ impl WorkatastartupScraper {
             },
             company: Some(hit.company_name.clone()),
             created_at,
-            updated_at: Utc::now(),
-            note: None,
-            rating: Rating::Neutral,
-            applied_at: None,
             remote: hit.remote == "only",
         }
     }
