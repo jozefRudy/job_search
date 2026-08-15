@@ -179,7 +179,10 @@ impl EfinancialcareersScraper {
     pub async fn scrape_page(page: &chromiumoxide::Page) -> Result<Vec<EfinancialcareersJobCard>> {
         let cards: Vec<EfinancialcareersJobCard> =
             page.evaluate(SCRAPE_CARDS_JS).await?.into_value()?;
-        Ok(cards)
+        Ok(cards
+            .into_iter()
+            .filter(|c| !c.external_id.is_empty())
+            .collect())
     }
 
     pub async fn scrape_total(page: &chromiumoxide::Page) -> Result<usize> {

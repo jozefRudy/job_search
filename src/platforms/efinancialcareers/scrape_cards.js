@@ -8,7 +8,7 @@
       || text.match(/\b(Competitive|High salary|Negotiable|DOE|N\/A)\b/i);
     const postedMatch = text.match(/Posted\s+([^\n]+)/i);
     return {
-      external_id: idMatch ? idMatch[1] : (a?.id || ''),
+      external_id: idMatch ? idMatch[1] : '',
       title: a?.querySelector('h3')?.textContent?.trim() || '',
       url,
       salary: salaryMatch ? salaryMatch[0].trim() : '',

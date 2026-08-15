@@ -177,6 +177,7 @@ impl UpworkScraper {
                 posted_at_text: crate::models::parse_relative_time(&r.posted_at_text),
                 tags: r.tags,
             })
+            .filter(|c: &UpworkJobCard| !c.external_id.is_empty())
             .collect())
     }
 

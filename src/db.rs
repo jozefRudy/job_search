@@ -60,6 +60,11 @@ impl Db {
     }
 
     pub async fn upsert_job(&self, job: &NewJob) -> Result<UpsertResult> {
+        anyhow::ensure!(
+            !job.external_id.is_empty(),
+            "empty external_id for platform {}",
+            job.platform
+        );
         let tags = serde_json::to_string(&job.tags)?;
         let raw = serde_json::to_string(&job.raw)?;
         let created_at = job.created_at.naive_utc();
@@ -731,6 +736,16 @@ mod tests {
         let id_a = db.upsert_job(&a).await?.id();
         let id_b = db.upsert_job(&b).await?.id();
         assert_ne!(id_a, id_b, "jobs without description should not be deduped");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_upsert_rejects_empty_external_id() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let job = test_job(Platform::Upwork, "", "Rust Dev");
+        assert!(db.upsert_job(&job).await.is_err());
         Ok(())
     }
 

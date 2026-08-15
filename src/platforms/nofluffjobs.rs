@@ -403,7 +403,7 @@ impl NoFluffJobsScraper {
         let _guard = CursorGuard::new();
 
         loop {
-            let cards: Vec<NofluffJobCard> = page.evaluate(SCRAPE_CARDS_JS).await?.into_value()?;
+            let cards = Self::scrape_page(&page).await?;
 
             let new_cards: Vec<_> = cards
                 .into_iter()
@@ -440,7 +440,10 @@ impl NoFluffJobsScraper {
     /// Scrape job cards from current page.
     pub async fn scrape_page(page: &chromiumoxide::Page) -> Result<Vec<NofluffJobCard>> {
         let cards: Vec<NofluffJobCard> = page.evaluate(SCRAPE_CARDS_JS).await?.into_value()?;
-        Ok(cards)
+        Ok(cards
+            .into_iter()
+            .filter(|c| !c.external_id.is_empty())
+            .collect())
     }
 
     /// Click "See more offers" button and wait for new cards. Returns true if more loaded.
