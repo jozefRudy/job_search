@@ -77,6 +77,7 @@ cd frontend && pnpm typecheck && pnpm check && pnpm test run && pnpm build
 - **SolidJS reactivity** — derived values must be functions or inline in JSX. Const assignments stale after first render.
 - **Design system** — reuse primitives in `src/components/ui/` before raw Daisy/Tailwind.
 - **Pattern matching** — prefer `ts-pattern` exhaustive matching over `if/else` chains and `switch`.
+- **Solid v2** — do not start upgrade until orval supports it; see `todo-upgrade-v2.md` (orval is hard gate, check it first).
 - **E2E check** — for all UI changes, run backend (`cargo run`) + frontend (`pnpm start`) together, verify key flows in browser. Frontend proxies `/api` to `localhost:8080`.
 
 ## API Generation (OpenAPI + Orval)
