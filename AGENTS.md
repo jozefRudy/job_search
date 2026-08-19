@@ -2,6 +2,10 @@
 
 ## After Code Changes
 
+## Adding Dependencies
+
+- Always check latest version before adding: `cargo search <crate> --limit 1` (Rust) or `pnpm view <pkg> version` (JS). Never guess from memory — training data versions are stale.
+
 Don't relax clippy rules -> #[allow(clippy::*)]
 After completing code changes, run validation:
 ```bash
