@@ -155,7 +155,9 @@ impl RedditScraper {
                     .filter(|c| c.get("kind").and_then(|k| k.as_str()) == Some("t1"))
                     .filter_map(|c| {
                         let d = c.get("data")?;
-                        let body = d.get("body")?.as_str()?;
+                        // some posters paste HTML-escaped markdown; decode mirrors
+                        // Reddit's own rendering (single pass: &amp;gt; -> &gt;)
+                        let body = html_escape::decode_html_entities(d.get("body")?.as_str()?);
                         let author = d.get("author")?.as_str()?;
                         if body == "[deleted]" || body == "[removed]" || author == "AutoModerator" {
                             return None;
@@ -394,6 +396,34 @@ mod tests {
             comments.iter().all(|c| !c.title.is_empty()),
             "title = first non-empty line"
         );
+    }
+
+    #[test]
+    fn test_parse_comments_decodes_html_entities() {
+        // some posters paste HTML-escaped markdown; single-pass decode keeps
+        // intentional "&amp;gt;" literal while unescaping "&gt;" quotes
+        let json: serde_json::Value = serde_json::json!([
+            null,
+            {
+                "data": {
+                    "children": [{
+                        "kind": "t1",
+                        "data": {
+                            "name": "t1_x",
+                            "body": "Job &amp; more\n&gt; quoted &amp;gt; literal",
+                            "author": "recruiter",
+                            "permalink": "/r/rust/comments/x/_/p/",
+                            "created_utc": 1.0
+                        }
+                    }]
+                }
+            }
+        ]);
+        let comments = RedditScraper::parse_comments(&json);
+
+        assert_eq!(comments.len(), 1);
+        assert_eq!(comments[0].title, "Job & more");
+        assert_eq!(comments[0].body, "Job & more\n> quoted &gt; literal");
     }
 
     #[test]
