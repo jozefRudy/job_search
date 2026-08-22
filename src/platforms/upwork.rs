@@ -86,8 +86,7 @@ struct RawJobCard {
     pub description: Option<String>,
     pub url: String,
     pub budget: Option<String>,
-    #[serde(default)]
-    pub posted_at_text: String,
+    pub posted_at_text: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
 }
@@ -174,7 +173,9 @@ impl UpworkScraper {
                 description: r.description,
                 url: normalize_upwork_url(&r.url),
                 budget: r.budget.map(|b| format_upwork_budget(&b)),
-                posted_at_text: crate::models::parse_relative_time(&r.posted_at_text),
+                posted_at_text: crate::models::parse_relative_time(
+                    r.posted_at_text.as_deref().unwrap_or_default(),
+                ),
                 tags: r.tags,
             })
             .filter(|c: &UpworkJobCard| !c.external_id.is_empty())
