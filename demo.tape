@@ -2,7 +2,7 @@
 # Render:  nix develop -c vhs demo.tape
 # Outputs: demo.gif (copy to blog repo post dir) + demo.mp4 (LinkedIn/socials)
 
-Output demo.mp4
+Output demo.gif
 
 Set FontSize 20
 Set Width 1400

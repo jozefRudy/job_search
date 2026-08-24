@@ -122,7 +122,7 @@ Total jobs: 1912
 
 ## Demo
 
-<video src="demo.mp4" controls></video>
+![Demo](demo.gif)
 
 ## Development
 
