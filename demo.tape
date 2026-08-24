@@ -1,7 +1,3 @@
-# Demo: verify -> update -> deploy for blog post "How I Joined the Nix Cult"
-# Render:  nix develop -c vhs demo.tape
-# Outputs: demo.gif (copy to blog repo post dir) + demo.mp4 (LinkedIn/socials)
-
 Output demo.gif
 
 Set FontSize 20
