@@ -120,6 +120,10 @@ Example output:
 Total jobs: 1912
 ```
 
+## Demo
+
+![Demo](demo.mp4)
+
 ## Development
 
 A Nix devenv shell is provided (`devenv.nix`) with all dependencies, including `cargo sqlx prepare` for offline SQLx builds (`.sqlx/` is committed).
