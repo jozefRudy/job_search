@@ -2,6 +2,10 @@
 
 Unified job search CLI that scrapes job boards, stores results in a local SQLite database, and lets you browse, rate, and semantically search postings via a terminal CLI or a web UI.
 
+## Demo
+
+![Demo](demo.gif)
+
 Supported providers:
 
 - [Upwork](https://www.upwork.com/nx/search/jobs/)
@@ -119,10 +123,6 @@ Example output:
 ./lance/embeddings-nomic-ai-nomic-embed-text-v1.5: 22.99 KB
 Total jobs: 1912
 ```
-
-## Demo
-
-![Demo](demo.gif)
 
 ## Development
 
