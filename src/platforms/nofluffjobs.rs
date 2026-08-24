@@ -448,6 +448,8 @@ impl NoFluffJobsScraper {
 
     /// Click "See more offers" button and wait for new cards. Returns true if more loaded.
     pub async fn click_load_more(page: &chromiumoxide::Page, pause_ms: u64) -> bool {
+        const MAX_ATTEMPTS: u32 = 3;
+
         let prev_count: i32 = page
             .evaluate(COUNT_CARDS_JS)
             .await
@@ -455,34 +457,44 @@ impl NoFluffJobsScraper {
             .and_then(|v| v.into_value().ok())
             .unwrap_or(0);
 
-        let clicked: bool = page
-            .evaluate(CLICK_LOAD_MORE_JS)
-            .await
-            .ok()
-            .and_then(|v| v.into_value().ok())
-            .unwrap_or(false);
+        for _ in 0..MAX_ATTEMPTS {
+            let clicked: bool = page
+                .evaluate(CLICK_LOAD_MORE_JS)
+                .await
+                .ok()
+                .and_then(|v| v.into_value().ok())
+                .unwrap_or(false);
 
-        if !clicked {
-            return false;
+            if clicked {
+                sleep(Duration::from_millis(pause_ms)).await;
+
+                let grew = wait_for(
+                    || async {
+                        let count: i32 = page
+                            .evaluate(COUNT_CARDS_JS)
+                            .await
+                            .ok()
+                            .and_then(|v| v.into_value().ok())
+                            .unwrap_or(0);
+                        Ok(count > prev_count)
+                    },
+                    None,
+                    None,
+                )
+                .await
+                .unwrap_or(false);
+
+                if grew {
+                    return true;
+                }
+            }
+
+            // Button not found/disabled, or click didn't grow the list yet.
+            // Sleep briefly and retry in case the page was mid-reload.
+            sleep(Duration::from_millis(pause_ms)).await;
         }
 
-        sleep(Duration::from_millis(pause_ms)).await;
-
-        wait_for(
-            || async {
-                let count: i32 = page
-                    .evaluate(COUNT_CARDS_JS)
-                    .await
-                    .ok()
-                    .and_then(|v| v.into_value().ok())
-                    .unwrap_or(0);
-                Ok(count > prev_count)
-            },
-            None,
-            None,
-        )
-        .await
-        .unwrap_or(false)
+        false
     }
 
     /// Fetch job detail from API (no DB dependency).
