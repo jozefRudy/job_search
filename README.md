@@ -51,7 +51,7 @@ urls = ["https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur
 urls = ["https://www.upwork.com/nx/search/jobs/?q=trading&sort=recency&per_page=50&t=0&hourly_rate=60-"]
 ```
 
-Scraping runs through a real Chromium-based browser (configured under `[browser]`), driven over CDP. Before running `update`, make sure the browser is running with a tab open on the target site — and that you're logged in where required (Upwork, LinkedIn, Work at a Startup). Commands attach to the running browser session.
+Scraping runs through a real Chromium-based browser (configured under `[browser]`), driven over CDP. Before running `update`, make sure the browser is running and that you're logged in where required (Upwork, LinkedIn, Work at a Startup). Commands attach to the running browser session.
 
 ## Workflow
 
