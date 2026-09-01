@@ -83,7 +83,7 @@ pub struct LlmExtractor<T: Extractable> {
 impl<T: Extractable> LlmExtractor<T> {
     pub async fn extract(&self, text: &str) -> Result<T> {
         let schema = serde_json::to_string_pretty(&schema_for!(T))?;
-        let truncated = Self::truncate(text);
+        let truncated = truncate(text);
         let rendered = T::PROMPT.render_prompt(&schema, &truncated, &self.prompt_context)?;
         self.run_and_parse::<T>(&rendered).await
     }
@@ -116,17 +116,46 @@ impl<T: Extractable> LlmExtractor<T> {
     }
 
     /// Run the LLM with the rendered prompt and deserialize the response into `T`.
+    /// On parse failure, retry once with a repair prompt containing the invalid
+    /// output and the serde error.
     async fn run_and_parse<R>(&self, prompt: &str) -> Result<R>
     where
         R: for<'de> Deserialize<'de>,
     {
-        let out = self.run(prompt).await?;
+        match self.try_parse(prompt).await {
+            Ok(parsed) => Ok(parsed),
+            Err(failure) => {
+                let repair = build_repair_prompt(prompt, &failure.output, &failure.error);
+                self.try_parse(&repair).await.map_err(|retry| {
+                    retry.error.context(format!(
+                        "llm parse failed after one retry; first error: {}; first output: {}",
+                        failure.error, failure.output
+                    ))
+                })
+            }
+        }
+    }
+
+    async fn try_parse<R>(&self, prompt: &str) -> Result<R, ParseFailure>
+    where
+        R: for<'de> Deserialize<'de>,
+    {
+        let out = self.run(prompt).await.map_err(|e| ParseFailure {
+            error: e,
+            output: String::new(),
+        })?;
         let out = out.unwrap_or_default();
         if out.is_empty() || out.eq_ignore_ascii_case("none") {
-            anyhow::bail!("llm returned empty or NONE response");
+            return Err(ParseFailure {
+                error: anyhow::anyhow!("llm returned empty or NONE response"),
+                output: out,
+            });
         }
-        let out = strip_json_fences(&out);
-        serde_json::from_str(&out).with_context(|| format!("failed to parse LLM JSON: {out}"))
+        let stripped = strip_json_fences(&out);
+        serde_json::from_str(&stripped).map_err(|e| ParseFailure {
+            error: anyhow::Error::new(e).context(format!("failed to parse LLM JSON: {stripped}")),
+            output: out,
+        })
     }
 
     async fn run(&self, prompt: &str) -> Result<Option<String>> {
@@ -151,18 +180,36 @@ impl<T: Extractable> LlmExtractor<T> {
             Ok(Some(text))
         }
     }
+}
 
-    fn truncate(text: &str) -> String {
-        if text.len() <= MAX_TEXT_LEN {
-            text.to_string()
-        } else {
-            let mut end = MAX_TEXT_LEN;
-            while !text.is_char_boundary(end) {
-                end -= 1;
-            }
-            text[..end].to_string()
+struct ParseFailure {
+    error: anyhow::Error,
+    output: String,
+}
+
+fn truncate(text: &str) -> String {
+    if text.len() <= MAX_TEXT_LEN {
+        text.to_string()
+    } else {
+        let mut end = MAX_TEXT_LEN;
+        while !text.is_char_boundary(end) {
+            end -= 1;
         }
+        text[..end].to_string()
     }
+}
+
+const REPAIR_PROMPT: &str = include_str!("prompts/repair.md");
+
+fn build_repair_prompt(
+    original_prompt: &str,
+    previous_output: &str,
+    error: &anyhow::Error,
+) -> String {
+    REPAIR_PROMPT
+        .replace("{original_prompt}", original_prompt)
+        .replace("{previous_output}", &truncate(previous_output))
+        .replace("{error}", &format!("{error:#}"))
 }
 
 fn strip_json_fences(text: &str) -> String {
@@ -180,7 +227,6 @@ fn strip_json_fences(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::extractors::llm_hackernews;
 
     #[test]
     fn test_hackernews_prompt_renders_placeholders() {
@@ -195,9 +241,26 @@ mod tests {
     #[test]
     fn test_truncate_respects_char_boundaries() {
         let s = "αβγδ".repeat(1000);
-        let t = LlmExtractor::<llm_hackernews::ExtractFields>::truncate(&s);
+        let t = truncate(&s);
         assert!(t.len() <= MAX_TEXT_LEN);
         assert!(t.is_char_boundary(t.len()));
+    }
+
+    #[test]
+    fn test_build_repair_prompt_contains_context() {
+        let err = anyhow::anyhow!("expected value at line 1 column 2");
+        let prompt = build_repair_prompt("ORIGINAL PROMPT", "not json at all", &err);
+        assert!(prompt.contains("ORIGINAL PROMPT"));
+        assert!(prompt.contains("not json at all"));
+        assert!(prompt.contains("expected value at line 1 column 2"));
+    }
+
+    #[test]
+    fn test_build_repair_prompt_truncates_long_output() {
+        let err = anyhow::anyhow!("boom");
+        let long = "x".repeat(MAX_TEXT_LEN * 2);
+        let prompt = build_repair_prompt("p", &long, &err);
+        assert!(!prompt.contains(&"x".repeat(MAX_TEXT_LEN + 1)));
     }
 
     #[test]
