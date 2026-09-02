@@ -1,4 +1,4 @@
-use crate::extractors::llm::PromptKind;
+use crate::extractors::PromptKind;
 use anyhow::{Result, ensure};
 use patterns::llm_cli::Extractable;
 use schemars::JsonSchema;

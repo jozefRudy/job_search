@@ -6,7 +6,7 @@
 //! comments, and non-employment content (grant funding, open calls);
 //! extract only job offers.
 
-use crate::extractors::llm::PromptKind;
+use crate::extractors::PromptKind;
 use anyhow::Result;
 use patterns::llm_cli::Extractable;
 use schemars::JsonSchema;
