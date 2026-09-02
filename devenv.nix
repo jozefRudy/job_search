@@ -56,6 +56,12 @@
       };
     };
   };
+  git-hooks.hooks.check-lock = {
+    enable = true;
+    entry = "check-lock";
+    files = "^Cargo\\.lock$";
+  };
+
   scripts = {
     sqlx-update.exec = ''
       cargo sqlx database create --database-url "$JOBSEARCH_DATABASE_URL" 2>/dev/null || true
@@ -76,6 +82,14 @@
       sed -i 's|^patterns = { path|# patterns = { path|' "$CFG"
       trap "sed -i 's|^# patterns = { path|patterns = { path|' '$CFG'" EXIT
       cargo "$@"
+    '';
+    check-lock.exec = ''
+      # Verify Cargo.lock records patterns as git dep (not path from local patch)
+      if ! grep -A2 '^name = "patterns"' Cargo.lock | grep -q 'source = "git+'; then
+        echo "ERROR: patterns in Cargo.lock is not a git dep. Regenerate with: cargo-ci check" >&2
+        exit 1
+      fi
+      echo "OK: patterns is a git dep in Cargo.lock"
     '';
     test.exec = ''
       cargo build && cargo clippy --all-targets && cargo test && cargo fmt
