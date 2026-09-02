@@ -1,19 +1,9 @@
 use anyhow::{Result, bail};
 use clap::Parser;
 use directories::ProjectDirs;
-use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs};
-use jobsearch::cli::{
+use jobsearch::{browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs}, cli::{
     Cli, Commands, CommonSortBy, ListTarget, ReactAction, UpdatePlatform, UpworkSortBy,
-};
-use jobsearch::config::Settings;
-use jobsearch::db::Db;
-use jobsearch::embed::{DEFAULT_EMBEDDING_MODEL, Embedder};
-use jobsearch::embeddings_store::EmbeddingsStore;
-use jobsearch::embeddings_store::VECTOR_SEARCH_MAX_RESULTS;
-use jobsearch::embeddings_store::embeddings_dir;
-use jobsearch::language::LanguageService;
-use jobsearch::models::{JobFilter, Platform, Rating, Sort};
-use jobsearch::platforms::{
+}, config::Settings, db::Db, embed::{DEFAULT_EMBEDDING_MODEL, Embedder}, embeddings_store::{EmbeddingsStore, VECTOR_SEARCH_MAX_RESULTS, embeddings_dir}, language::LanguageService, models::{JobFilter, Platform, Rating, Sort}, platforms::{
     PlatformClient,
     efinancialcareers::EfinancialcareersScraper,
     hackernews::{ALGOLIA_URL, HackerNewsScraper},
@@ -23,8 +13,7 @@ use jobsearch::platforms::{
     upwork::UpworkScraper,
     wellfound::WellfoundScraper,
     workatastartup::WorkatastartupScraper,
-};
-use jobsearch::server;
+}, server};
 use owo_colors::OwoColorize;
 
 fn config_path() -> std::path::PathBuf {
