@@ -1,6 +1,5 @@
 use super::html;
 use crate::db::{Db, UpsertResult};
-use crate::extractors::llm::LlmExtractor;
 use crate::extractors::llm_hackernews;
 use crate::models::{Data, HackerNewsJobDetail, NewJob, Platform};
 use crate::platforms::{FetchState, PlatformClient, truncate_with_ellipsis};
@@ -11,6 +10,7 @@ use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
 use chrono::{DateTime, Utc};
 use futures::stream::{Stream, StreamExt};
+use patterns::llm_cli::LlmExtractor;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;

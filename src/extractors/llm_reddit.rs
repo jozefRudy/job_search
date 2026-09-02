@@ -6,8 +6,9 @@
 //! comments, and non-employment content (grant funding, open calls);
 //! extract only job offers.
 
-use crate::extractors::llm::{Extractable, PromptKind};
+use crate::extractors::llm::PromptKind;
 use anyhow::Result;
+use patterns::llm_cli::Extractable;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -36,8 +37,11 @@ pub struct RustFields {
 }
 
 impl Extractable for RustFields {
-    const PROMPT: PromptKind = PromptKind::RedditRust;
     const HEALTHCHECK_TEXT: &'static str = include_str!("llm/fixtures/reddit_rust_healthcheck.md");
+
+    fn render_prompt(schema: &str, text: &str, prompt_context: &str) -> Result<String> {
+        PromptKind::RedditRust.render_prompt(schema, text, prompt_context)
+    }
 
     fn verify(&self) -> Result<()> {
         anyhow::ensure!(
@@ -66,7 +70,7 @@ impl Extractable for RustFields {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::extractors::llm::LlmExtractor;
+    use patterns::llm_cli::LlmExtractor;
 
     fn llm_bin() -> String {
         std::env::var("JOBSEARCH_LLM_BIN")

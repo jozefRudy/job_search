@@ -6,7 +6,6 @@
 
 use crate::browser::BrowserExt;
 use crate::db::{Db, UpsertResult};
-use crate::extractors::llm::LlmExtractor;
 use crate::extractors::llm_reddit::RustFields;
 use crate::models::{Data, NewJob, Platform, RedditJobDetail};
 use crate::platforms::{FetchState, PlatformClient, truncate_with_ellipsis};
@@ -16,6 +15,7 @@ use chromiumoxide::browser::Browser;
 use chromiumoxide::page::Page;
 use chrono::{DateTime, Utc};
 use owo_colors::OwoColorize;
+use patterns::llm_cli::LlmExtractor;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;

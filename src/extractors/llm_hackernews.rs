@@ -1,5 +1,6 @@
-use crate::extractors::llm::{Extractable, PromptKind};
+use crate::extractors::llm::PromptKind;
 use anyhow::{Result, ensure};
+use patterns::llm_cli::Extractable;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
@@ -26,8 +27,11 @@ pub struct ExtractFields {
 }
 
 impl Extractable for ExtractFields {
-    const PROMPT: PromptKind = PromptKind::HackerNews;
     const HEALTHCHECK_TEXT: &'static str = include_str!("llm/fixtures/hackernews_healthcheck.md");
+
+    fn render_prompt(schema: &str, text: &str, prompt_context: &str) -> Result<String> {
+        PromptKind::HackerNews.render_prompt(schema, text, prompt_context)
+    }
 
     fn verify(&self) -> Result<()> {
         ensure!(
@@ -56,7 +60,7 @@ impl Extractable for ExtractFields {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::extractors::llm::LlmExtractor;
+    use patterns::llm_cli::LlmExtractor;
 
     fn llm_bin() -> String {
         std::env::var("JOBSEARCH_LLM_BIN")
