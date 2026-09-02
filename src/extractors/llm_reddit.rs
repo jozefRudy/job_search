@@ -40,7 +40,7 @@ impl Extractable for RustFields {
     const HEALTHCHECK_TEXT: &'static str = include_str!("llm/fixtures/reddit_rust_healthcheck.md");
 
     fn render_prompt(schema: &str, text: &str, prompt_context: &str) -> Result<String> {
-        PromptKind::RedditRust.render_prompt(schema, text, prompt_context)
+        PromptKind::RedditRustPrompt.render_prompt(schema, text, prompt_context)
     }
 
     fn verify(&self) -> Result<()> {

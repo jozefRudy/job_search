@@ -30,7 +30,7 @@ impl Extractable for ExtractFields {
     const HEALTHCHECK_TEXT: &'static str = include_str!("llm/fixtures/hackernews_healthcheck.md");
 
     fn render_prompt(schema: &str, text: &str, prompt_context: &str) -> Result<String> {
-        PromptKind::HackerNews.render_prompt(schema, text, prompt_context)
+        PromptKind::HackerNewsPrompt.render_prompt(schema, text, prompt_context)
     }
 
     fn verify(&self) -> Result<()> {
