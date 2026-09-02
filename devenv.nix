@@ -19,6 +19,7 @@
     rust = {
       enable = true;
       channel = "nightly";
+      components = ["rustc" "cargo" "clippy" "rustfmt" "rust-analyzer" "rust-src"];
     };
     javascript = {
       enable = true;
@@ -56,11 +57,6 @@
       };
     };
   };
-  git-hooks.hooks.check-lock = {
-    enable = true;
-    entry = "check-lock";
-    files = "^Cargo\\.lock$";
-  };
 
   scripts = {
     sqlx-update.exec = ''
@@ -75,22 +71,6 @@
       lsof -ti:8080,3000 | xargs -r kill -9 || true
     '';
 
-    cargo-ci.exec = ''
-      # Run cargo without the global ~/.cargo/config.toml [patch] for patterns,
-      # so Cargo.lock records the git dep (CI-compatible). Usage: cargo-ci update -p patterns
-      CFG="$HOME/.cargo/config.toml"
-      sed -i 's|^patterns = { path|# patterns = { path|' "$CFG"
-      trap "sed -i 's|^# patterns = { path|patterns = { path|' '$CFG'" EXIT
-      cargo "$@"
-    '';
-    check-lock.exec = ''
-      # Verify Cargo.lock records patterns as git dep (not path from local patch)
-      if ! grep -A2 '^name = "patterns"' Cargo.lock | grep -q 'source = "git+'; then
-        echo "ERROR: patterns in Cargo.lock is not a git dep. Regenerate with: cargo-ci check" >&2
-        exit 1
-      fi
-      echo "OK: patterns is a git dep in Cargo.lock"
-    '';
     test.exec = ''
       cargo build && cargo clippy --all-targets && cargo test && cargo fmt
     '';
@@ -108,8 +88,14 @@
       kill $PID
     '';
     export-docs.exec = ''
-      RUSTDOCFLAGS="-Zunstable-options --output-format=json" cargo doc
-      cargo docs-md --dir target/doc/ -o target/md_docs  --source-locations --full-method-docs --hide-trivial-derives
+      RUSTDOCFLAGS="-Zunstable-options --output-format=json" cargo doc --workspace
+      TARGET_DIR=$(cargo metadata --format-version 1 --no-deps | jq -r .target_directory)
+      JSON_DIR=$(mktemp -d)
+      for name in $(cargo metadata --format-version 1 | jq -r '. as $m | ([$m.resolve.nodes[] | select(.id as $id | $m.workspace_members | index($id)) | .deps[].pkg] + $m.workspace_members) | unique[] as $pid | $m.packages[] | select(.id == $pid) | .name' | sort -u); do
+        json="$TARGET_DIR/doc/''${name//-/_}.json"
+        [ -f "$json" ] && ln -s "$json" "$JSON_DIR/"
+      done
+      cargo docs-md --dir "$JSON_DIR" -o md_docs --exclude-private --source-locations --full-method-docs --hide-trivial-derives
     '';
   };
 }

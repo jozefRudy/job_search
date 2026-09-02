@@ -20,3 +20,4 @@ devenv.local.yaml
 .pre-commit-config.yaml
 /models
 rustc-ice-*.txt
+md_docs/
