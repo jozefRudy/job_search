@@ -57,10 +57,6 @@ sysinfo = "0.39.6"
 [dev-dependencies]
 tempfile = "3"
 
-# Local development: pick up patterns changes without pushing.
-[patch."https://github.com/jozefRudy/patterns"]
-patterns = { path = "../patterns" }
-
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 missing_errors_doc = "allow"
