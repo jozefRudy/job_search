@@ -27,7 +27,7 @@ pub struct ExtractFields {
 }
 
 impl Extractable for ExtractFields {
-    const HEALTHCHECK_TEXT: &'static str = include_str!("llm/fixtures/hackernews_healthcheck.md");
+    const HEALTHCHECK_TEXT: &'static str = include_str!("fixtures/hackernews_healthcheck.md");
 
     fn render_prompt(schema: &str, text: &str, prompt_context: &str) -> Result<String> {
         PromptKind::HackerNewsPrompt.render_prompt(schema, text, prompt_context)
@@ -70,7 +70,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JOBSEARCH_LLM_BIN set to an LLM CLI command"]
     async fn test_extract_hackernews_job_from_fixture() {
-        let text = include_str!("llm/fixtures/hackernews_job.md");
+        let text = include_str!("fixtures/hackernews_job.md");
         let fields = LlmExtractor::<ExtractFields>::from_bin(&llm_bin())
             .with_prompt_context("Candidate location: Europe".to_string())
             .extract(text)
@@ -86,7 +86,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JOBSEARCH_LLM_BIN set to an LLM CLI command"]
     async fn test_extract_hackernews_multiple_roles() {
-        let text = include_str!("llm/fixtures/hackernews_multiple_roles.md");
+        let text = include_str!("fixtures/hackernews_multiple_roles.md");
         let fields = LlmExtractor::<ExtractFields>::from_bin(&llm_bin())
             .with_prompt_context("Candidate location: Europe".to_string())
             .extract(text)

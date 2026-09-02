@@ -37,7 +37,7 @@ pub struct RustFields {
 }
 
 impl Extractable for RustFields {
-    const HEALTHCHECK_TEXT: &'static str = include_str!("llm/fixtures/reddit_rust_healthcheck.md");
+    const HEALTHCHECK_TEXT: &'static str = include_str!("fixtures/reddit_rust_healthcheck.md");
 
     fn render_prompt(schema: &str, text: &str, prompt_context: &str) -> Result<String> {
         PromptKind::RedditRustPrompt.render_prompt(schema, text, prompt_context)
@@ -80,7 +80,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JOBSEARCH_LLM_BIN set to an LLM CLI command"]
     async fn test_extract_rust_from_fixture() {
-        let text = include_str!("llm/fixtures/reddit_rust_job.md");
+        let text = include_str!("fixtures/reddit_rust_job.md");
         let fields = LlmExtractor::<RustFields>::from_bin(&llm_bin())
             .with_prompt_context("Candidate location: Europe".to_string())
             .extract(text)
@@ -94,7 +94,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JOBSEARCH_LLM_BIN set to an LLM CLI command"]
     async fn test_extract_rust_rejects_seeker() {
-        let text = include_str!("llm/fixtures/reddit_rust_seeker.md");
+        let text = include_str!("fixtures/reddit_rust_seeker.md");
         let fields = LlmExtractor::<RustFields>::from_bin(&llm_bin())
             .with_prompt_context("Candidate location: Europe".to_string())
             .extract(text)
@@ -106,7 +106,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires JOBSEARCH_LLM_BIN set to an LLM CLI command"]
     async fn test_extract_rust_rejects_grant() {
-        let text = include_str!("llm/fixtures/reddit_rust_grant.md");
+        let text = include_str!("fixtures/reddit_rust_grant.md");
         let fields = LlmExtractor::<RustFields>::from_bin(&llm_bin())
             .with_prompt_context("Candidate location: Europe".to_string())
             .extract(text)
