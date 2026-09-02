@@ -69,6 +69,14 @@
       lsof -ti:8080,3000 | xargs -r kill -9 || true
     '';
 
+    cargo-ci.exec = ''
+      # Run cargo without the global ~/.cargo/config.toml [patch] for patterns,
+      # so Cargo.lock records the git dep (CI-compatible). Usage: cargo-ci update -p patterns
+      CFG="$HOME/.cargo/config.toml"
+      sed -i 's|^patterns = { path|# patterns = { path|' "$CFG"
+      trap "sed -i 's|^# patterns = { path|patterns = { path|' '$CFG'" EXIT
+      cargo "$@"
+    '';
     test.exec = ''
       cargo build && cargo clippy --all-targets && cargo test && cargo fmt
     '';
