@@ -15,7 +15,7 @@ use chromiumoxide::browser::Browser;
 use chromiumoxide::page::Page;
 use chrono::{DateTime, Utc};
 use owo_colors::OwoColorize;
-use patterns::llm_cli::LlmExtractor;
+use patterns::llm_cli::{Extractable, SharedLlm};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -66,16 +66,30 @@ pub struct Candidate {
 }
 
 pub struct RedditScraper {
-    rust_extractor: LlmExtractor<RustFields>,
+    llm: SharedLlm,
+    /// Rendered into every extraction prompt (see SharedLlm::extract context).
+    context: String,
 }
 
 impl RedditScraper {
-    pub fn new(llm_bin: &str, location: crate::region::Region) -> Result<Self> {
-        let context = format!("Candidate location: {location}");
+    pub fn new(llm: SharedLlm, location: crate::region::Region) -> Result<Self> {
         Ok(Self {
-            rust_extractor: LlmExtractor::<RustFields>::from_bin(llm_bin)
-                .with_prompt_context(context),
+            llm,
+            context: format!("Candidate location: {location}"),
         })
+    }
+
+    async fn extract_fields(&self, body: &str) -> Result<RustFields> {
+        self.llm
+            .extract::<RustFields>(body, self.context.clone())
+            .await
+    }
+
+    async fn verify_llm(&self) -> Result<()> {
+        self.llm
+            .extract::<RustFields>(RustFields::HEALTHCHECK_TEXT, self.context.clone())
+            .await?
+            .verify()
     }
 
     async fn ensure_reddit_tab(&self, browser: &Browser) -> Result<()> {
@@ -232,7 +246,7 @@ impl RedditScraper {
     /// location; title = role or truncated first line (200 chars);
     /// url = https://www.reddit.com{permalink}.
     async fn build_job(&self, source: &Source, candidate: &Candidate) -> Result<Option<NewJob>> {
-        let fields = self.rust_extractor.extract(&candidate.body).await?;
+        let fields = self.extract_fields(&candidate.body).await?;
         if !fields.is_job_ad {
             return Ok(None);
         }
@@ -332,7 +346,7 @@ impl PlatformClient for RedditScraper {
         let mut state = FetchState::new();
         let _guard = CursorGuard::new();
 
-        self.rust_extractor.verify().await?;
+        self.verify_llm().await?;
 
         for (i, source) in SOURCES.iter().enumerate() {
             eprintln!(

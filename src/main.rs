@@ -1,19 +1,28 @@
 use anyhow::{Result, bail};
 use clap::Parser;
 use directories::ProjectDirs;
-use jobsearch::{browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs}, cli::{
-    Cli, Commands, CommonSortBy, ListTarget, ReactAction, UpdatePlatform, UpworkSortBy,
-}, config::Settings, db::Db, embed::{DEFAULT_EMBEDDING_MODEL, Embedder}, embeddings_store::{EmbeddingsStore, VECTOR_SEARCH_MAX_RESULTS, embeddings_dir}, language::LanguageService, models::{JobFilter, Platform, Rating, Sort}, platforms::{
-    PlatformClient,
-    efinancialcareers::EfinancialcareersScraper,
-    hackernews::{ALGOLIA_URL, HackerNewsScraper},
-    linkedin::LinkedInScraper,
-    nofluffjobs::NoFluffJobsScraper,
-    reddit::RedditScraper,
-    upwork::UpworkScraper,
-    wellfound::WellfoundScraper,
-    workatastartup::WorkatastartupScraper,
-}, server};
+use jobsearch::{
+    browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs},
+    cli::{Cli, Commands, CommonSortBy, ListTarget, ReactAction, UpdatePlatform, UpworkSortBy},
+    config::Settings,
+    db::Db,
+    embed::{DEFAULT_EMBEDDING_MODEL, Embedder},
+    embeddings_store::{EmbeddingsStore, VECTOR_SEARCH_MAX_RESULTS, embeddings_dir},
+    language::LanguageService,
+    models::{JobFilter, Platform, Rating, Sort},
+    platforms::{
+        PlatformClient,
+        efinancialcareers::EfinancialcareersScraper,
+        hackernews::{ALGOLIA_URL, HackerNewsScraper},
+        linkedin::LinkedInScraper,
+        nofluffjobs::NoFluffJobsScraper,
+        reddit::RedditScraper,
+        upwork::UpworkScraper,
+        wellfound::WellfoundScraper,
+        workatastartup::WorkatastartupScraper,
+    },
+    server,
+};
 use owo_colors::OwoColorize;
 
 fn config_path() -> std::path::PathBuf {
@@ -167,6 +176,7 @@ async fn cmd_update(
     settings: &Settings,
 ) -> Result<()> {
     let lang = LanguageService::new();
+    let llm = jobsearch::config::shared_llm(&settings.llm);
     match update_cmd.platform {
         UpdatePlatform::Upwork => {
             if settings.providers.upwork.urls.is_empty() {
@@ -196,7 +206,7 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Hackernews => {
-            let scraper = HackerNewsScraper::new(&settings.llm.bin, settings.location);
+            let scraper = HackerNewsScraper::new(llm.clone(), settings.location);
             fetch_and_store(db, browser, &scraper, ALGOLIA_URL, settings.pause_ms).await?;
         }
         UpdatePlatform::LinkedIn => {
@@ -209,7 +219,7 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Reddit => {
-            let scraper = RedditScraper::new(&settings.llm.bin, settings.location)?;
+            let scraper = RedditScraper::new(llm.clone(), settings.location)?;
             fetch_and_store(
                 db,
                 browser,

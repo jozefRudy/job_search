@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
 use chrono::{DateTime, Utc};
 use futures::stream::{Stream, StreamExt};
-use patterns::llm_cli::LlmExtractor;
+use patterns::llm_cli::{Extractable, SharedLlm};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -51,20 +51,38 @@ struct CommentSearchResponse {
 
 pub struct HackerNewsScraper {
     client: Client,
-    extractor: LlmExtractor<llm_hackernews::ExtractFields>,
+    llm: SharedLlm,
+    /// Rendered into every extraction prompt (see SharedLlm::extract context).
+    context: String,
 }
 
 impl HackerNewsScraper {
     #[must_use]
-    pub fn new(llm_bin: &str, location: crate::region::Region) -> Self {
+    pub fn new(llm: SharedLlm, location: crate::region::Region) -> Self {
         Self {
             client: Client::builder()
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")
                 .build()
                 .unwrap_or_else(|_| Client::new()),
-            extractor: LlmExtractor::<llm_hackernews::ExtractFields>::from_bin(llm_bin)
-                .with_prompt_context(format!("Candidate location: {location}")),
+            llm,
+            context: format!("Candidate location: {location}"),
         }
+    }
+
+    async fn extract_fields(&self, body: &str) -> Result<llm_hackernews::ExtractFields> {
+        self.llm
+            .extract::<llm_hackernews::ExtractFields>(body, self.context.clone())
+            .await
+    }
+
+    async fn verify_llm(&self) -> Result<()> {
+        self.llm
+            .extract::<llm_hackernews::ExtractFields>(
+                llm_hackernews::ExtractFields::HEALTHCHECK_TEXT,
+                self.context.clone(),
+            )
+            .await?
+            .verify()
     }
 
     async fn latest_thread_id(&self) -> Result<String> {
@@ -128,7 +146,7 @@ impl HackerNewsScraper {
         const MAX_TITLE_LEN: usize = 200;
 
         let body = html::html_to_md(&hit.comment_text).unwrap_or_default();
-        let fields = self.extractor.extract(&body).await?;
+        let fields = self.extract_fields(&body).await?;
         if !fields.is_job_ad {
             return Ok(None);
         }
@@ -227,7 +245,7 @@ impl HackerNewsScraper {
                 return;
             }
 
-            self.extractor.verify().await?;
+            self.verify_llm().await?;
 
             for hit in new_comments {
                 let object_id = hit.object_id.clone();

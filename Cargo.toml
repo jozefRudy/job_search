@@ -8,7 +8,7 @@ strip = true
 
 [dependencies]
 anyhow = "1"
-patterns = { git = "https://github.com/jozefRudy/patterns", rev = "f4e1d5c" }
+patterns = { git = "https://github.com/jozefRudy/patterns", rev = "c73cd4e39ed0d077548f50796a3f8f65e581e2d3" }
 async-trait = "0.1"
 axum = "0.8"
 utoipa = { version = "5", features = ["axum_extras", "chrono"] }

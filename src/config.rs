@@ -15,15 +15,32 @@ pub struct Settings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmConfig {
-    /// Command string for the LLM CLI, e.g. `pi --print --model ...`.
+    /// LLM CLI binary path.
     pub bin: String,
+    /// LLM CLI args, whitespace-separated (split once in [`shared_llm`]).
+    #[serde(default)]
+    pub args: String,
+}
+
+/// Build the shared LLM handle from config; one per process (shared
+/// concurrency cap across scrapers).
+#[must_use]
+pub fn shared_llm(cfg: &LlmConfig) -> patterns::llm_cli::SharedLlm {
+    patterns::llm_cli::SharedLlm::new(
+        cfg.bin.clone(),
+        cfg.args.split_whitespace().map(String::from).collect(),
+        patterns::llm_cli::SharedLimits::default(),
+    )
 }
 
 /// Placeholder written into the sample config by `jobsearch init`.
 pub const SAMPLE_BROWSER_BIN: &str = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
 
-/// Sample LLM CLI command written into the sample config by `jobsearch init`.
-pub const SAMPLE_LLM_BIN: &str = "pi --print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-v4-flash";
+/// Sample LLM CLI config written into the sample config by `jobsearch init`.
+pub const SAMPLE_LLM_BIN: &str = "pi";
+
+/// Sample LLM CLI args written into the sample config by `jobsearch init`.
+pub const SAMPLE_LLM_ARGS: &str = "--print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-v4-flash";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserConfig {
@@ -67,6 +84,7 @@ impl Settings {
             },
             llm: LlmConfig {
                 bin: SAMPLE_LLM_BIN.to_string(),
+                args: SAMPLE_LLM_ARGS.to_string(),
             },
             providers: Providers {
                 upwork: ProviderConfig {

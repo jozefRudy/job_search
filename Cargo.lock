@@ -4668,7 +4668,7 @@ dependencies = [
 [[package]]
 name = "patterns"
 version = "0.1.0"
-source = "git+https://github.com/jozefRudy/patterns?rev=f4e1d5c#f4e1d5c4ca00c981e61a266409ee2d5064c023f0"
+source = "git+https://github.com/jozefRudy/patterns?rev=c73cd4e39ed0d077548f50796a3f8f65e581e2d3#c73cd4e39ed0d077548f50796a3f8f65e581e2d3"
 dependencies = [
  "anyhow",
  "askama",
@@ -4676,7 +4676,6 @@ dependencies = [
  "schemars 1.2.1",
  "serde",
  "serde_json",
- "shell-words",
  "tokio",
 ]
 

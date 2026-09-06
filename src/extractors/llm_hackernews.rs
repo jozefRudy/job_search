@@ -60,20 +60,25 @@ impl Extractable for ExtractFields {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use patterns::llm_cli::LlmExtractor;
+    use patterns::llm_cli::{SharedLimits, SharedLlm};
 
-    fn llm_bin() -> String {
-        std::env::var("JOBSEARCH_LLM_BIN")
-            .expect("JOBSEARCH_LLM_BIN must be set to an LLM CLI command")
+    /// JOBSEARCH_LLM_BIN is a command string (bin + args); split once here.
+    fn llm() -> SharedLlm {
+        let cmd = std::env::var("JOBSEARCH_LLM_BIN")
+            .expect("JOBSEARCH_LLM_BIN must be set to an LLM CLI command");
+        let mut parts = cmd.split_whitespace().map(String::from);
+        let bin = parts.next().expect("JOBSEARCH_LLM_BIN must have a bin");
+        SharedLlm::new(bin, parts.collect(), SharedLimits::default())
     }
+
+    const CONTEXT: &str = "Candidate location: Europe";
 
     #[tokio::test]
     #[ignore = "requires JOBSEARCH_LLM_BIN set to an LLM CLI command"]
     async fn test_extract_hackernews_job_from_fixture() {
         let text = include_str!("fixtures/hackernews_job.md");
-        let fields = LlmExtractor::<ExtractFields>::from_bin(&llm_bin())
-            .with_prompt_context("Candidate location: Europe".to_string())
-            .extract(text)
+        let fields = llm()
+            .extract::<ExtractFields>(text, CONTEXT.to_string())
             .await
             .expect("llm extraction failed");
         assert!(fields.is_job_ad, "expected job ad");
@@ -87,9 +92,8 @@ mod tests {
     #[ignore = "requires JOBSEARCH_LLM_BIN set to an LLM CLI command"]
     async fn test_extract_hackernews_multiple_roles() {
         let text = include_str!("fixtures/hackernews_multiple_roles.md");
-        let fields = LlmExtractor::<ExtractFields>::from_bin(&llm_bin())
-            .with_prompt_context("Candidate location: Europe".to_string())
-            .extract(text)
+        let fields = llm()
+            .extract::<ExtractFields>(text, CONTEXT.to_string())
             .await
             .expect("llm extraction failed");
         assert!(fields.is_job_ad, "expected job ad");

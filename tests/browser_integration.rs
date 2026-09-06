@@ -61,10 +61,17 @@ fn efc_search_url(keyword: &str) -> String {
 #[tokio::test]
 #[ignore = "requires network access to Hacker News Algolia API"]
 async fn test_hackernews_fetch_comments() {
-    let llm_bin = std::env::var("JOBSEARCH_LLM_BIN")
+    let cmd = std::env::var("JOBSEARCH_LLM_BIN")
         .expect("JOBSEARCH_LLM_BIN must be set to an LLM CLI command");
+    let mut parts = cmd.split_whitespace().map(String::from);
+    let bin = parts.next().expect("JOBSEARCH_LLM_BIN must have a bin");
+    let llm = patterns::llm_cli::SharedLlm::new(
+        bin,
+        parts.collect(),
+        patterns::llm_cli::SharedLimits::default(),
+    );
     let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(
-        &llm_bin,
+        llm,
         jobsearch::region::Region::Europe,
     );
     let comments = scraper
@@ -764,7 +771,7 @@ async fn test_linkedin_pagination_has_next_page() {
 #[ignore = "requires Chromium browser running with CDP and reddit.com tab open"]
 async fn test_reddit_fetch_rust() {
     with_browser(60, |browser| async move {
-        let scraper = jobsearch::platforms::reddit::RedditScraper::new("", jobsearch::region::Region::Europe)
+        let scraper = jobsearch::platforms::reddit::RedditScraper::new(patterns::llm_cli::SharedLlm::new("true".to_owned(), vec![], patterns::llm_cli::SharedLimits::default()), jobsearch::region::Region::Europe)
             .expect("RedditScraper should be created");
         let page = browser
             .new_tab("https://www.reddit.com")
