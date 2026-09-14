@@ -133,6 +133,14 @@ impl UpworkScraper {
         Ok(())
     }
 
+    /// Upwork sets a `user_uid` cookie only for authenticated sessions.
+    async fn is_logged_in(&self, browser: &Browser) -> Result<bool> {
+        let cookies = browser.get_cookies().await.unwrap_or_default();
+        Ok(cookies
+            .iter()
+            .any(|c| c.name == "user_uid" && !c.value.is_empty()))
+    }
+
     pub async fn fetch_job_detail(
         &self,
         browser: &Browser,
@@ -315,6 +323,9 @@ impl PlatformClient for UpworkScraper {
         pause_ms: u64,
     ) -> Result<FetchState> {
         self.ensure_upwork_tab(browser).await?;
+        if !self.is_logged_in(browser).await? {
+            bail!("Upwork requires a logged-in upwork.com session. Log in at upwork.com.");
+        }
 
         let parsed =
             url::Url::parse(url).map_err(|e| anyhow::anyhow!("invalid Upwork URL: {e}"))?;
