@@ -1,6 +1,6 @@
 use chromiumoxide::browser::Browser;
 use futures::FutureExt;
-use jobsearch::browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS};
+use jobsearch::browser::{BrowserExt, BrowserManager};
 use jobsearch::language::LanguageService;
 use jobsearch::platforms::linkedin::{LinkedInScraper, fetch_job_detail};
 use jobsearch::platforms::upwork::{UPWORK_ID_PREFIX, UpworkScraper};
@@ -11,6 +11,9 @@ use tokio::sync::Mutex;
 /// Serialize access to shared browser.
 static BROWSER_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
+/// Run `f` against the shared browser. Does not open any default tabs — the
+/// browser is assumed to be already set up (logged in) for the sites under
+/// test; each test opens only the tab it needs.
 async fn with_browser<F, Fut>(timeout_secs: u64, f: F)
 where
     F: FnOnce(std::sync::Arc<Browser>) -> Fut,
@@ -22,9 +25,6 @@ where
             .expect("JOBSEARCH_BROWSER_BIN must point to a Chromium browser binary");
         let manager = BrowserManager::new(bin);
         let browser = manager.browser().await.expect("browser should connect");
-        jobsearch::browser::ensure_init_tabs(&browser, DEFAULT_INIT_URLS)
-            .await
-            .expect("ensure_init_tabs should succeed");
         let initial = browser
             .get_page_targets()
             .await
@@ -355,6 +355,31 @@ async fn test_nofluffjobs_load_more_adds_jobs() {
         assert!(
             total > first_count,
             "after load-more, total should increase: {total} vs {first_count}"
+        );
+
+        page.close().await.ok();
+    })
+    .await;
+}
+
+// --- NoFluffJobs: real session validation ---
+
+#[tokio::test]
+#[ignore = "requires Chromium browser running with CDP and nofluffjobs.com logged in"]
+async fn test_nofluffjobs_session_is_authenticated() {
+    with_browser(45, |browser| async move {
+        let page = browser
+            .new_tab("https://nofluffjobs.com")
+            .await
+            .expect("open nofluffjobs tab");
+
+        let verified = jobsearch::platforms::nofluffjobs::NoFluffJobsScraper::verify_session(&page)
+            .await
+            .expect("verify_session should not error");
+
+        assert!(
+            verified,
+            "expected an authenticated nofluffjobs session (HMAC probe returned non-200)"
         );
 
         page.close().await.ok();

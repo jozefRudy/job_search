@@ -21,6 +21,7 @@ const POSTING_LIST_ITEM_JS: &str = include_str!("nofluffjobs/posting_list_item.j
 const CLICK_LOAD_MORE_JS: &str = include_str!("nofluffjobs/click_load_more.js");
 const COUNT_CARDS_JS: &str = include_str!("nofluffjobs/count_cards.js");
 const GET_TOTAL_RESULTS_JS: &str = include_str!("nofluffjobs/get_total_results.js");
+const VERIFY_SESSION_JS: &str = include_str!("nofluffjobs/verify_session.js");
 
 /// Card scraped from `NoFluffJobs` search page DOM.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -256,9 +257,6 @@ impl PlatformClient for NoFluffJobsScraper {
         if !page_hosts.iter().any(|h| h.contains("nofluffjobs.com")) {
             bail!("NoFluffJobs requires open nofluffjobs.com tab in browser");
         }
-        if !self.is_logged_in(browser).await? {
-            bail!("NoFluffJobs requires a logged-in nofluffjobs.com session");
-        }
 
         self.fetch_jobs_via_browser(browser, db, url, pause_ms)
             .await
@@ -277,12 +275,26 @@ impl NoFluffJobsScraper {
         }
     }
 
-    /// Best-effort check that a user profile/auth cookie exists.
-    async fn is_logged_in(&self, browser: &Browser) -> Result<bool> {
-        let cookies = browser.get_cookies().await.unwrap_or_default();
-        Ok(cookies
-            .iter()
-            .any(|c| c.name == "nfj_at" || c.name == "nfj_session"))
+    /// Authoritatively validate the session by calling an authenticated
+    /// NoFluffJobs endpoint with a signed `nfj_token` from `page`. Waits for the
+    /// page to actually be on the nofluffjobs origin first, and returns `false`
+    /// for a missing/expired session rather than erroring.
+    pub async fn verify_session(page: &chromiumoxide::Page) -> Result<bool> {
+        let on_site = wait_for(
+            || async {
+                let href: String = page.evaluate("location.href").await?.into_value()?;
+                Ok(href.contains("nofluffjobs.com"))
+            },
+            None,
+            None,
+        )
+        .await?;
+        if !on_site {
+            return Ok(false);
+        }
+
+        let status: i64 = page.evaluate(VERIFY_SESSION_JS).await?.into_value()?;
+        Ok(status == 200)
     }
 
     async fn process_search_card(
@@ -383,6 +395,11 @@ impl NoFluffJobsScraper {
         }
 
         let page = browser.new_tab(url).await?;
+
+        if !Self::verify_session(&page).await? {
+            page.close().await.ok();
+            bail!("NoFluffJobs session is not authenticated. Log in at nofluffjobs.com.");
+        }
 
         if !wait_for_element(&page, &["a.posting-list-item"], None, None).await? {
             page.close().await.ok();
