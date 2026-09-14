@@ -17,7 +17,7 @@ pub struct ExtractFields {
     )]
     pub location: Option<String>,
     #[schemars(
-        description = "true if fully remote from the candidate's location, false if location-restricted (e.g. 'US only', 'onsite'); null only if remote policy is not mentioned at all"
+        description = "true if the candidate's own location is allowed to work remotely; a region-restricted remote role that still covers the candidate is true (e.g. 'Remote (EU)' is true for a Europe candidate). false if remote work is limited to a region that excludes the candidate, or is onsite (e.g. 'US only', 'onsite' for a Europe candidate). null only if the remote policy is not mentioned at all"
     )]
     pub remote: Option<bool>,
     #[schemars(description = "raw compensation snippet (e.g. '$150k-$175k' or 'EUR 80k-100k')")]
