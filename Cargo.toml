@@ -8,7 +8,7 @@ strip = true
 
 [dependencies]
 anyhow = "1"
-patterns = { git = "https://github.com/jozefRudy/patterns", rev = "d692d76", default-features = false, features = ["llm_cli", "embed"] }
+patterns = { git = "https://github.com/jozefRudy/patterns", rev = "2f3d6af", default-features = false, features = ["llm_cli", "embed"] }
 async-trait = "0.1"
 axum = "0.8"
 utoipa = { version = "5", features = ["axum_extras", "chrono"] }
@@ -68,3 +68,7 @@ cast_sign_loss = "allow"
 # ort/ONNX statically linked into every test binary — full debug info makes
 # each rebuild churn GBs; line tables keep backtraces useful at a fraction of the size
 debug = "line-tables-only"
+
+[profile.dev.build-override]
+# build scripts + proc macros: compiled once (sccache), run on every build
+opt-level = 3
