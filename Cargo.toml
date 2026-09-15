@@ -8,7 +8,7 @@ strip = true
 
 [dependencies]
 anyhow = "1"
-patterns = { git = "https://github.com/jozefRudy/patterns", rev = "c73cd4e39ed0d077548f50796a3f8f65e581e2d3" }
+patterns = { git = "https://github.com/jozefRudy/patterns", rev = "3676ea8", default-features = false, features = ["llm_cli", "embed"] }
 async-trait = "0.1"
 axum = "0.8"
 utoipa = { version = "5", features = ["axum_extras", "chrono"] }
@@ -41,9 +41,6 @@ tokio = { version = "1", features = ["full"] }
 chromiumoxide = "0.9"
 lingua = { version = "1.8.0", default-features = false, features = ["english", "french", "german", "spanish", "polish"] }
 
-
-fastembed = { version = "5", default-features = false, features = ["ort-download-binaries-native-tls", "hf-hub-native-tls"] }
-ort = { version = "=2.0.0-rc.12" }
 
 lance = { version = "8.0", default-features = false }
 lance-datafusion = "8.0"

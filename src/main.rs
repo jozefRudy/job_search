@@ -6,7 +6,7 @@ use jobsearch::{
     cli::{Cli, Commands, CommonSortBy, ListTarget, ReactAction, UpdatePlatform, UpworkSortBy},
     config::Settings,
     db::Db,
-    embed::{DEFAULT_EMBEDDING_MODEL, Embedder},
+    embed::{DEFAULT_EMBEDDING_MODEL, load_default},
     embeddings_store::{EmbeddingsStore, VECTOR_SEARCH_MAX_RESULTS, embeddings_dir},
     language::LanguageService,
     models::{JobFilter, Platform, Rating, Sort},
@@ -138,7 +138,7 @@ async fn open_embeddings_store(db: &Db, db_path: &std::path::Path) -> Result<Emb
     let cache_dir = db_path
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."));
-    let embedder = Embedder::load(cache_dir).await?;
+    let embedder = load_default(cache_dir).await?;
     EmbeddingsStore::open(db_path, DEFAULT_EMBEDDING_MODEL, db.clone(), embedder).await
 }
 

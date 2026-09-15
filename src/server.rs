@@ -1,6 +1,6 @@
 use crate::cli::VERSION;
 use crate::db::Db;
-use crate::embed::{DEFAULT_EMBEDDING_MODEL, Embedder};
+use crate::embed::{DEFAULT_EMBEDDING_MODEL, load_default};
 use crate::embeddings_store::EmbeddingsStore;
 use crate::models::{
     ApplyRequest, Data, HackerNewsJobDetail, Job, JobFilter, JobListResponse, ListQuery,
@@ -290,7 +290,7 @@ pub async fn serve(db: Db, db_path: &std::path::Path, port: u16) -> Result<()> {
     let cache_dir = db_path
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."));
-    let embedder = Embedder::load(cache_dir).await?;
+    let embedder = load_default(cache_dir).await?;
     let embeddings = Arc::new(
         EmbeddingsStore::open(db_path, DEFAULT_EMBEDDING_MODEL, db.clone(), embedder).await?,
     );
