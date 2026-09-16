@@ -65,18 +65,25 @@ mod tests {
     #[ignore = "downloads model"]
     async fn real_similar_texts_score_higher() {
         let embedder = test_embedder().await;
-        let a = embedder
-            .embed_document("rust backend developer")
+        let docs = [
+            "rust backend developer".to_string(),
+            "senior rust engineer".to_string(),
+            "python data scientist".to_string(),
+        ];
+        let mut opts = embedder.default_chunk_options();
+        opts.min_tokens = 1; // embed short texts too (as the indexer does)
+        let rows = embedder
+            .embed_batch_document_chunks(&docs, &opts)
             .await
             .unwrap();
-        let b = embedder
-            .embed_document("senior rust engineer")
-            .await
-            .unwrap();
-        let c = embedder
-            .embed_document("python data scientist")
-            .await
-            .unwrap();
+        let first = |doc_ix: usize| {
+            rows.iter()
+                .find(|r| r.doc_ix == doc_ix && r.chunk_ix == 0)
+                .expect("first chunk")
+                .embedding
+                .clone()
+        };
+        let (a, b, c) = (first(0), first(1), first(2));
 
         let sim_close = cosine_similarity(&a, &b);
         let sim_far = cosine_similarity(&a, &c);

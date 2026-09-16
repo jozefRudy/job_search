@@ -272,9 +272,33 @@ impl EmbeddingsStore {
                 break;
             }
             let owned_texts: Vec<String> = jobs.iter().map(Job::advert_text).collect();
-            let embeddings = self.embedder.embed_batch_documents(&owned_texts).await?;
-            let ids: Vec<i64> = jobs.iter().map(|job| job.id).collect();
-            self.upsert_batch(&ids, &embeddings, &owned_texts).await?;
+            // chunked API: keep one vector per job — the first chunk, which is
+            // what previous truncation produced. min_tokens = 1 so no job text
+            // is gated out (empty text is caught below instead of looping).
+            let mut opts = self.embedder.default_chunk_options();
+            opts.min_tokens = 1;
+            let rows = self
+                .embedder
+                .embed_batch_document_chunks(&owned_texts, &opts)
+                .await?;
+            let first_chunks: Vec<_> = rows.into_iter().filter(|r| r.chunk_ix == 0).collect();
+            let ids: Vec<i64> = first_chunks
+                .iter()
+                .filter_map(|r| jobs.get(r.doc_ix).map(|job| job.id))
+                .collect();
+            let embeddings: Vec<Vec<f32>> =
+                first_chunks.iter().map(|r| r.embedding.clone()).collect();
+            let texts: Vec<String> = first_chunks
+                .iter()
+                .filter_map(|r| owned_texts.get(r.doc_ix).cloned())
+                .collect();
+            if ids.is_empty() {
+                bail!(
+                    "no embeddings produced for {} unvectorized jobs (empty advert_text?)",
+                    jobs.len()
+                );
+            }
+            self.upsert_batch(&ids, &embeddings, &texts).await?;
             total += ids.len();
             on_progress(total);
         }

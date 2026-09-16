@@ -4702,7 +4702,7 @@ dependencies = [
 [[package]]
 name = "patterns"
 version = "0.1.0"
-source = "git+https://github.com/jozefRudy/patterns?rev=2f3d6af#2f3d6afe3d73965476e72475e971b24f1118850b"
+source = "git+https://github.com/jozefRudy/patterns?rev=b3158c0#b3158c0e189c28675f71a366d46d08ae31bccbb4"
 dependencies = [
  "anyhow",
  "askama",
