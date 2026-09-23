@@ -1,10 +1,13 @@
-use crate::extractors::PromptKind;
 use anyhow::{Result, ensure};
-use patterns::llm_cli::Extractable;
+use patterns::Extractable;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-#[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Deserialize, JsonSchema, Extractable)]
+#[extract(
+    template = "hackernews_fields.md",
+    healthcheck = "hackernews_healthcheck.md"
+)]
 pub struct ExtractFields {
     #[schemars(description = "true only if the comment is an actual job advertisement")]
     pub is_job_ad: bool,
@@ -26,13 +29,7 @@ pub struct ExtractFields {
     pub tags: Vec<String>,
 }
 
-impl Extractable for ExtractFields {
-    const HEALTHCHECK_TEXT: &'static str = include_str!("fixtures/hackernews_healthcheck.md");
-
-    fn render_prompt(schema: &str, text: &str, prompt_context: &str) -> Result<String> {
-        PromptKind::HackerNewsPrompt.render_prompt(schema, text, prompt_context)
-    }
-
+impl ExtractFields {
     fn verify(&self) -> Result<()> {
         ensure!(
             self.is_job_ad,
@@ -60,7 +57,7 @@ impl Extractable for ExtractFields {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use patterns::llm_cli::{SharedLimits, SharedLlm};
+    use patterns::llm_cli::{ConcurrencyLimits, SharedLlm};
 
     /// JOBSEARCH_LLM_BIN is a command string (bin + args); split once here.
     fn llm() -> SharedLlm {
@@ -68,7 +65,11 @@ mod tests {
             .expect("JOBSEARCH_LLM_BIN must be set to an LLM CLI command");
         let mut parts = cmd.split_whitespace().map(String::from);
         let bin = parts.next().expect("JOBSEARCH_LLM_BIN must have a bin");
-        SharedLlm::new(bin, parts.collect(), SharedLimits::default())
+        SharedLlm::new(
+            bin,
+            parts.collect::<Vec<String>>(),
+            ConcurrencyLimits::default(),
+        )
     }
 
     const CONTEXT: &str = "Candidate location: Europe";

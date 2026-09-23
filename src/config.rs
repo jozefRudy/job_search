@@ -28,8 +28,11 @@ pub struct LlmConfig {
 pub fn shared_llm(cfg: &LlmConfig) -> patterns::llm_cli::SharedLlm {
     patterns::llm_cli::SharedLlm::new(
         cfg.bin.clone(),
-        cfg.args.split_whitespace().map(String::from).collect(),
-        patterns::llm_cli::SharedLimits::default(),
+        cfg.args
+            .split_whitespace()
+            .map(String::from)
+            .collect::<Vec<String>>(),
+        patterns::llm_cli::ConcurrencyLimits::default(),
     )
 }
 
@@ -40,7 +43,7 @@ pub const SAMPLE_BROWSER_BIN: &str = "/Applications/Brave Browser.app/Contents/M
 pub const SAMPLE_LLM_BIN: &str = "pi";
 
 /// Sample LLM CLI args written into the sample config by `jobsearch init`.
-pub const SAMPLE_LLM_ARGS: &str = "--print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-v4-flash";
+pub const SAMPLE_LLM_ARGS: &str = "--print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-flash";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserConfig {

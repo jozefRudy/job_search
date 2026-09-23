@@ -78,7 +78,7 @@ impl HackerNewsScraper {
     async fn verify_llm(&self) -> Result<()> {
         self.llm
             .extract::<llm_hackernews::ExtractFields>(
-                llm_hackernews::ExtractFields::HEALTHCHECK_TEXT,
+                &llm_hackernews::ExtractFields::healthcheck_text()?,
                 self.context.clone(),
             )
             .await?

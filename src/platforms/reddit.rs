@@ -87,7 +87,7 @@ impl RedditScraper {
 
     async fn verify_llm(&self) -> Result<()> {
         self.llm
-            .extract::<RustFields>(RustFields::HEALTHCHECK_TEXT, self.context.clone())
+            .extract::<RustFields>(&RustFields::healthcheck_text()?, self.context.clone())
             .await?
             .verify()
     }

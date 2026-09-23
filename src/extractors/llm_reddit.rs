@@ -6,13 +6,16 @@
 //! comments, and non-employment content (grant funding, open calls);
 //! extract only job offers.
 
-use crate::extractors::PromptKind;
 use anyhow::Result;
-use patterns::llm_cli::Extractable;
+use patterns::Extractable;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-#[derive(Debug, Clone, Default, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Default, Deserialize, JsonSchema, Extractable)]
+#[extract(
+    template = "reddit_rust_fields.md",
+    healthcheck = "reddit_rust_healthcheck.md"
+)]
 pub struct RustFields {
     #[schemars(
         description = "true only if the comment is an actual job offer; false for job-seeker presentations, mod/meta comments, and non-employment posts like grant funding or open calls"
@@ -36,13 +39,7 @@ pub struct RustFields {
     pub tags: Vec<String>,
 }
 
-impl Extractable for RustFields {
-    const HEALTHCHECK_TEXT: &'static str = include_str!("fixtures/reddit_rust_healthcheck.md");
-
-    fn render_prompt(schema: &str, text: &str, prompt_context: &str) -> Result<String> {
-        PromptKind::RedditRustPrompt.render_prompt(schema, text, prompt_context)
-    }
-
+impl RustFields {
     fn verify(&self) -> Result<()> {
         anyhow::ensure!(
             self.is_job_ad,
@@ -70,7 +67,7 @@ impl Extractable for RustFields {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use patterns::llm_cli::{SharedLimits, SharedLlm};
+    use patterns::llm_cli::{ConcurrencyLimits, SharedLlm};
 
     /// JOBSEARCH_LLM_BIN is a command string (bin + args); split once here.
     fn llm() -> SharedLlm {
@@ -78,7 +75,11 @@ mod tests {
             .expect("JOBSEARCH_LLM_BIN must be set to an LLM CLI command");
         let mut parts = cmd.split_whitespace().map(String::from);
         let bin = parts.next().expect("JOBSEARCH_LLM_BIN must have a bin");
-        SharedLlm::new(bin, parts.collect(), SharedLimits::default())
+        SharedLlm::new(
+            bin,
+            parts.collect::<Vec<String>>(),
+            ConcurrencyLimits::default(),
+        )
     }
 
     const CONTEXT: &str = "Candidate location: Europe";

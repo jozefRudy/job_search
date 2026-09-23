@@ -67,8 +67,8 @@ async fn test_hackernews_fetch_comments() {
     let bin = parts.next().expect("JOBSEARCH_LLM_BIN must have a bin");
     let llm = patterns::llm_cli::SharedLlm::new(
         bin,
-        parts.collect(),
-        patterns::llm_cli::SharedLimits::default(),
+        parts.collect::<Vec<String>>(),
+        patterns::llm_cli::ConcurrencyLimits::default(),
     );
     let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(
         llm,
@@ -796,7 +796,7 @@ async fn test_linkedin_pagination_has_next_page() {
 #[ignore = "requires Chromium browser running with CDP and reddit.com tab open"]
 async fn test_reddit_fetch_rust() {
     with_browser(60, |browser| async move {
-        let scraper = jobsearch::platforms::reddit::RedditScraper::new(patterns::llm_cli::SharedLlm::new("true".to_owned(), vec![], patterns::llm_cli::SharedLimits::default()), jobsearch::region::Region::Europe)
+        let scraper = jobsearch::platforms::reddit::RedditScraper::new(patterns::llm_cli::SharedLlm::new("true".to_owned(), Vec::<String>::new(), patterns::llm_cli::ConcurrencyLimits::default()), jobsearch::region::Region::Europe)
             .expect("RedditScraper should be created");
         let page = browser
             .new_tab("https://www.reddit.com")
