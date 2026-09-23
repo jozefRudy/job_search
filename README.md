@@ -35,8 +35,11 @@ The database (`jobsearch.db`, SQLite) and vector embeddings (Lance) live in the 
 Search customization is done **in the config file, not via command-line arguments** — by design. Each provider gets a list of `urls`; the URL parameters (keywords, salary filters, remote-only, date ranges, etc.) define what gets scraped. Want different results? Edit the URL in `jobsearch.toml`.
 
 ```toml
-location = "Europe"
 pause_ms = 2000
+
+[personal_info]
+location = "Europe"
+cv = "cv.md"
 
 [browser]
 bin = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
@@ -44,6 +47,11 @@ bin = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
 [llm]
 bin = "pi"
 args = "--print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-flash"
+
+[systemone]
+# Optional; omit either key to use the default (https://api.typesafe.ai, jev-latest).
+typesafe_base_url = "https://api.typesafe.ai"
+typesafe_default_model = "jev-latest"
 
 [providers.nofluffjobs]
 urls = ["https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur8000m%20jobLanguage%3Den&sort=newest"]
@@ -76,7 +84,11 @@ jobsearch update wellfound
 # 3. Embed new postings for semantic/vector search
 jobsearch embed            # incremental; --force to re-embed everything
 
-# 4. Browse and search everything in the web UI (default port 8080)
+# 4. Classify postings as liked/disliked against your CV (requires TYPESAFE_API_KEY)
+jobsearch classify all --recency 7        # only neutral jobs by default
+jobsearch classify upwork --force         # re-classify, overwriting existing ratings
+
+# 5. Browse and search everything in the web UI (default port 8080)
 jobsearch serve            # or: jobsearch serve --port 3000
 ```
 

@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::{
@@ -129,6 +129,11 @@ async fn main() -> Result<()> {
         Commands::Embed(cmd) => {
             cmd_embed(cmd, &db, &db_path).await?;
         }
+        Commands::Classify(cmd) => {
+            let path = config_path();
+            let settings = Settings::load(&path)?;
+            cmd_classify(cmd, &db, &db_path, &settings, &path).await?;
+        }
     }
 
     Ok(())
@@ -206,7 +211,7 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Hackernews => {
-            let scraper = HackerNewsScraper::new(llm.clone(), settings.location);
+            let scraper = HackerNewsScraper::new(llm.clone(), settings.personal_info.location);
             fetch_and_store(db, browser, &scraper, ALGOLIA_URL, settings.pause_ms).await?;
         }
         UpdatePlatform::LinkedIn => {
@@ -219,7 +224,7 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Reddit => {
-            let scraper = RedditScraper::new(llm.clone(), settings.location)?;
+            let scraper = RedditScraper::new(llm.clone(), settings.personal_info.location)?;
             fetch_and_store(
                 db,
                 browser,
@@ -242,7 +247,7 @@ async fn cmd_update(
             if settings.providers.wellfound.urls.is_empty() {
                 bail!("no URLs configured for wellfound in jobsearch.toml");
             }
-            let scraper = WellfoundScraper::new(lang, settings.location);
+            let scraper = WellfoundScraper::new(lang, settings.personal_info.location);
             for url in &settings.providers.wellfound.urls {
                 fetch_and_store(db, browser, &scraper, url, settings.pause_ms).await?;
             }
@@ -251,13 +256,11 @@ async fn cmd_update(
     Ok(())
 }
 
-async fn list_common(
+fn common_query(
     common: jobsearch::cli::CommonListArgs,
-    sort_by: CommonSortBy,
+    sort: CommonSortBy,
     platform: Option<Platform>,
-    db: &Db,
-    db_path: &std::path::Path,
-) -> Result<()> {
+) -> (JobFilter, Sort, Option<String>) {
     let filter = JobFilter {
         platform,
         applied: common.applied,
@@ -265,20 +268,16 @@ async fn list_common(
         remote: common.remote,
         recency: common.recency,
     };
-    let sort = match sort_by {
+    let sort = match sort {
         CommonSortBy::Created => Sort::Created,
         CommonSortBy::Applied => Sort::Applied,
     };
-    cmd_list(db, filter, sort, common.search, db_path).await
+    (filter, sort, common.search)
 }
 
-async fn cmd_list_with_target(
-    cmd: jobsearch::cli::ListCmd,
-    db: &Db,
-    db_path: &std::path::Path,
-) -> Result<()> {
-    match cmd.target {
-        ListTarget::All(args) => list_common(args.common, args.sort, None, db, db_path).await?,
+fn target_query(target: ListTarget) -> (JobFilter, Sort, Option<String>) {
+    match target {
+        ListTarget::All(args) => common_query(args.common, args.sort, None),
         ListTarget::Upwork(args) => {
             let filter = JobFilter {
                 platform: Some(Platform::Upwork),
@@ -292,72 +291,38 @@ async fn cmd_list_with_target(
                 UpworkSortBy::UpworkViewed => Sort::UpworkViewed,
                 UpworkSortBy::Applied => Sort::Applied,
             };
-            cmd_list(db, filter, sort, args.common.search, db_path).await?;
+            (filter, sort, args.common.search)
         }
         ListTarget::Nofluff(args) => {
-            list_common(
-                args.common,
-                args.sort,
-                Some(Platform::NoFluffJobs),
-                db,
-                db_path,
-            )
-            .await?;
+            common_query(args.common, args.sort, Some(Platform::NoFluffJobs))
         }
         ListTarget::Efinancialcareers(args) => {
-            list_common(
-                args.common,
-                args.sort,
-                Some(Platform::Efinancialcareers),
-                db,
-                db_path,
-            )
-            .await?;
+            common_query(args.common, args.sort, Some(Platform::Efinancialcareers))
         }
         ListTarget::Hackernews(args) => {
-            list_common(
-                args.common,
-                args.sort,
-                Some(Platform::Hackernews),
-                db,
-                db_path,
-            )
-            .await?;
+            common_query(args.common, args.sort, Some(Platform::Hackernews))
         }
         ListTarget::LinkedIn(args) => {
-            list_common(
-                args.common,
-                args.sort,
-                Some(Platform::LinkedIn),
-                db,
-                db_path,
-            )
-            .await?;
+            common_query(args.common, args.sort, Some(Platform::LinkedIn))
         }
-        ListTarget::Reddit(args) => {
-            list_common(args.common, args.sort, Some(Platform::Reddit), db, db_path).await?;
-        }
+        ListTarget::Reddit(args) => common_query(args.common, args.sort, Some(Platform::Reddit)),
         ListTarget::Workatastartup(args) => {
-            list_common(
-                args.common,
-                args.sort,
-                Some(Platform::Workatastartup),
-                db,
-                db_path,
-            )
-            .await?;
+            common_query(args.common, args.sort, Some(Platform::Workatastartup))
         }
         ListTarget::Wellfound(args) => {
-            list_common(
-                args.common,
-                args.sort,
-                Some(Platform::Wellfound),
-                db,
-                db_path,
-            )
-            .await?;
+            common_query(args.common, args.sort, Some(Platform::Wellfound))
         }
     }
+}
+
+async fn cmd_list_with_target(
+    cmd: jobsearch::cli::ListCmd,
+    db: &Db,
+    db_path: &std::path::Path,
+) -> Result<()> {
+    let (filter, sort, search) = target_query(cmd.target);
+    let jobs = resolve_jobs(db, db_path, filter, sort, search).await?;
+    println!("{}", serde_json::to_string_pretty(&jobs)?);
     Ok(())
 }
 
@@ -388,13 +353,13 @@ async fn fetch_and_store(
     Ok(())
 }
 
-async fn cmd_list(
+async fn resolve_jobs(
     db: &Db,
+    db_path: &std::path::Path,
     filter: JobFilter,
     sort: Sort,
     search: Option<String>,
-    db_path: &std::path::Path,
-) -> Result<()> {
+) -> Result<Vec<jobsearch::models::Job>> {
     if let Some(query) = search.filter(|s| !s.is_empty()) {
         let store = open_embeddings_store(db, db_path).await?;
         let candidate_ids = db.filter_vectorized_job_ids(&filter).await?;
@@ -408,16 +373,36 @@ async fn cmd_list(
                 0,
             )
             .await?;
-        let ranked = result.items;
-        let ids: Vec<i64> = ranked.into_iter().map(|(id, _)| id).collect();
-        let jobs = db.get_jobs(&ids).await?;
-        println!("{}", serde_json::to_string_pretty(&jobs)?);
-        return Ok(());
+        let ids: Vec<i64> = result.items.into_iter().map(|(id, _)| id).collect();
+        return db.get_jobs(&ids).await;
     }
+    Ok(db
+        .filter_jobs_paginated(&filter, sort, i64::MAX, 0)
+        .await?
+        .items)
+}
 
-    let jobs = db.filter_jobs_paginated(&filter, sort, i64::MAX, 0).await?;
-    println!("{}", serde_json::to_string_pretty(&jobs.items)?);
-    Ok(())
+async fn cmd_classify(
+    cmd: jobsearch::cli::ClassifyCmd,
+    db: &Db,
+    db_path: &std::path::Path,
+    settings: &Settings,
+    config_path: &std::path::Path,
+) -> Result<()> {
+    let (filter, sort, search) = target_query(cmd.target);
+    let filter = jobsearch::classify::with_default_neutral(filter, cmd.force);
+    let jobs = resolve_jobs(db, db_path, filter, sort, search).await?;
+
+    let cv_path = config_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join(&settings.personal_info.cv);
+    let cv = tokio::fs::read_to_string(shellexpand::path::tilde(&cv_path))
+        .await
+        .with_context(|| format!("failed to read CV from {}", cv_path.display()))?;
+
+    let jev = jobsearch::config::shared_systemone(&settings.systemone)?;
+    jobsearch::classify::classify_jobs(&jev, &cv, db, &jobs).await
 }
 
 async fn cmd_delete(db: &Db, ids: Vec<i64>) -> Result<()> {

@@ -6,11 +6,12 @@ use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
-    pub location: crate::region::Region,
+    pub personal_info: PersonalInfo,
     pub pause_ms: u64,
     pub providers: Providers,
     pub browser: BrowserConfig,
     pub llm: LlmConfig,
+    pub systemone: SystemOneConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,6 +69,59 @@ pub struct ProviderConfig {
     pub urls: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PersonalInfo {
+    /// User region, shared by scrapers and prompt contexts.
+    pub location: crate::region::Region,
+    /// Path to the CV file, resolved relative to the config file.
+    pub cv: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemOneConfig {
+    /// SystemOne base URL; omit to use [`DEFAULT_TYPESAFE_BASE_URL`].
+    #[serde(default = "default_typesafe_base_url")]
+    pub typesafe_base_url: String,
+    /// SystemOne model; omit to use [`DEFAULT_TYPESAFE_MODEL`].
+    #[serde(default = "default_typesafe_default_model")]
+    pub typesafe_default_model: String,
+}
+
+fn default_typesafe_base_url() -> String {
+    DEFAULT_TYPESAFE_BASE_URL.to_owned()
+}
+
+fn default_typesafe_default_model() -> String {
+    DEFAULT_TYPESAFE_MODEL.to_owned()
+}
+
+impl Default for SystemOneConfig {
+    fn default() -> Self {
+        Self {
+            typesafe_base_url: default_typesafe_base_url(),
+            typesafe_default_model: default_typesafe_default_model(),
+        }
+    }
+}
+
+/// Default SystemOne base URL when `typesafe_base_url` is omitted.
+pub const DEFAULT_TYPESAFE_BASE_URL: &str = "https://api.typesafe.ai";
+
+/// Default SystemOne model when `typesafe_default_model` is omitted.
+pub const DEFAULT_TYPESAFE_MODEL: &str = "jev-latest";
+
+/// Build the shared SystemOne (Jev) handle from config; API key from
+/// `TYPESAFE_API_KEY`.
+pub fn shared_systemone(cfg: &SystemOneConfig) -> Result<patterns::systemone::SharedSystemOne> {
+    let api_key = std::env::var("TYPESAFE_API_KEY").context("TYPESAFE_API_KEY is not set")?;
+    Ok(patterns::systemone::SharedSystemOne::new(
+        cfg.typesafe_base_url.clone(),
+        api_key,
+        cfg.typesafe_default_model.clone(),
+        patterns::llm_cli::ConcurrencyLimits::default(),
+    ))
+}
+
 impl Settings {
     pub fn load(path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(path)
@@ -80,7 +134,10 @@ impl Settings {
     #[must_use]
     pub fn sample() -> Self {
         Self {
-            location: crate::region::Region::Europe,
+            personal_info: PersonalInfo {
+                location: crate::region::Region::Europe,
+                cv: "cv.md".to_string(),
+            },
             pause_ms: 2000,
             browser: BrowserConfig {
                 bin: SAMPLE_BROWSER_BIN.to_string(),
@@ -109,6 +166,7 @@ impl Settings {
                     urls: vec!["https://wellfound.com/role/l/software-engineer/europe".to_string()],
                 },
             },
+            systemone: SystemOneConfig::default(),
         }
     }
 }
