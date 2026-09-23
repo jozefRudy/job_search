@@ -3289,7 +3289,7 @@ dependencies = [
 
 [[package]]
 name = "jobsearch"
-version = "0.4.47"
+version = "0.4.48"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4793,7 +4793,7 @@ dependencies = [
 [[package]]
 name = "patterns"
 version = "0.1.0"
-source = "git+https://github.com/jozefRudy/patterns?rev=08305d5#08305d5ca3a59b141650bc184385e333d9878b72"
+source = "git+https://github.com/jozefRudy/patterns?rev=8e5f067#8e5f06782ecbcb6fadd848e5159a609401138ea1"
 dependencies = [
  "anyhow",
  "askama",
@@ -4811,7 +4811,7 @@ dependencies = [
 [[package]]
 name = "patterns-macros"
 version = "0.1.0"
-source = "git+https://github.com/jozefRudy/patterns?rev=08305d5#08305d5ca3a59b141650bc184385e333d9878b72"
+source = "git+https://github.com/jozefRudy/patterns?rev=8e5f067#8e5f06782ecbcb6fadd848e5159a609401138ea1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5646,7 +5646,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7437,7 +7437,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

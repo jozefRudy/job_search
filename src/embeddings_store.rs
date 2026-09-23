@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -272,23 +273,22 @@ impl EmbeddingsStore {
                 break;
             }
             let owned_texts: Vec<String> = jobs.iter().map(Job::advert_text).collect();
-            // chunked API: keep one vector per job — the first chunk, which is
-            // what previous truncation produced. min_tokens = 1 so no job text
-            // is gated out (empty text is caught below instead of looping).
+            // one vector per job — the first chunk only, so long ads don't pay
+            // to embed (and discard) every subsequent window. min_tokens = 1 so
+            // no job text is gated out (empty text is caught below instead).
             let mut opts = self.embedder.default_chunk_options();
             opts.min_tokens = 1;
+            opts.max_chunks = NonZeroUsize::new(1);
             let rows = self
                 .embedder
                 .embed_batch_document_chunks(&owned_texts, &opts)
                 .await?;
-            let first_chunks: Vec<_> = rows.into_iter().filter(|r| r.chunk_ix == 0).collect();
-            let ids: Vec<i64> = first_chunks
+            let ids: Vec<i64> = rows
                 .iter()
                 .filter_map(|r| jobs.get(r.doc_ix).map(|job| job.id))
                 .collect();
-            let embeddings: Vec<Vec<f32>> =
-                first_chunks.iter().map(|r| r.embedding.clone()).collect();
-            let texts: Vec<String> = first_chunks
+            let embeddings: Vec<Vec<f32>> = rows.iter().map(|r| r.embedding.clone()).collect();
+            let texts: Vec<String> = rows
                 .iter()
                 .filter_map(|r| owned_texts.get(r.doc_ix).cloned())
                 .collect();
@@ -574,6 +574,12 @@ mod tests {
             .await
             .unwrap()
             .id();
+        // long advert: must still yield a single vector (first chunk only)
+        let mut long = test_job(Platform::Upwork, "u2", "Long role");
+        if let Data::Upwork { detail } = &mut long.raw {
+            detail.description = "word ".repeat(1200);
+        }
+        let _ = db.upsert_job(&long).await.unwrap().id();
 
         let indexed = store
             .index_unvectorized(16, |_total| {
@@ -581,10 +587,14 @@ mod tests {
             })
             .await
             .unwrap();
-        assert_eq!(indexed, 2);
+        assert_eq!(indexed, 3);
 
         let vectorized = store.list_vectorized_ids().await.unwrap();
-        assert_eq!(vectorized.len(), 2);
+        assert_eq!(
+            vectorized.len(),
+            3,
+            "one vector per job regardless of length"
+        );
     }
 
     #[tokio::test]
