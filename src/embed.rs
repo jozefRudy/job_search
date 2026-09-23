@@ -23,7 +23,9 @@ pub async fn load_default(cache_dir: &Path) -> Result<Embedder> {
         query: "search_query: ".to_string(),
         document: "search_document: ".to_string(),
     };
-    let options = LoadOptions::new(MODEL).with_prefixes(&prefixes);
+    let options = LoadOptions::new(MODEL)
+        .with_intra_threads(4)
+        .with_prefixes(&prefixes);
     Embedder::load(options, cache_dir).await
 }
 
