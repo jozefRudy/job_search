@@ -28,7 +28,7 @@ use owo_colors::OwoColorize;
 fn config_path() -> std::path::PathBuf {
     match std::env::var_os("JOBSEARCH_CONFIG_DIR") {
         Some(dir) => {
-            let dir = shellexpand::path::tilde(&dir).into_owned();
+            let dir = jobsearch::config::expand_tilde(std::path::Path::new(&dir));
             dir.join("jobsearch.toml")
         }
         None => ProjectDirs::from("", "", "jobsearch")
@@ -81,7 +81,7 @@ async fn main() -> Result<()> {
                 let dirs = ProjectDirs::from("", "", "jobsearch").expect("project dirs");
                 dirs.data_dir().join("jobsearch.db")
             },
-            |p| shellexpand::path::tilde(&p).into_owned(),
+            |p| jobsearch::config::expand_tilde(&p),
         );
 
     if let Some(parent) = db_path.parent() {
@@ -132,7 +132,7 @@ async fn main() -> Result<()> {
         Commands::Classify(cmd) => {
             let path = config_path();
             let settings = Settings::load(&path)?;
-            cmd_classify(cmd, &db, &db_path, &settings, &path).await?;
+            cmd_classify(cmd, &db, &db_path, &settings).await?;
         }
     }
 
@@ -387,17 +387,13 @@ async fn cmd_classify(
     db: &Db,
     db_path: &std::path::Path,
     settings: &Settings,
-    config_path: &std::path::Path,
 ) -> Result<()> {
     let (filter, sort, search) = target_query(cmd.target);
     let filter = jobsearch::classify::with_default_neutral(filter, cmd.force);
     let jobs = resolve_jobs(db, db_path, filter, sort, search).await?;
 
-    let cv_path = config_path
-        .parent()
-        .unwrap_or_else(|| std::path::Path::new("."))
-        .join(&settings.personal_info.cv);
-    let cv = tokio::fs::read_to_string(shellexpand::path::tilde(&cv_path))
+    let cv_path = jobsearch::config::expand_tilde(&settings.personal_info.cv);
+    let cv = tokio::fs::read_to_string(&cv_path)
         .await
         .with_context(|| format!("failed to read CV from {}", cv_path.display()))?;
 
@@ -428,7 +424,7 @@ async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
             let note = if let Some(n) = note {
                 Some(n)
             } else if let Some(path) = note_file {
-                Some(tokio::fs::read_to_string(shellexpand::path::tilde(&path)).await?)
+                Some(tokio::fs::read_to_string(jobsearch::config::expand_tilde(&path)).await?)
             } else {
                 None
             };

@@ -39,7 +39,7 @@ pause_ms = 2000
 
 [personal_info]
 location = "Europe"
-cv = "cv.md"
+cv = "./cv.md"
 
 [browser]
 bin = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"

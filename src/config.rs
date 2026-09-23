@@ -2,7 +2,13 @@
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// Expand a leading `~` in a path; relative paths are returned unchanged.
+#[must_use]
+pub fn expand_tilde(path: impl AsRef<Path>) -> PathBuf {
+    shellexpand::path::tilde(path.as_ref()).into_owned()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
@@ -73,7 +79,7 @@ pub struct ProviderConfig {
 pub struct PersonalInfo {
     /// User region, shared by scrapers and prompt contexts.
     pub location: crate::region::Region,
-    /// Path to the CV file, resolved relative to the config file.
+    /// Path to the CV file: absolute, `~`-prefixed, or relative to the current working directory.
     pub cv: String,
 }
 
@@ -136,7 +142,7 @@ impl Settings {
         Self {
             personal_info: PersonalInfo {
                 location: crate::region::Region::Europe,
-                cv: "cv.md".to_string(),
+                cv: "./cv.md".to_string(),
             },
             pause_ms: 2000,
             browser: BrowserConfig {
