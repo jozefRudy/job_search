@@ -53,6 +53,7 @@ pub async fn classify_jobs(jev: &SharedSystemOne, cv: &str, db: &Db, jobs: &[Job
     jev.verify::<JobFit>().await?;
 
     let mut liked: Vec<i64> = Vec::new();
+    let mut liked_jobs: Vec<&Job> = Vec::new();
     let mut disliked: Vec<i64> = Vec::new();
     for job in jobs {
         let text = job.advert_text();
@@ -64,7 +65,10 @@ pub async fn classify_jobs(jev: &SharedSystemOne, cv: &str, db: &Db, jobs: &[Job
             job.id, job.title
         );
         match rating {
-            Rating::Liked => liked.push(job.id),
+            Rating::Liked => {
+                liked.push(job.id);
+                liked_jobs.push(job);
+            }
             Rating::Disliked => disliked.push(job.id),
             Rating::Neutral => unreachable!("rating_for never returns Neutral"),
         }
@@ -83,6 +87,12 @@ pub async fn classify_jobs(jev: &SharedSystemOne, cv: &str, db: &Db, jobs: &[Job
         liked.len(),
         disliked.len()
     );
+    if !liked_jobs.is_empty() {
+        println!("Liked this run:");
+        for job in liked_jobs {
+            println!("  [{}] {}", job.id, job.title);
+        }
+    }
     Ok(())
 }
 
