@@ -90,7 +90,7 @@ pub async fn classify_jobs(jev: &SharedSystemOne, cv: &str, db: &Db, jobs: &[Job
     if !liked_jobs.is_empty() {
         println!("Liked this run:");
         for job in liked_jobs {
-            println!("  [{}] {}", job.id, job.title);
+            println!("  [{}] {} | {}", job.id, job.title, job.platform);
         }
     }
     Ok(())
