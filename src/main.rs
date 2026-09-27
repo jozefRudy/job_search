@@ -6,7 +6,7 @@ use jobsearch::{
     cli::{Cli, Commands, CommonSortBy, ListTarget, ReactAction, UpdatePlatform, UpworkSortBy},
     config::Settings,
     db::Db,
-    embed::{DEFAULT_EMBEDDING_MODEL, load_default},
+    embed::load_default,
     embeddings_store::{EmbeddingsStore, VECTOR_SEARCH_MAX_RESULTS, embeddings_dir},
     language::LanguageService,
     models::{JobFilter, Platform, Rating, Sort},
@@ -144,7 +144,8 @@ async fn open_embeddings_store(db: &Db, db_path: &std::path::Path) -> Result<Emb
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."));
     let embedder = load_default(cache_dir).await?;
-    EmbeddingsStore::open(db_path, DEFAULT_EMBEDDING_MODEL, db.clone(), embedder).await
+    let model_id = embedder.model_id().to_string();
+    EmbeddingsStore::open(db_path, &model_id, db.clone(), embedder).await
 }
 
 async fn cmd_embed(
@@ -152,18 +153,19 @@ async fn cmd_embed(
     db: &Db,
     db_path: &std::path::Path,
 ) -> Result<()> {
+    let base = db_path
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new("."));
+    let embedder = load_default(base).await?;
+    let model_id = embedder.model_id().to_string();
     if cmd.force {
         db.reset_vectorized().await?;
-
-        let base = db_path
-            .parent()
-            .unwrap_or_else(|| std::path::Path::new("."));
-        let dataset_dir = embeddings_dir(base, DEFAULT_EMBEDDING_MODEL);
+        let dataset_dir = embeddings_dir(base, &model_id);
         if dataset_dir.exists() {
             tokio::fs::remove_dir_all(&dataset_dir).await?;
         }
     }
-    let store = open_embeddings_store(db, db_path).await?;
+    let store = EmbeddingsStore::open(db_path, &model_id, db.clone(), embedder).await?;
 
     let _indexed = store
         .index_unvectorized(cmd.batch_size, |total| {

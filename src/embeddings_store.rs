@@ -55,7 +55,7 @@ pub fn embeddings_dir(base: &Path, model_id: &str) -> PathBuf {
 impl EmbeddingsStore {
     pub async fn open(
         sqlite_db_path: &Path,
-        model_id: &'static str,
+        model_id: &str,
         db: Db,
         embedder: Embedder,
     ) -> Result<Self> {
@@ -421,7 +421,7 @@ fn rrf_merge(vector_ranked: &[i64], fts_ranked: &[i64]) -> Vec<(i64, f32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::embed::DEFAULT_EMBEDDING_MODEL;
+    use crate::embed::MODEL;
 
     #[test]
     fn rrf_merge_disjoint_max_legs_truncated_to_max() {
@@ -533,7 +533,7 @@ mod tests {
         let db_path = tmp.path().join("test.db");
         let db = Db::open(&db_path).await.unwrap();
         let embedder = Embedder::fake(TEST_DIM);
-        let store = EmbeddingsStore::open(&db_path, DEFAULT_EMBEDDING_MODEL, db.clone(), embedder)
+        let store = EmbeddingsStore::open(&db_path, MODEL, db.clone(), embedder)
             .await
             .unwrap();
         (tmp, db, store)

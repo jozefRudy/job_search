@@ -8,24 +8,25 @@ use anyhow::Result;
 
 pub use patterns::embed::Embedder;
 
-use patterns::embed::{LoadOptions, Prefixes};
-use patterns::fastembed::EmbeddingModel;
+use patterns::embed::{LoadOptions, ModelSpec, Pooling, Prefixes};
 
-/// Model id string used for the dataset dir name (`EmbeddingsStore::open`).
-pub const DEFAULT_EMBEDDING_MODEL: &str = "nomic-ai/nomic-embed-text-v1.5";
+/// Hub repo of the default embedding model.
+pub const MODEL: &str = "nomic-ai/nomic-embed-text-v1.5";
+const REVISION: &str = "e9b6763023c676ca8431644204f50c2b100d9aab";
+const FILE: &str = "onnx/model.onnx";
+const NATIVE_DIM: usize = 768;
 
-const MODEL: EmbeddingModel = EmbeddingModel::NomicEmbedTextV15;
+/// Domain helper: the pinned nomic spec — 768-d mean-pooled `last_hidden_state` with the
+/// model's `search_query: `/`search_document: ` prefixes baked in (symmetric models:
+/// `Prefixes::none()`).
+fn model_spec() -> Result<ModelSpec> {
+    Ok(ModelSpec::new(MODEL, REVISION, FILE, NATIVE_DIM)?
+        .with_pooling(Pooling::Mean)
+        .with_prefixes(&Prefixes::new("search_query: ", "search_document: ")))
+}
 
-/// Domain helper: load the default model with nomic prefixes
-/// (`search_query: `/`search_document: `; symmetric models: `Prefixes::none()`).
 pub async fn load_default(cache_dir: &Path) -> Result<Embedder> {
-    let prefixes = Prefixes {
-        query: "search_query: ".to_string(),
-        document: "search_document: ".to_string(),
-    };
-    let options = LoadOptions::new(MODEL)
-        .with_intra_threads(4)
-        .with_prefixes(&prefixes);
+    let options = LoadOptions::new(model_spec()?).with_intra_threads(4);
     Embedder::load(options, cache_dir).await
 }
 

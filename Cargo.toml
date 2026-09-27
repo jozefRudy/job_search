@@ -8,7 +8,7 @@ strip = true
 
 [dependencies]
 anyhow = "1"
-patterns = { git = "https://github.com/jozefRudy/patterns", rev = "8e5f067", default-features = false, features = ["llm_cli", "embed", "systemone"] }
+patterns = { git = "https://github.com/jozefRudy/patterns", rev = "c3fd1e2", default-features = false, features = ["llm_cli", "embed", "systemone"] }
 async-trait = "0.1"
 axum = "0.8"
 utoipa = { version = "5", features = ["axum_extras", "chrono"] }

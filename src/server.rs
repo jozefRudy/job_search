@@ -1,6 +1,6 @@
 use crate::cli::VERSION;
 use crate::db::Db;
-use crate::embed::{DEFAULT_EMBEDDING_MODEL, load_default};
+use crate::embed::load_default;
 use crate::embeddings_store::EmbeddingsStore;
 use crate::models::{
     ApplyRequest, Data, HackerNewsJobDetail, Job, JobFilter, JobListResponse, ListQuery,
@@ -291,9 +291,9 @@ pub async fn serve(db: Db, db_path: &std::path::Path, port: u16) -> Result<()> {
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."));
     let embedder = load_default(cache_dir).await?;
-    let embeddings = Arc::new(
-        EmbeddingsStore::open(db_path, DEFAULT_EMBEDDING_MODEL, db.clone(), embedder).await?,
-    );
+    let model_id = embedder.model_id().to_string();
+    let embeddings =
+        Arc::new(EmbeddingsStore::open(db_path, &model_id, db.clone(), embedder).await?);
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     eprintln!("jobsearch ({VERSION}) listening on http://0.0.0.0:{port}");
     axum::serve(listener, app(db, embeddings))
