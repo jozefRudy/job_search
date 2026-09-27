@@ -142,8 +142,9 @@ async fn main() -> Result<()> {
 async fn open_embeddings_store(db: &Db, db_path: &std::path::Path) -> Result<EmbeddingsStore> {
     let cache_dir = db_path
         .parent()
-        .unwrap_or_else(|| std::path::Path::new("."));
-    let embedder = load_default(cache_dir).await?;
+        .unwrap_or_else(|| std::path::Path::new("."))
+        .join("models");
+    let embedder = load_default(&cache_dir).await?;
     let model_id = embedder.model_id().to_string();
     EmbeddingsStore::open(db_path, &model_id, db.clone(), embedder).await
 }
@@ -156,7 +157,7 @@ async fn cmd_embed(
     let base = db_path
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."));
-    let embedder = load_default(base).await?;
+    let embedder = load_default(&base.join("models")).await?;
     let model_id = embedder.model_id().to_string();
     if cmd.force {
         db.reset_vectorized().await?;
