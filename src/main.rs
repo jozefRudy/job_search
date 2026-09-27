@@ -145,8 +145,7 @@ async fn open_embeddings_store(db: &Db, db_path: &std::path::Path) -> Result<Emb
         .unwrap_or_else(|| std::path::Path::new("."))
         .join("models");
     let embedder = load_default(&cache_dir).await?;
-    let model_id = embedder.model_id().to_string();
-    EmbeddingsStore::open(db_path, &model_id, db.clone(), embedder).await
+    EmbeddingsStore::open(db_path, db.clone(), embedder).await
 }
 
 async fn cmd_embed(
@@ -158,15 +157,14 @@ async fn cmd_embed(
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."));
     let embedder = load_default(&base.join("models")).await?;
-    let model_id = embedder.model_id().to_string();
     if cmd.force {
         db.reset_vectorized().await?;
-        let dataset_dir = embeddings_dir(base, &model_id);
+        let dataset_dir = embeddings_dir(base, embedder.model_id());
         if dataset_dir.exists() {
             tokio::fs::remove_dir_all(&dataset_dir).await?;
         }
     }
-    let store = EmbeddingsStore::open(db_path, &model_id, db.clone(), embedder).await?;
+    let store = EmbeddingsStore::open(db_path, db.clone(), embedder).await?;
 
     let _indexed = store
         .index_unvectorized(cmd.batch_size, |total| {

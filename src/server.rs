@@ -292,9 +292,7 @@ pub async fn serve(db: Db, db_path: &std::path::Path, port: u16) -> Result<()> {
         .unwrap_or_else(|| std::path::Path::new("."))
         .join("models");
     let embedder = load_default(&cache_dir).await?;
-    let model_id = embedder.model_id().to_string();
-    let embeddings =
-        Arc::new(EmbeddingsStore::open(db_path, &model_id, db.clone(), embedder).await?);
+    let embeddings = Arc::new(EmbeddingsStore::open(db_path, db.clone(), embedder).await?);
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await?;
     eprintln!("jobsearch ({VERSION}) listening on http://0.0.0.0:{port}");
     axum::serve(listener, app(db, embeddings))

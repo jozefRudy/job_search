@@ -53,15 +53,11 @@ pub fn embeddings_dir(base: &Path, model_id: &str) -> PathBuf {
 }
 
 impl EmbeddingsStore {
-    pub async fn open(
-        sqlite_db_path: &Path,
-        model_id: &str,
-        db: Db,
-        embedder: Embedder,
-    ) -> Result<Self> {
+    pub async fn open(sqlite_db_path: &Path, db: Db, embedder: Embedder) -> Result<Self> {
         let base = sqlite_db_path.parent().unwrap_or_else(|| Path::new("."));
-        tokio::fs::create_dir_all(&embeddings_dir(base, model_id)).await?;
-        let uri = embeddings_dir(base, model_id).to_string_lossy().to_string();
+        let dataset_dir = embeddings_dir(base, embedder.model_id());
+        tokio::fs::create_dir_all(&dataset_dir).await?;
+        let uri = dataset_dir.to_string_lossy().to_string();
         let dim = embedder.dim();
 
         let dataset = if Dataset::open(&uri).await.is_err() {
@@ -421,7 +417,6 @@ fn rrf_merge(vector_ranked: &[i64], fts_ranked: &[i64]) -> Vec<(i64, f32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::embed::MODEL;
 
     #[test]
     fn rrf_merge_disjoint_max_legs_truncated_to_max() {
@@ -533,7 +528,7 @@ mod tests {
         let db_path = tmp.path().join("test.db");
         let db = Db::open(&db_path).await.unwrap();
         let embedder = Embedder::fake(TEST_DIM);
-        let store = EmbeddingsStore::open(&db_path, MODEL, db.clone(), embedder)
+        let store = EmbeddingsStore::open(&db_path, db.clone(), embedder)
             .await
             .unwrap();
         (tmp, db, store)
@@ -550,10 +545,7 @@ mod tests {
     #[tokio::test]
     async fn open_uses_lance_subdirectory() {
         let (tmp, _db, store) = test_store().await;
-        let expected = tmp
-            .path()
-            .join("lance")
-            .join("embeddings-nomic-ai-nomic-embed-text-v1.5");
+        let expected = embeddings_dir(tmp.path(), store.embedder().model_id());
         assert_eq!(store.dataset.lock().await.uri(), expected.to_string_lossy());
     }
 
