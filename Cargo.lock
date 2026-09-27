@@ -3333,7 +3333,7 @@ dependencies = [
 
 [[package]]
 name = "jobsearch"
-version = "0.4.54"
+version = "0.4.55"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4837,7 +4837,7 @@ dependencies = [
 [[package]]
 name = "patterns"
 version = "0.1.0"
-source = "git+https://github.com/jozefRudy/patterns?rev=4e1c78d#4e1c78d8ed92f7b99c73cebb963bbed416e93067"
+source = "git+https://github.com/jozefRudy/patterns?rev=c458b8e#c458b8eced18c895cee9fad162324568c426f92f"
 dependencies = [
  "anyhow",
  "askama",
@@ -4858,7 +4858,7 @@ dependencies = [
 [[package]]
 name = "patterns-macros"
 version = "0.1.0"
-source = "git+https://github.com/jozefRudy/patterns?rev=4e1c78d#4e1c78d8ed92f7b99c73cebb963bbed416e93067"
+source = "git+https://github.com/jozefRudy/patterns?rev=c458b8e#c458b8eced18c895cee9fad162324568c426f92f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7506,7 +7506,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
