@@ -47,15 +47,15 @@ pub struct EmbeddingsStore {
 }
 
 #[must_use]
-pub fn embeddings_dir(base: &Path, model_id: &str) -> PathBuf {
-    let model_dir = model_id.replace('/', "-");
-    base.join("lance").join(format!("embeddings-{model_dir}"))
+pub fn embeddings_dir(base: &Path, id: &str) -> PathBuf {
+    // `id()` is 32 hex chars — already path-safe, no escaping needed
+    base.join("lance").join(format!("embeddings-{id}"))
 }
 
 impl EmbeddingsStore {
     pub async fn open(sqlite_db_path: &Path, db: Db, embedder: Embedder) -> Result<Self> {
         let base = sqlite_db_path.parent().unwrap_or_else(|| Path::new("."));
-        let dataset_dir = embeddings_dir(base, embedder.model_id());
+        let dataset_dir = embeddings_dir(base, embedder.identity().id());
         tokio::fs::create_dir_all(&dataset_dir).await?;
         let uri = dataset_dir.to_string_lossy().to_string();
         let dim = embedder.dim();
@@ -545,7 +545,7 @@ mod tests {
     #[tokio::test]
     async fn open_uses_lance_subdirectory() {
         let (tmp, _db, store) = test_store().await;
-        let expected = embeddings_dir(tmp.path(), store.embedder().model_id());
+        let expected = embeddings_dir(tmp.path(), store.embedder().identity().id());
         assert_eq!(store.dataset.lock().await.uri(), expected.to_string_lossy());
     }
 

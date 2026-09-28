@@ -3333,7 +3333,7 @@ dependencies = [
 
 [[package]]
 name = "jobsearch"
-version = "0.4.55"
+version = "0.4.56"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4837,7 +4837,7 @@ dependencies = [
 [[package]]
 name = "patterns"
 version = "0.1.0"
-source = "git+https://github.com/jozefRudy/patterns?rev=c458b8e#c458b8eced18c895cee9fad162324568c426f92f"
+source = "git+https://github.com/jozefRudy/patterns?rev=5a641ec240576cbf445247dcb670f98ac4ed8866#5a641ec240576cbf445247dcb670f98ac4ed8866"
 dependencies = [
  "anyhow",
  "askama",
@@ -4858,7 +4858,7 @@ dependencies = [
 [[package]]
 name = "patterns-macros"
 version = "0.1.0"
-source = "git+https://github.com/jozefRudy/patterns?rev=c458b8e#c458b8eced18c895cee9fad162324568c426f92f"
+source = "git+https://github.com/jozefRudy/patterns?rev=5a641ec240576cbf445247dcb670f98ac4ed8866#5a641ec240576cbf445247dcb670f98ac4ed8866"
 dependencies = [
  "proc-macro2",
  "quote",

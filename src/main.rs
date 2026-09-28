@@ -159,7 +159,7 @@ async fn cmd_embed(
     let embedder = load_default(&base.join("models")).await?;
     if cmd.force {
         db.reset_vectorized().await?;
-        let dataset_dir = embeddings_dir(base, embedder.model_id());
+        let dataset_dir = embeddings_dir(base, embedder.identity().id());
         if dataset_dir.exists() {
             tokio::fs::remove_dir_all(&dataset_dir).await?;
         }
