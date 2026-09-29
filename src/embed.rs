@@ -26,7 +26,7 @@ fn model_spec() -> Result<ModelSpec> {
 }
 
 pub async fn load_default(cache_dir: &Path) -> Result<Embedder> {
-    let options = LoadOptions::new(model_spec()?).with_intra_threads(4);
+    let options = LoadOptions::new(model_spec()?).with_intra_threads(2);
     Embedder::load(options, cache_dir).await
 }
 

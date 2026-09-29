@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use arrow::array::{Float32Array, RecordBatch, RecordBatchIterator, as_primitive_array};
@@ -297,6 +298,8 @@ impl EmbeddingsStore {
             self.upsert_batch(&ids, &embeddings, &texts).await?;
             total += ids.len();
             on_progress(total);
+            // thermal/pacing breather between ONNX batches
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
         self.maintenance().await?;
         Ok(total)
