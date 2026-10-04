@@ -71,12 +71,6 @@
       lsof -ti:8080,3000 | xargs -r kill -9 || true
     '';
 
-    test.exec = ''
-      cargo build && cargo clippy --all-targets && cargo test && cargo fmt
-    '';
-    test-integration.exec = ''
-      cargo test -- --include-ignored
-    '';
     lint-workflows.exec = ''
       actionlint
     '';
