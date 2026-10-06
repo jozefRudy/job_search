@@ -312,7 +312,11 @@ impl HackerNewsScraper {
 
             match db.upsert_job(&job).await? {
                 UpsertResult::New(_) => state.inc_new(),
-                UpsertResult::Updated(_) | UpsertResult::Duplicate(_) => {
+                UpsertResult::Updated(_) => state.inc_existing(),
+                UpsertResult::Duplicate(_) => {
+                    // persist the comment id so filter_new stops re-fetching it
+                    db.mark_rejected(&Platform::Hackernews, &job.external_id, "duplicate")
+                        .await?;
                     state.inc_existing();
                 }
             }
