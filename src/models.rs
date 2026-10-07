@@ -22,6 +22,7 @@ pub enum Data {
     Workatastartup { detail: WorkAtStartupJobDetail },
     Reddit { detail: RedditJobDetail },
     Wellfound { detail: WellfoundJobDetail },
+    Other { detail: OtherJobDetail },
 }
 
 impl Data {
@@ -30,7 +31,6 @@ impl Data {
     #[must_use]
     pub fn company(&self) -> Option<String> {
         match self {
-            Data::Upwork { .. } => None,
             Data::Nofluffjobs { detail } => Some(detail.company.clone()),
             Data::Efinancialcareers { detail } => Some(detail.company.clone()),
             Data::Hackernews { detail } => detail.company.clone(),
@@ -38,8 +38,17 @@ impl Data {
             Data::Workatastartup { detail } => Some(detail.company_name.clone()),
             Data::Reddit { detail } => detail.company.clone(),
             Data::Wellfound { detail } => Some(detail.company_name.clone()),
+            Data::Upwork { .. } => None,
+            Data::Other { detail } => detail.company.clone(),
         }
     }
+}
+
+/// Provider-agnostic detail for manually added jobs.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct OtherJobDetail {
+    pub company: Option<String>,
+    pub description: String,
 }
 
 /// Full detail of a Wellfound job from the SSR Apollo cache
@@ -313,6 +322,7 @@ pub enum Platform {
     Workatastartup,
     Reddit,
     Wellfound,
+    Other,
 }
 
 impl fmt::Display for Platform {
@@ -326,6 +336,7 @@ impl fmt::Display for Platform {
             Platform::Workatastartup => write!(f, "workatastartup"),
             Platform::Reddit => write!(f, "reddit"),
             Platform::Wellfound => write!(f, "wellfound"),
+            Platform::Other => write!(f, "other"),
         }
     }
 }
@@ -341,6 +352,7 @@ impl From<String> for Platform {
             "workatastartup" => Platform::Workatastartup,
             "reddit" => Platform::Reddit,
             "wellfound" => Platform::Wellfound,
+            "other" => Platform::Other,
             _ => panic!("unknown platform in db: '{s}'"),
         }
     }
@@ -505,6 +517,9 @@ pub fn advert_text(title: &str, raw: &Data) -> String {
             append(&detail.description);
         }
         Data::Wellfound { detail } => {
+            append(&detail.description);
+        }
+        Data::Other { detail } => {
             append(&detail.description);
         }
     }
@@ -1089,5 +1104,37 @@ mod tests {
             text.contains("AWS"),
             "nice_to_have should be embedded: {text}"
         );
+    }
+
+    fn other_detail() -> OtherJobDetail {
+        OtherJobDetail {
+            company: Some("Acme".to_string()),
+            description: "Rust trading systems.".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_other_detail_company_advert_text_and_platform() {
+        let raw = Data::Other {
+            detail: other_detail(),
+        };
+        assert_eq!(raw.company().as_deref(), Some("Acme"));
+        assert_eq!(
+            advert_text("Engineer", &raw),
+            "Engineer Rust trading systems."
+        );
+        assert_eq!(Platform::Other.to_string(), "other");
+        assert_eq!(Platform::from("other".to_string()), Platform::Other);
+    }
+
+    #[test]
+    fn test_other_round_trips_via_serde() {
+        let raw = Data::Other {
+            detail: other_detail(),
+        };
+        let json = serde_json::to_string(&raw).unwrap();
+        assert!(json.contains("\"platform\":\"other\""));
+        let back: Data = serde_json::from_str(&json).unwrap();
+        assert!(matches!(back, Data::Other { .. }));
     }
 }

@@ -4,7 +4,7 @@ use crate::embed::load_default;
 use crate::embeddings_store::EmbeddingsStore;
 use crate::models::{
     ApplyRequest, Data, HackerNewsJobDetail, Job, JobFilter, JobListResponse, ListQuery,
-    NoFluffJobDetail, Platform, RateRequest, Rating, Sort, UpworkJobDetail,
+    NoFluffJobDetail, OtherJobDetail, Platform, RateRequest, Rating, Sort, UpworkJobDetail,
 };
 use anyhow::{Error, Result};
 use axum::{
@@ -33,7 +33,8 @@ use utoipa_axum::routes;
     HackerNewsJobDetail,
     Platform,
     Rating,
-    Sort
+    Sort,
+    OtherJobDetail,
 )))]
 struct ApiDoc;
 

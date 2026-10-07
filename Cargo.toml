@@ -1,6 +1,6 @@
 [package]
 name = "jobsearch"
-version = "0.4.57"
+version = "0.4.58"
 edition = "2024"
 
 [profile.release]
@@ -8,7 +8,7 @@ strip = true
 
 [dependencies]
 anyhow = "1"
-patterns = { git = "https://github.com/jozefRudy/patterns", rev = "6157f8ce57cf0faf6a940e754097d35995495256", default-features = false, features = ["llm_cli", "embed", "systemone"] }
+patterns = { git = "https://github.com/jozefRudy/patterns", rev = "fac3a3e561827fbf3d707521f7f0b9ae2a9eef77", default-features = false, features = ["llm_cli", "embed", "systemone"] }
 async-trait = "0.1"
 axum = "0.8"
 utoipa = { version = "5", features = ["axum_extras", "chrono"] }

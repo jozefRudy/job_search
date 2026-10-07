@@ -650,6 +650,9 @@ mod tests {
             Platform::Wellfound => Data::Wellfound {
                 detail: crate::models::WellfoundJobDetail::default(),
             },
+            Platform::Other => Data::Other {
+                detail: crate::models::OtherJobDetail::default(),
+            },
         };
         NewJob {
             platform,
@@ -866,6 +869,43 @@ mod tests {
             assert_eq!(d.company, detail.company);
             assert_eq!(d.locations, detail.locations);
             assert_eq!(d.must_have, detail.must_have);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_raw_roundtrip_other() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let detail = crate::models::OtherJobDetail {
+            company: Some("Acme".to_string()),
+            description: "Build a Rust trading system".to_string(),
+        };
+        let job = NewJob {
+            platform: Platform::Other,
+            external_id: "other-1".to_string(),
+            title: "Rust Engineer".to_string(),
+            url: "https://example.com/jobs/other-1".to_string(),
+            budget: None,
+            tags: vec![],
+            raw: Data::Other {
+                detail: detail.clone(),
+            },
+            company: detail.company.clone(),
+            created_at: chrono::Utc::now(),
+            remote: true,
+        };
+
+        let id = db.upsert_job(&job).await?.id();
+        let found = db.get_job(id).await?.expect("job exists");
+
+        assert_eq!(found.platform, Platform::Other);
+        assert_eq!(found.company.as_deref(), Some("Acme"));
+        assert!(matches!(found.raw, Data::Other { .. }));
+        if let Data::Other { detail: d } = found.raw {
+            assert_eq!(d.company, detail.company);
+            assert_eq!(d.description, detail.description);
         }
         Ok(())
     }

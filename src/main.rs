@@ -1,15 +1,16 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
+use chrono::{DateTime, Utc};
 use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::{
     browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs},
     cli::{Cli, Commands, CommonSortBy, ListTarget, ReactAction, UpdatePlatform, UpworkSortBy},
     config::Settings,
-    db::Db,
+    db::{Db, UpsertResult},
     embed::load_default,
     embeddings_store::{EmbeddingsStore, VECTOR_SEARCH_MAX_RESULTS, embeddings_dir},
     language::LanguageService,
-    models::{JobFilter, Platform, Rating, Sort},
+    models::{Data, JobFilter, NewJob, OtherJobDetail, Platform, Rating, Sort},
     platforms::{
         PlatformClient,
         efinancialcareers::EfinancialcareersScraper,
@@ -134,6 +135,7 @@ async fn main() -> Result<()> {
             let settings = Settings::load(&path)?;
             cmd_classify(cmd, &db, &db_path, &settings).await?;
         }
+        Commands::Add(cmd) => cmd_add(cmd, &db).await?,
     }
 
     Ok(())
@@ -400,6 +402,51 @@ async fn cmd_classify(
 
     let jev = jobsearch::config::shared_systemone(&settings.systemone)?;
     jobsearch::classify::classify_jobs(&jev, &cv, db, &jobs).await
+}
+
+async fn cmd_add(cmd: jobsearch::cli::AddCmd, db: &Db) -> Result<()> {
+    let title = cmd.title.trim();
+    let url = cmd.url.trim();
+    let description = cmd.description.trim();
+    let external_id = cmd.external_id.trim();
+    anyhow::ensure!(!title.is_empty(), "title must not be empty");
+    anyhow::ensure!(!url.is_empty(), "url must not be empty");
+    anyhow::ensure!(!description.is_empty(), "description must not be empty");
+    anyhow::ensure!(!external_id.is_empty(), "external_id must not be empty");
+
+    let company = cmd.company;
+
+    let posted_at = DateTime::parse_from_rfc3339(cmd.posted_at.trim())
+        .map_err(|e| anyhow!("--posted-at must be RFC 3339 (e.g. 2026-10-06T14:00:00Z): {e}"))?
+        .with_timezone(&Utc);
+
+    let raw = Data::Other {
+        detail: OtherJobDetail {
+            company: company.clone(),
+            description: description.to_string(),
+        },
+    };
+    let job = NewJob {
+        platform: cmd.platform,
+        external_id: external_id.to_string(),
+        title: title.to_string(),
+        url: url.to_string(),
+        budget: None,
+        tags: Vec::new(),
+        raw,
+        company,
+        created_at: posted_at,
+        remote: cmd.remote,
+    };
+
+    match db.upsert_job(&job).await? {
+        UpsertResult::New(id) => println!("Added job {id}: {title}"),
+        UpsertResult::Updated(id) => println!("Updated existing job {id}: {title}"),
+        UpsertResult::Duplicate(id) => {
+            println!("Duplicate of existing job {id}: {title} (not inserted)");
+        }
+    }
+    Ok(())
 }
 
 async fn cmd_delete(db: &Db, ids: Vec<i64>) -> Result<()> {

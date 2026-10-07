@@ -3333,7 +3333,7 @@ dependencies = [
 
 [[package]]
 name = "jobsearch"
-version = "0.4.57"
+version = "0.4.58"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4837,7 +4837,7 @@ dependencies = [
 [[package]]
 name = "patterns"
 version = "0.1.0"
-source = "git+https://github.com/jozefRudy/patterns?rev=6157f8ce57cf0faf6a940e754097d35995495256#6157f8ce57cf0faf6a940e754097d35995495256"
+source = "git+https://github.com/jozefRudy/patterns?rev=fac3a3e561827fbf3d707521f7f0b9ae2a9eef77#fac3a3e561827fbf3d707521f7f0b9ae2a9eef77"
 dependencies = [
  "anyhow",
  "askama",
@@ -4859,7 +4859,7 @@ dependencies = [
 [[package]]
 name = "patterns-macros"
 version = "0.1.0"
-source = "git+https://github.com/jozefRudy/patterns?rev=6157f8ce57cf0faf6a940e754097d35995495256#6157f8ce57cf0faf6a940e754097d35995495256"
+source = "git+https://github.com/jozefRudy/patterns?rev=fac3a3e561827fbf3d707521f7f0b9ae2a9eef77#fac3a3e561827fbf3d707521f7f0b9ae2a9eef77"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5106,7 +5106,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03da047801ff44bb6a4d407d4860c05fd70bb81714e6b2f3812603d5b145b042"
 dependencies = [
  "heck",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "log",
  "multimap",
  "petgraph",
@@ -5125,7 +5125,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b570b25f7617e43d59005d0990ccb79e950a423952cea19671b7a876da390adf"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -7505,7 +7505,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

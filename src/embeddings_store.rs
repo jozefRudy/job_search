@@ -511,6 +511,9 @@ mod tests {
             Platform::Wellfound => Data::Wellfound {
                 detail: crate::models::WellfoundJobDetail::default(),
             },
+            Platform::Other => Data::Other {
+                detail: crate::models::OtherJobDetail::default(),
+            },
         };
         NewJob {
             platform,

@@ -204,6 +204,9 @@ export function JobDetailContent(props: { job: Job }) {
       <Show when={j.platform === "wellfound"}>
         <WellfoundDetail job={j} />
       </Show>
+      <Show when={j.raw.platform === "other"}>
+        <OtherDetail job={j} />
+      </Show>
 
       <ApplicationCard appliedAt={j.applied_at} note={j.note} />
 
@@ -220,6 +223,33 @@ export function JobDetailContent(props: { job: Job }) {
         confirmVariant="danger"
       />
     </Stack>
+  );
+}
+
+export function OtherDetail(props: { job: Job }) {
+  const raw = props.job.raw;
+  if (raw.platform !== "other") return null;
+  const d = raw.detail;
+  return (
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h3 class="card-title text-lg">Details</h3>
+        <Stack gap="sm">
+          <DetailList>
+            <Show when={d.company}>
+              <DetailRow label="Company" value={d.company ?? ""} />
+            </Show>
+            <DetailRow
+              label="Posted"
+              value={fmtRelative(props.job.created_at)}
+            />
+          </DetailList>
+          <Show when={d.description}>
+            <MarkdownDescription label="Description" text={d.description} />
+          </Show>
+        </Stack>
+      </div>
+    </div>
   );
 }
 

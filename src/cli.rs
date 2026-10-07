@@ -27,6 +27,7 @@ pub enum Commands {
     Diagnose,
     Embed(EmbedCmd),
     Classify(ClassifyCmd),
+    Add(AddCmd),
 }
 
 #[derive(Parser)]
@@ -37,6 +38,38 @@ pub struct ClassifyCmd {
 
     #[command(subcommand)]
     pub target: ListTarget,
+}
+
+fn non_empty_trimmed(value: &str) -> Result<String, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        Err("must not be blank".to_string())
+    } else {
+        Ok(trimmed.to_string())
+    }
+}
+
+/// Add one job by hand as a Data::Other entry.
+#[derive(Parser)]
+pub struct AddCmd {
+    #[arg(long)]
+    pub platform: crate::models::Platform,
+    #[arg(long)]
+    pub external_id: String,
+    #[arg(long)]
+    pub title: String,
+    /// Optional; must not be blank. Stored trimmed.
+    #[arg(long, value_parser = non_empty_trimmed)]
+    pub company: Option<String>,
+    #[arg(long)]
+    pub url: String,
+    #[arg(long)]
+    pub description: String,
+    /// Post date/time in RFC 3339 format, e.g. 2026-10-06T14:00:00Z.
+    #[arg(long)]
+    pub posted_at: String,
+    #[arg(long, action = clap::ArgAction::Set)]
+    pub remote: bool,
 }
 
 #[derive(Parser)]
