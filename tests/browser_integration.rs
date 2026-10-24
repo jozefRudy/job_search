@@ -865,11 +865,14 @@ async fn test_workatastartup_fetch_page() {
         let filters = WaasFilters::from_url(url)
             .expect("parse filters")
             .to_algolia();
-        let page = browser.new_tab(url).await.expect("open companies page");
+        let (page, key_url) =
+            jobsearch::platforms::workatastartup::open_companies_tab(&browser, url)
+                .await
+                .expect("open companies page");
 
         let scraper = WorkatastartupScraper::new();
         let result = scraper
-            .fetch_page(&page, &filters, 0)
+            .fetch_page(&page, &key_url, &filters, 0)
             .await
             .expect("fetch_page should succeed");
 

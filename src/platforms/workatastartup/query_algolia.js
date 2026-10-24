@@ -1,12 +1,6 @@
 (async function (config) {
-  const entry = performance
-    .getEntriesByType("resource")
-    .find((e) => e.name.includes("algolia.net/1/indexes") && e.name.includes("x-algolia-api-key"));
-  if (!entry) {
-    return { error: "no algolia key — log in at workatastartup.com and load /companies" };
-  }
   const params = `query=&hitsPerPage=100&page=${config.page}&filters=${encodeURIComponent(config.filters)}`;
-  const resp = await fetch(entry.name, {
+  const resp = await fetch(config.url, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: JSON.stringify({ requests: [{ indexName: config.indexName, params }] }),

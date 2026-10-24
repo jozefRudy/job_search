@@ -3,28 +3,53 @@
 //! Backend: public Algolia index `WaaSPublicCompanyJob_created_at_desc_production`
 //! (app id `45BWZJ1SGC`). The Algolia secured API key embeds a per-session
 //! `userToken` and is only issued to logged-in sessions, so fetching runs inside
-//! a workatastartup.com browser tab: JS extracts the full key URL from
-//! `performance.getEntriesByType('resource')` and paginates `/1/indexes/*/queries`.
+//! a workatastartup.com browser tab: the key URL is taken from the tab's own
+//! Algolia request and pages are fetched by posting to `/1/indexes/*/queries`.
 
 use crate::browser::{BrowserExt, host_of};
 use crate::db::{Db, UpsertResult};
 use crate::models::{Data, NewJob, Platform, WorkAtStartupJobDetail};
 use crate::platforms::{FetchState, PlatformClient};
 use crate::term::CursorGuard;
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use chromiumoxide::Page;
 use chromiumoxide::browser::Browser;
+use chromiumoxide::cdp::browser_protocol::network::{EnableParams, EventRequestWillBeSent};
 use chrono::{DateTime, Utc};
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use tokio::time::{Duration, sleep};
+use tokio::time::{Duration, sleep, timeout};
 
 const QUERY_ALGOLIA_JS: &str = include_str!("workatastartup/query_algolia.js");
 const CONFIG_PLACEHOLDER: &str = "__CONFIG__";
 
 const ALGOLIA_INDEX: &str = "WaaSPublicCompanyJob_created_at_desc_production";
-const NO_KEY_HINT: &str = "no algolia key";
-const KEY_WAIT_ATTEMPTS: u32 = 20;
+const KEY_WAIT_SECS: u64 = 30;
+
+/// Open the companies page and capture the Algolia key URL from its own request
+/// events (the page's resource-timing buffer is too small to keep it).
+pub async fn open_companies_tab(browser: &Browser, url: &str) -> Result<(Page, String)> {
+    let page = browser.new_blank_tab().await?;
+    page.execute(EnableParams::default()).await?;
+    let mut requests = page.event_listener::<EventRequestWillBeSent>().await?;
+    page.goto(url).await?;
+
+    let key_url = timeout(Duration::from_secs(KEY_WAIT_SECS), async {
+        while let Some(event) = requests.next().await {
+            let url = &event.request.url;
+            if url.contains("algolia.net/1/indexes") && url.contains("x-algolia-api-key") {
+                return Some(url.clone());
+            }
+        }
+        None
+    })
+    .await
+    .context("timed out waiting for algolia key URL")?
+    .context("no algolia key in tab requests (logged in?)")?;
+
+    Ok((page, key_url))
+}
 
 /// Filters parsed from a workatastartup.com/companies URL, translated to an
 /// Algolia `filters` expression.
@@ -142,32 +167,26 @@ impl WorkatastartupScraper {
         Ok(())
     }
 
-    /// Evaluate QUERY_ALGOLIA_JS: extract secured key URL from performance
-    /// resource entries, POST one page of hits. The key appears only after the
-    /// tab's own search request fires, so missing key is retried.
+    /// Evaluate QUERY_ALGOLIA_JS: POST one page of hits to the captured key URL.
     pub async fn fetch_page(
         &self,
         page: &Page,
+        key_url: &str,
         filters: &str,
         page_num: u32,
     ) -> Result<AlgoliaPage> {
         let config = serde_json::json!({
+            "url": key_url,
             "filters": filters,
             "page": page_num,
             "indexName": ALGOLIA_INDEX,
         });
         let js = QUERY_ALGOLIA_JS.replace(CONFIG_PLACEHOLDER, &config.to_string());
-        for attempt in 0..KEY_WAIT_ATTEMPTS {
-            let result: AlgoliaPage = page.evaluate(js.as_str()).await?.into_value()?;
-            match result.error {
-                Some(e) if e.contains(NO_KEY_HINT) && attempt + 1 < KEY_WAIT_ATTEMPTS => {
-                    sleep(Duration::from_millis(500)).await;
-                }
-                Some(e) => bail!("algolia query failed: {e}"),
-                None => return Ok(result),
-            }
+        let result: AlgoliaPage = page.evaluate(js.as_str()).await?.into_value()?;
+        if let Some(e) = &result.error {
+            bail!("algolia query failed: {e}");
         }
-        unreachable!()
+        Ok(result)
     }
 
     /// Map an Algolia hit to a `Job` (external_id = objectID, url = search_path,
@@ -238,13 +257,13 @@ impl PlatformClient for WorkatastartupScraper {
         self.ensure_waas_tab(browser).await?;
         let filters = WaasFilters::from_url(url)?.to_algolia();
 
-        let page = browser.new_tab(url).await?;
+        let (page, key_url) = open_companies_tab(browser, url).await?;
         let mut state = FetchState::new();
         let _guard = CursorGuard::new();
 
         let mut page_num = 0u32;
         loop {
-            let result = self.fetch_page(&page, &filters, page_num).await?;
+            let result = self.fetch_page(&page, &key_url, &filters, page_num).await?;
             if result.hits.is_empty() {
                 break;
             }

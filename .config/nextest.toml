@@ -1,0 +1,14 @@
+# Default 200ms is too tight while the CPU is saturated by parallel test
+# processes: a passing test can be flagged LEAK just for exiting slowly.
+[profile.default]
+leak-timeout = "2s"
+
+# Browser tests all drive the same Brave instance (CDP :9222) and time out when
+# two of them navigate at once, so they take turns — but they run alongside the
+# non-browser suites.
+[test-groups.browser]
+max-threads = 1
+
+[[profile.default.overrides]]
+filter = 'binary_id(jobsearch::browser_integration)'
+test-group = 'browser'
