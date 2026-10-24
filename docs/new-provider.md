@@ -49,9 +49,9 @@ below) visible before any scraping code exists.
   reverse map); hackernews and workatastartup hit Algolia JSON APIs; linkedin
   uses the Voyager API; efinancialcareers reads facade JSON.
 - **Session-bound APIs** — WaaS Algolia key is per-session (issued only to
-  logged-in sessions): extract it in-tab via
-  `performance.getEntriesByType('resource')`. Reddit's anonymous `.json`
-  returns 403 — fetch inside the user's browser session.
+  logged-in sessions): capture the key URL from the tab's own request events
+  (`EventRequestWillBeSent`; the resource-timing buffer evicts it). Reddit's
+  anonymous `.json` returns 403 — fetch inside the user's browser session.
 - **DOM scraping last resort** — nofluffjobs cards.
 - **Unstructured text → LLM extraction** — HN/reddit "Who's Hiring"
   megathreads: top-level comments are jobs, fields extracted via LLM.
