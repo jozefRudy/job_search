@@ -1,5 +1,4 @@
 pub mod browser;
-pub mod classify;
 pub mod cli;
 pub mod config;
 pub mod db;

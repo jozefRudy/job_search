@@ -3333,7 +3333,7 @@ dependencies = [
 
 [[package]]
 name = "jobsearch"
-version = "0.4.60"
+version = "0.4.61"
 dependencies = [
  "anyhow",
  "arrow",
@@ -4845,7 +4845,6 @@ dependencies = [
  "hf-hub",
  "ort",
  "patterns-macros",
- "reqwest 0.13.5",
  "schemars 1.2.1",
  "serde",
  "serde_json",

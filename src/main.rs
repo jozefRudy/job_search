@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Result, anyhow, bail};
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use directories::ProjectDirs;
@@ -133,11 +133,6 @@ async fn main() -> Result<()> {
         }
         Commands::Embed(cmd) => {
             cmd_embed(cmd, &db, &db_path).await?;
-        }
-        Commands::Classify(cmd) => {
-            let path = config_path();
-            let settings = Settings::load(&path)?;
-            cmd_classify(cmd, &db, &db_path, &settings).await?;
         }
         Commands::Add(cmd) => cmd_add(cmd, &db).await?,
     }
@@ -387,25 +382,6 @@ async fn resolve_jobs(
         .filter_jobs_paginated(&filter, sort, i64::MAX, 0)
         .await?
         .items)
-}
-
-async fn cmd_classify(
-    cmd: jobsearch::cli::ClassifyCmd,
-    db: &Db,
-    db_path: &std::path::Path,
-    settings: &Settings,
-) -> Result<()> {
-    let (filter, sort, search) = target_query(cmd.target);
-    let filter = jobsearch::classify::with_default_neutral(filter, cmd.force);
-    let jobs = resolve_jobs(db, db_path, filter, sort, search).await?;
-
-    let cv_path = jobsearch::config::expand_tilde(&settings.personal_info.cv);
-    let cv = tokio::fs::read_to_string(&cv_path)
-        .await
-        .with_context(|| format!("failed to read CV from {}", cv_path.display()))?;
-
-    let jev = jobsearch::config::shared_systemone(&settings.systemone)?;
-    jobsearch::classify::classify_jobs(&jev, &cv, db, &jobs).await
 }
 
 async fn cmd_add(cmd: jobsearch::cli::AddCmd, db: &Db) -> Result<()> {

@@ -27,18 +27,7 @@ pub enum Commands {
     },
     Diagnose,
     Embed(EmbedCmd),
-    Classify(ClassifyCmd),
     Add(AddCmd),
-}
-
-#[derive(Parser)]
-pub struct ClassifyCmd {
-    /// Overwrite existing liked/disliked ratings (default: only neutral jobs).
-    #[arg(long, global = true)]
-    pub force: bool,
-
-    #[command(subcommand)]
-    pub target: ListTarget,
 }
 
 fn non_empty_trimmed(value: &str) -> Result<String, String> {
