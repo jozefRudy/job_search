@@ -4,7 +4,10 @@ use clap::Parser;
 use directories::ProjectDirs;
 use jobsearch::{
     browser::{BrowserExt, BrowserManager, DEFAULT_INIT_URLS, ensure_init_tabs},
-    cli::{Cli, Commands, CommonSortBy, ListTarget, ReactAction, UpdatePlatform, UpworkSortBy},
+    cli::{
+        Cli, Commands, CommonSortBy, ListTarget, ReactAction, SetCmd, SetField, UpdatePlatform,
+        UpworkSortBy,
+    },
     config::Settings,
     db::{Db, UpsertResult},
     embed::load_default,
@@ -121,6 +124,7 @@ async fn main() -> Result<()> {
         Commands::React(cmd) => {
             cmd_react(&db, cmd.action).await?;
         }
+        Commands::Set(cmd) => cmd_set(&db, cmd).await?,
         Commands::Serve { port } => {
             server::serve(db, &db_path, port).await?;
         }
@@ -511,6 +515,45 @@ async fn cmd_react(db: &Db, cmd: ReactAction) -> Result<()> {
                 ids.len(),
                 if ids.len() == 1 { "" } else { "s" }
             );
+        }
+    }
+    Ok(())
+}
+
+async fn cmd_set(db: &Db, cmd: SetCmd) -> Result<()> {
+    match cmd.field {
+        SetField::Remote { value, ids } => {
+            let updated = db.set_remote(&ids, value).await?;
+            let missing: Vec<i64> = ids
+                .iter()
+                .copied()
+                .filter(|id| !updated.contains(id))
+                .collect();
+            if !missing.is_empty() {
+                eprintln!("skipped unknown job ids: {missing:?}");
+            }
+            println!(
+                "Set remote={value} for {} job{}",
+                updated.len(),
+                if updated.len() == 1 { "" } else { "s" }
+            );
+        }
+        SetField::Note { note, id } => {
+            let job = db
+                .get_job(id)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("job {id} not found"))?;
+            if job.applied_at.is_none() {
+                bail!(
+                    "job {id} has no application yet; apply first with `jobsearch react apply {id} -n \"...\"`"
+                );
+            }
+            db.set_note(id, &note).await?;
+            if note.is_empty() {
+                println!("Cleared note for job {id}");
+            } else {
+                println!("Set note for job {id}");
+            }
         }
     }
     Ok(())

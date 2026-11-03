@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE reactions SET note = ?1 WHERE job_id = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "d6f778073bdb04436764a7cb54f06aa80d70e6c0693141baec0493a330e63482"
+}

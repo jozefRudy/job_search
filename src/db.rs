@@ -88,17 +88,15 @@ impl Db {
                     budget = ?3,
                     tags = ?4,
                     raw = ?5,
-                    remote = ?6,
-                    content_hash = ?7,
+                    content_hash = ?6,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?8
+                WHERE id = ?7
                 "#,
                 job.title,
                 job.url,
                 job.budget,
                 tags,
                 raw,
-                job.remote,
                 content_hash,
                 id,
             )
@@ -317,6 +315,34 @@ impl Db {
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
+
+    /// Remote is insert-only here: re-fetch must not clobber a manual correction.
+    /// Returns the ids actually updated, so callers can name skipped ones.
+    pub async fn set_remote(&self, ids: &[i64], remote: bool) -> Result<Vec<i64>> {
+        let ids_json = serde_json::to_string(ids)?;
+        let updated = sqlx::query_scalar!(
+            r#"UPDATE jobs SET remote = ?1 WHERE id IN (SELECT value FROM json_each(?2)) RETURNING id AS "id!: i64""#,
+            remote,
+            ids_json
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(updated)
+    }
+
+    /// Note-only write; `applied_at` is left untouched.
+    pub async fn set_note(&self, job_id: i64, note: &str) -> Result<()> {
+        let note = (!note.is_empty()).then_some(note);
+        let result = sqlx::query!(
+            "UPDATE reactions SET note = ?1 WHERE job_id = ?2",
+            note,
+            job_id
+        )
+        .execute(&self.pool)
+        .await?;
+        anyhow::ensure!(result.rows_affected() > 0, "job {job_id} is not applied");
         Ok(())
     }
 
@@ -1398,6 +1424,91 @@ mod tests {
         let all = db.filter_vectorized_job_ids(&JobFilter::default()).await?;
         assert_eq!(all.len(), 2);
         assert!(all.contains(&id2));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_set_remote_persists_across_upsert() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let job = test_job(Platform::Upwork, "r1", "Rust Dev");
+        let id = db.upsert_job(&job).await?.id();
+        assert!(db.get_job(id).await?.expect("job").remote);
+
+        assert_eq!(db.set_remote(&[id, 999_999], false).await?, vec![id]);
+        assert!(matches!(
+            db.upsert_job(&job).await?,
+            UpsertResult::Updated(_)
+        ));
+        assert!(!db.get_job(id).await?.expect("job").remote);
+
+        db.set_remote(&[id], true).await?;
+        assert!(db.get_job(id).await?.expect("job").remote);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_set_remote_filters_use_edited_value() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let id1 = db
+            .upsert_job(&test_job(Platform::Upwork, "f1", "One"))
+            .await?
+            .id();
+        let id2 = db
+            .upsert_job(&test_job(Platform::LinkedIn, "f2", "Two"))
+            .await?
+            .id();
+        db.set_remote(&[id1], false).await?;
+
+        let not_remote = JobFilter {
+            remote: Some(false),
+            ..Default::default()
+        };
+        let page = db
+            .filter_jobs_paginated(&not_remote, Sort::Created, 10, 0)
+            .await?;
+        assert_eq!(page.total, 1);
+        assert_eq!(page.items[0].id, id1);
+
+        let remote = JobFilter {
+            remote: Some(true),
+            ..Default::default()
+        };
+        let page = db
+            .filter_jobs_paginated(&remote, Sort::Created, 10, 0)
+            .await?;
+        assert_eq!(page.total, 1);
+        assert_eq!(page.items[0].id, id2);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_set_note_requires_applied() -> Result<()> {
+        let tmp = temp_db();
+        let db = Db::open(tmp.path()).await?;
+
+        let id = db
+            .upsert_job(&test_job(Platform::Upwork, "n1", "Rust"))
+            .await?
+            .id();
+        assert!(db.set_note(id, "nope").await.is_err());
+
+        db.set_applied(id, Some("old"), chrono::Utc::now()).await?;
+        let applied_at = db.get_job(id).await?.expect("job").applied_at;
+
+        db.set_note(id, "new").await?;
+        let job = db.get_job(id).await?.expect("job");
+        assert_eq!(job.note.as_deref(), Some("new"));
+        assert_eq!(job.applied_at, applied_at);
+
+        db.set_note(id, "").await?;
+        assert!(db.get_job(id).await?.expect("job").note.is_none());
 
         Ok(())
     }

@@ -20,6 +20,7 @@ pub enum Commands {
         ids: Vec<i64>,
     },
     React(ReactCmd),
+    Set(SetCmd),
     Serve {
         #[arg(short, long, default_value = "8080")]
         port: u16,
@@ -176,6 +177,32 @@ pub enum UpworkSortBy {
     #[value(name = "upwork_viewed")]
     UpworkViewed,
     Applied,
+}
+
+#[derive(Parser)]
+pub struct SetCmd {
+    #[command(subcommand)]
+    pub field: SetField,
+}
+
+#[derive(Subcommand)]
+pub enum SetField {
+    /// Override the stored remote flag
+    Remote {
+        /// true or false
+        #[arg(value_parser = clap::value_parser!(bool), value_name = "BOOL")]
+        value: bool,
+        #[arg(required = true)]
+        ids: Vec<i64>,
+    },
+
+    /// Replace the application note (empty string clears it)
+    // Optional positional before required `id` panics clap; use `"$(cat file)"` for multiline.
+    Note {
+        #[arg(value_name = "TEXT")]
+        note: String,
+        id: i64,
+    },
 }
 
 #[derive(Parser)]
