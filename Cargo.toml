@@ -1,6 +1,6 @@
 [package]
 name = "jobsearch"
-version = "0.4.61"
+version = "0.4.62"
 edition = "2024"
 
 [profile.release]
@@ -8,6 +8,7 @@ strip = true
 
 [dependencies]
 anyhow = "1"
+libc = "0.2"
 patterns = { git = "https://github.com/jozefRudy/patterns", rev = "fac3a3e561827fbf3d707521f7f0b9ae2a9eef77", default-features = false, features = ["llm_cli", "embed"] }
 async-trait = "0.1"
 axum = "0.8"

@@ -3333,7 +3333,7 @@ dependencies = [
 
 [[package]]
 name = "jobsearch"
-version = "0.4.61"
+version = "0.4.62"
 dependencies = [
  "anyhow",
  "arrow",
@@ -3355,6 +3355,7 @@ dependencies = [
  "lance-datafusion",
  "lance-index",
  "lance-linalg",
+ "libc",
  "lingua",
  "mime_guess",
  "owo-colors",

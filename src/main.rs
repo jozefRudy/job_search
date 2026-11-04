@@ -75,6 +75,12 @@ async fn cmd_init(manager: &BrowserManager, urls: &[&str]) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Default SIGPIPE so a closed pipe (`jobsearch list | head`) ends the process instead of panicking.
+    #[cfg(unix)]
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+
     let cli = Cli::parse();
 
     let db_path = std::env::var("JOBSEARCH_DATABASE_URL")
