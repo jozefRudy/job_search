@@ -13,9 +13,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  ONNX_VERSION: 1.24.2
-
 jobs:
   version:
     name: Check version
@@ -53,15 +50,11 @@ jobs:
           - build: x86_64-linux
             os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            onnx: linux-x64
             protoc: linux-x86_64
-            rpath: '$ORIGIN/../lib'
           - build: aarch64-macos
             os: macos-latest
             target: aarch64-apple-darwin
-            onnx: osx-arm64
             protoc: osx-aarch_64
-            rpath: '@loader_path/../lib'
 
     steps:
       - name: Checkout sources
@@ -80,6 +73,11 @@ jobs:
           rm protoc.zip
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          # ort-sys downloads its static ONNX Runtime archive here, outside target/
+          cache-directories: |
+            ~/.cache/ort.pyke.io
+            ~/Library/Caches/ort.pyke.io
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -100,23 +98,10 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm build
 
-      - name: Download ONNX Runtime
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fLo onnxruntime.tgz \
-            "https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-${{ matrix.onnx }}-${ONNX_VERSION}.tgz"
-          mkdir -p onnxruntime
-          tar xzf onnxruntime.tgz -C onnxruntime --strip-components 1
-          rm onnxruntime.tgz
-
       - name: Build release binary
         shell: bash
         env:
           SQLX_OFFLINE: "true"
-          ORT_PREFER_DYNAMIC_LINK: "1"
-          ORT_LIB_PATH: ${{ github.workspace }}/onnxruntime/lib
-          RUSTFLAGS: -Clink-arg=-Wl,-rpath,${{ matrix.rpath }}
         run: cargo build --release --locked --target ${{ matrix.target }}
 
       - name: Stage dist
@@ -126,7 +111,6 @@ jobs:
           name="jobsearch-v${{ needs.version.outputs.version }}-${{ matrix.build }}"
           mkdir -p "dist/${name}/bin"
           cp "target/${{ matrix.target }}/release/jobsearch" "dist/${name}/bin/"
-          cp -RL onnxruntime/lib "dist/${name}/lib"
 
       - name: Create tarball
         shell: bash
