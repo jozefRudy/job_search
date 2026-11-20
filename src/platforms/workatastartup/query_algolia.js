@@ -3,7 +3,10 @@
   const resp = await fetch(config.url, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: JSON.stringify({ requests: [{ indexName: config.indexName, params }] }),
+    body: JSON.stringify({
+      requests: [{ indexName: config.indexName, params }],
+      apiKey: config.apiKey,
+    }),
   });
   if (!resp.ok) {
     return { error: `algolia http ${resp.status}` };

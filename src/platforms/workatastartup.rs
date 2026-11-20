@@ -3,8 +3,8 @@
 //! Backend: public Algolia index `WaaSPublicCompanyJob_created_at_desc_production`
 //! (app id `45BWZJ1SGC`). The Algolia secured API key embeds a per-session
 //! `userToken` and is only issued to logged-in sessions, so fetching runs inside
-//! a workatastartup.com browser tab: the key URL is taken from the tab's own
-//! Algolia request and pages are fetched by posting to `/1/indexes/*/queries`.
+//! a workatastartup.com browser tab: the key is taken from the body of the tab's
+//! own Algolia request and pages are fetched by posting to `/1/indexes/*/queries`.
 
 use crate::browser::{BrowserExt, host_of};
 use crate::db::{Db, UpsertResult};
@@ -15,7 +15,9 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use chromiumoxide::Page;
 use chromiumoxide::browser::Browser;
-use chromiumoxide::cdp::browser_protocol::network::{EnableParams, EventRequestWillBeSent};
+use chromiumoxide::cdp::browser_protocol::network::{
+    EnableParams, EventRequestWillBeSent, GetRequestPostDataParams,
+};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -25,30 +27,65 @@ const QUERY_ALGOLIA_JS: &str = include_str!("workatastartup/query_algolia.js");
 const CONFIG_PLACEHOLDER: &str = "__CONFIG__";
 
 const ALGOLIA_INDEX: &str = "WaaSPublicCompanyJob_created_at_desc_production";
+const ALGOLIA_REQUEST_MARKER: &str = "algolia.net/1/indexes";
 const KEY_WAIT_SECS: u64 = 30;
 
-/// Open the companies page and capture the Algolia key URL from its own request
+/// Algolia endpoint plus the per-session key, both taken from the tab's own
+/// request (the key rides in the JSON body, not the URL).
+#[derive(Debug, Clone)]
+pub struct AlgoliaAuth {
+    pub url: String,
+    pub api_key: String,
+}
+
+impl AlgoliaAuth {
+    /// Extract from a captured request URL and body.
+    #[must_use]
+    pub fn from_request(url: &str, body: &str) -> Option<Self> {
+        if !url.contains(ALGOLIA_REQUEST_MARKER) {
+            return None;
+        }
+        let parsed: serde_json::Value = serde_json::from_str(body).ok()?;
+        let api_key = parsed.get("apiKey")?.as_str()?.to_string();
+        Some(Self {
+            url: url.to_string(),
+            api_key,
+        })
+    }
+}
+
+/// Open the companies page and capture the Algolia auth from its own request
 /// events (the page's resource-timing buffer is too small to keep it).
-pub async fn open_companies_tab(browser: &Browser, url: &str) -> Result<(Page, String)> {
+pub async fn open_companies_tab(browser: &Browser, url: &str) -> Result<(Page, AlgoliaAuth)> {
     let page = browser.new_blank_tab().await?;
     page.execute(EnableParams::default()).await?;
     let mut requests = page.event_listener::<EventRequestWillBeSent>().await?;
     page.goto(url).await?;
 
-    let key_url = timeout(Duration::from_secs(KEY_WAIT_SECS), async {
+    let auth = timeout(Duration::from_secs(KEY_WAIT_SECS), async {
         while let Some(event) = requests.next().await {
-            let url = &event.request.url;
-            if url.contains("algolia.net/1/indexes") && url.contains("x-algolia-api-key") {
-                return Some(url.clone());
+            let algolia_url = event.request.url.clone();
+            if !algolia_url.contains(ALGOLIA_REQUEST_MARKER) {
+                continue;
+            }
+            // Body (and the key inside it) is only available via CDP.
+            let Ok(resp) = page
+                .execute(GetRequestPostDataParams::new(event.request_id.clone()))
+                .await
+            else {
+                continue;
+            };
+            if let Some(auth) = AlgoliaAuth::from_request(&algolia_url, &resp.result.post_data) {
+                return Some(auth);
             }
         }
         None
     })
     .await
-    .context("timed out waiting for algolia key URL")?
-    .context("no algolia key in tab requests (logged in?)")?;
+    .context("timed out waiting for algolia api key")?
+    .context("no algolia api key in tab requests (logged in?)")?;
 
-    Ok((page, key_url))
+    Ok((page, auth))
 }
 
 /// Filters parsed from a workatastartup.com/companies URL, translated to an
@@ -167,16 +204,17 @@ impl WorkatastartupScraper {
         Ok(())
     }
 
-    /// Evaluate QUERY_ALGOLIA_JS: POST one page of hits to the captured key URL.
+    /// Evaluate QUERY_ALGOLIA_JS: POST one page of hits with the captured auth.
     pub async fn fetch_page(
         &self,
         page: &Page,
-        key_url: &str,
+        auth: &AlgoliaAuth,
         filters: &str,
         page_num: u32,
     ) -> Result<AlgoliaPage> {
         let config = serde_json::json!({
-            "url": key_url,
+            "url": auth.url,
+            "apiKey": auth.api_key,
             "filters": filters,
             "page": page_num,
             "indexName": ALGOLIA_INDEX,
@@ -257,13 +295,13 @@ impl PlatformClient for WorkatastartupScraper {
         self.ensure_waas_tab(browser).await?;
         let filters = WaasFilters::from_url(url)?.to_algolia();
 
-        let (page, key_url) = open_companies_tab(browser, url).await?;
+        let (page, auth) = open_companies_tab(browser, url).await?;
         let mut state = FetchState::new();
         let _guard = CursorGuard::new();
 
         let mut page_num = 0u32;
         loop {
-            let result = self.fetch_page(&page, &key_url, &filters, page_num).await?;
+            let result = self.fetch_page(&page, &auth, &filters, page_num).await?;
             if result.hits.is_empty() {
                 break;
             }
@@ -302,6 +340,25 @@ impl PlatformClient for WorkatastartupScraper {
 mod tests {
     use super::*;
     use chrono::Datelike;
+
+    #[test]
+    fn test_algolia_auth_from_request() {
+        let url = "https://45bwzj1sgc-dsn.algolia.net/1/indexes/*/queries?x-algolia-application-id=45BWZJ1SGC";
+        let body = r#"{"requests":[{"indexName":"idx","params":"query="}],"apiKey":"abc123"}"#;
+        let auth = AlgoliaAuth::from_request(url, body).expect("auth captured");
+        assert_eq!(auth.api_key, "abc123");
+        assert_eq!(auth.url, url);
+    }
+
+    #[test]
+    fn test_algolia_auth_rejects_other_requests() {
+        let body = r#"{"apiKey":"abc123"}"#;
+        assert!(AlgoliaAuth::from_request("https://example.com/x", body).is_none());
+        assert!(
+            AlgoliaAuth::from_request("https://45bwzj1sgc-dsn.algolia.net/1/indexes/q", "{}")
+                .is_none()
+        );
+    }
 
     #[test]
     fn test_from_url_parses_filters() {
