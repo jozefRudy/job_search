@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
 use chrono::{DateTime, Utc};
 use futures::stream::{Stream, StreamExt};
-use patterns::llm_cli::{Extractable, SharedLlm};
+use patterns::llm::{ChatLlm, Extractable};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -51,14 +51,14 @@ struct CommentSearchResponse {
 
 pub struct HackerNewsScraper {
     client: Client,
-    llm: SharedLlm,
-    /// Rendered into every extraction prompt (see SharedLlm::extract context).
+    llm: ChatLlm,
+    /// Rendered into every extraction prompt (see ChatLlm::extract context).
     context: String,
 }
 
 impl HackerNewsScraper {
     #[must_use]
-    pub fn new(llm: SharedLlm, location: crate::region::Region) -> Self {
+    pub fn new(llm: ChatLlm, location: crate::region::Region) -> Self {
         Self {
             client: Client::builder()
                 .user_agent("Mozilla/5.0 (compatible; JobSearch/1.0)")

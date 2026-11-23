@@ -189,7 +189,7 @@ async fn cmd_update(
     settings: &Settings,
 ) -> Result<()> {
     let lang = LanguageService::new();
-    let llm = jobsearch::config::shared_llm(&settings.llm);
+    let llm = jobsearch::config::shared_llm(&settings.llm)?;
     match update_cmd.platform {
         UpdatePlatform::Upwork => {
             if settings.providers.upwork.urls.is_empty() {

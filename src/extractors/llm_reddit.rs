@@ -14,7 +14,8 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Default, Deserialize, JsonSchema, Extractable)]
 #[extract(
     template = "reddit_rust_fields.md",
-    healthcheck = "reddit_rust_healthcheck.md"
+    healthcheck = "reddit_rust_healthcheck.md",
+    healthcheck_context = "Candidate location: Europe"
 )]
 pub struct RustFields {
     #[schemars(
@@ -67,25 +68,25 @@ impl RustFields {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use patterns::llm_cli::{ConcurrencyLimits, SharedLlm};
+    use patterns::limits::ConcurrencyLimits;
+    use patterns::llm::ChatLlm;
 
-    /// JOBSEARCH_LLM_BIN is a command string (bin + args); split once here.
-    fn llm() -> SharedLlm {
-        let cmd = std::env::var("JOBSEARCH_LLM_BIN")
-            .expect("JOBSEARCH_LLM_BIN must be set to an LLM CLI command");
-        let mut parts = cmd.split_whitespace().map(String::from);
-        let bin = parts.next().expect("JOBSEARCH_LLM_BIN must have a bin");
-        SharedLlm::new(
-            bin,
-            parts.collect::<Vec<String>>(),
-            ConcurrencyLimits::default(),
-        )
+    /// Chat client from the env: `JOBSEARCH_LLM_BASE_URL` / `JOBSEARCH_LLM_MODEL`
+    /// (defaults: DeepSeek + `deepseek-flash`), key in `DEEPSEEK_API_KEY`.
+    fn llm() -> ChatLlm {
+        let api_key = std::env::var("DEEPSEEK_API_KEY")
+            .expect("DEEPSEEK_API_KEY must be set to the provider key");
+        let base_url = std::env::var("JOBSEARCH_LLM_BASE_URL")
+            .unwrap_or_else(|_| "https://api.deepseek.com".to_owned());
+        let model =
+            std::env::var("JOBSEARCH_LLM_MODEL").unwrap_or_else(|_| "deepseek-flash".to_owned());
+        ChatLlm::new(base_url, api_key, model, ConcurrencyLimits::default())
     }
 
     const CONTEXT: &str = "Candidate location: Europe";
 
     #[tokio::test]
-    #[ignore = "requires JOBSEARCH_LLM_BIN set to an LLM CLI command"]
+    #[ignore = "requires DEEPSEEK_API_KEY"]
     async fn test_extract_rust_from_fixture() {
         let text = include_str!("fixtures/reddit_rust_job.md");
         let fields = llm()
@@ -98,7 +99,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires JOBSEARCH_LLM_BIN set to an LLM CLI command"]
+    #[ignore = "requires DEEPSEEK_API_KEY"]
     async fn test_extract_rust_rejects_seeker() {
         let text = include_str!("fixtures/reddit_rust_seeker.md");
         let fields = llm()
@@ -109,7 +110,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore = "requires JOBSEARCH_LLM_BIN set to an LLM CLI command"]
+    #[ignore = "requires DEEPSEEK_API_KEY"]
     async fn test_extract_rust_rejects_grant() {
         let text = include_str!("fixtures/reddit_rust_grant.md");
         let fields = llm()

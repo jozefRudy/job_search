@@ -21,35 +21,47 @@ pub struct Settings {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LlmConfig {
-    /// LLM CLI binary path.
-    pub bin: String,
-    /// LLM CLI args, whitespace-separated (split once in [`shared_llm`]).
-    #[serde(default)]
-    pub args: String,
+    /// OpenAI-compatible base URL, e.g. `https://api.deepseek.com`.
+    pub base_url: String,
+    /// Model id at that provider, e.g. `deepseek-flash`.
+    pub model: String,
+    /// Name of the environment variable holding the API key (never the key).
+    pub api_key_env: String,
 }
 
-/// Build the shared LLM handle from config; one per process (shared
-/// concurrency cap across scrapers).
-#[must_use]
-pub fn shared_llm(cfg: &LlmConfig) -> patterns::llm_cli::SharedLlm {
-    patterns::llm_cli::SharedLlm::new(
-        cfg.bin.clone(),
-        cfg.args
-            .split_whitespace()
-            .map(String::from)
-            .collect::<Vec<String>>(),
-        patterns::llm_cli::ConcurrencyLimits::default(),
-    )
+/// Build the shared chat handle from config; one per process (shared concurrency
+/// cap across scrapers).
+///
+/// # Errors
+/// If `api_key_env` is unset or blank: a missing key fails at startup, not on the
+/// first paid extraction.
+pub fn shared_llm(cfg: &LlmConfig) -> Result<patterns::llm::ChatLlm> {
+    let api_key = std::env::var(&cfg.api_key_env)
+        .with_context(|| format!("environment variable {} is not set", cfg.api_key_env))?;
+    anyhow::ensure!(
+        !api_key.trim().is_empty(),
+        "environment variable {} is empty",
+        cfg.api_key_env
+    );
+    Ok(patterns::llm::ChatLlm::new(
+        cfg.base_url.clone(),
+        api_key,
+        cfg.model.clone(),
+        patterns::limits::ConcurrencyLimits::default(),
+    ))
 }
 
 /// Placeholder written into the sample config by `jobsearch init`.
 pub const SAMPLE_BROWSER_BIN: &str = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
 
-/// Sample LLM CLI config written into the sample config by `jobsearch init`.
-pub const SAMPLE_LLM_BIN: &str = "pi";
+/// Sample base URL written into the sample config by `jobsearch init`.
+pub const SAMPLE_LLM_BASE_URL: &str = "https://api.deepseek.com";
 
-/// Sample LLM CLI args written into the sample config by `jobsearch init`.
-pub const SAMPLE_LLM_ARGS: &str = "--print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-flash";
+/// Sample model id written into the sample config by `jobsearch init`.
+pub const SAMPLE_LLM_MODEL: &str = "deepseek-flash";
+
+/// Sample API-key env var name written into the sample config by `jobsearch init`.
+pub const SAMPLE_LLM_API_KEY_ENV: &str = "DEEPSEEK_API_KEY";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrowserConfig {
@@ -100,8 +112,9 @@ impl Settings {
                 bin: SAMPLE_BROWSER_BIN.to_string(),
             },
             llm: LlmConfig {
-                bin: SAMPLE_LLM_BIN.to_string(),
-                args: SAMPLE_LLM_ARGS.to_string(),
+                base_url: SAMPLE_LLM_BASE_URL.to_string(),
+                model: SAMPLE_LLM_MODEL.to_string(),
+                api_key_env: SAMPLE_LLM_API_KEY_ENV.to_string(),
             },
             providers: Providers {
                 upwork: ProviderConfig {

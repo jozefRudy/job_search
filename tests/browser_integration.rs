@@ -61,14 +61,14 @@ fn efc_search_url(keyword: &str) -> String {
 #[tokio::test]
 #[ignore = "requires network access to Hacker News Algolia API"]
 async fn test_hackernews_fetch_comments() {
-    let cmd = std::env::var("JOBSEARCH_LLM_BIN")
-        .expect("JOBSEARCH_LLM_BIN must be set to an LLM CLI command");
-    let mut parts = cmd.split_whitespace().map(String::from);
-    let bin = parts.next().expect("JOBSEARCH_LLM_BIN must have a bin");
-    let llm = patterns::llm_cli::SharedLlm::new(
-        bin,
-        parts.collect::<Vec<String>>(),
-        patterns::llm_cli::ConcurrencyLimits::default(),
+    let api_key = std::env::var("DEEPSEEK_API_KEY")
+        .expect("DEEPSEEK_API_KEY must be set to the provider key");
+    let llm = patterns::llm::ChatLlm::new(
+        std::env::var("JOBSEARCH_LLM_BASE_URL")
+            .unwrap_or_else(|_| "https://api.deepseek.com".to_owned()),
+        api_key,
+        std::env::var("JOBSEARCH_LLM_MODEL").unwrap_or_else(|_| "deepseek-flash".to_owned()),
+        patterns::limits::ConcurrencyLimits::default(),
     );
     let scraper = jobsearch::platforms::hackernews::HackerNewsScraper::new(
         llm,
@@ -796,7 +796,12 @@ async fn test_linkedin_pagination_has_next_page() {
 #[ignore = "requires Chromium browser running with CDP and reddit.com tab open"]
 async fn test_reddit_fetch_rust() {
     with_browser(60, |browser| async move {
-        let scraper = jobsearch::platforms::reddit::RedditScraper::new(patterns::llm_cli::SharedLlm::new("true".to_owned(), Vec::<String>::new(), patterns::llm_cli::ConcurrencyLimits::default()), jobsearch::region::Region::Europe)
+        let scraper = jobsearch::platforms::reddit::RedditScraper::new(patterns::llm::ChatLlm::new(
+                "http://127.0.0.1:9".to_owned(),
+                "unused".to_owned(),
+                "unused".to_owned(),
+                patterns::limits::ConcurrencyLimits::default(),
+            ), jobsearch::region::Region::Europe)
             .expect("RedditScraper should be created");
         let page = browser
             .new_tab("https://www.reddit.com")

@@ -8,7 +8,8 @@
   packages = [pkgs.git pkgs.sqlx-cli pkgs.actionlint pkgs.shellcheck];
   env = {
     JOBSEARCH_BROWSER_BIN = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser";
-    JOBSEARCH_LLM_BIN = "pi --print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-flash";
+    JOBSEARCH_LLM_BASE_URL = "https://api.deepseek.com";
+    JOBSEARCH_LLM_MODEL = "deepseek-flash";
 
     SQLX_OFFLINE = "true";
     JOBSEARCH_DATABASE_URL = "sqlite:./jobsearch.db";
@@ -18,7 +19,7 @@
   languages = {
     rust = {
       enable = true;
-      channel = "nightly";
+      channel = "stable";
       components = ["rustc" "cargo" "clippy" "rustfmt" "rust-analyzer" "rust-src"];
     };
     javascript = {

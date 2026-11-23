@@ -3366,7 +3366,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "shell-words",
  "shellexpand",
  "sqlx",
  "sysinfo",
@@ -4838,7 +4837,7 @@ dependencies = [
 [[package]]
 name = "patterns"
 version = "0.1.0"
-source = "git+https://github.com/jozefRudy/patterns?rev=fac3a3e561827fbf3d707521f7f0b9ae2a9eef77#fac3a3e561827fbf3d707521f7f0b9ae2a9eef77"
+source = "git+https://github.com/jozefRudy/patterns?rev=6a4e6152ef48351d37302777c584398863e99e59#6a4e6152ef48351d37302777c584398863e99e59"
 dependencies = [
  "anyhow",
  "askama",
@@ -4846,6 +4845,7 @@ dependencies = [
  "hf-hub",
  "ort",
  "patterns-macros",
+ "reqwest 0.13.5",
  "schemars 1.2.1",
  "serde",
  "serde_json",
@@ -4859,7 +4859,7 @@ dependencies = [
 [[package]]
 name = "patterns-macros"
 version = "0.1.0"
-source = "git+https://github.com/jozefRudy/patterns?rev=fac3a3e561827fbf3d707521f7f0b9ae2a9eef77#fac3a3e561827fbf3d707521f7f0b9ae2a9eef77"
+source = "git+https://github.com/jozefRudy/patterns?rev=6a4e6152ef48351d37302777c584398863e99e59#6a4e6152ef48351d37302777c584398863e99e59"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6035,12 +6035,6 @@ checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
 ]
-
-[[package]]
-name = "shell-words"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc6fe69c597f9c37bfeeeeeb33da3530379845f10be461a66d16d03eca2ded77"
 
 [[package]]
 name = "shellexpand"
@@ -7505,7 +7499,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

@@ -9,7 +9,7 @@ strip = true
 [dependencies]
 anyhow = "1"
 libc = "0.2"
-patterns = { git = "https://github.com/jozefRudy/patterns", rev = "fac3a3e561827fbf3d707521f7f0b9ae2a9eef77", default-features = false, features = ["llm_cli", "embed"] }
+patterns = { git = "https://github.com/jozefRudy/patterns", rev = "6a4e6152ef48351d37302777c584398863e99e59", default-features = false, features = ["llm", "embed"] }
 async-trait = "0.1"
 axum = "0.8"
 utoipa = { version = "5", features = ["axum_extras", "chrono"] }
@@ -29,7 +29,6 @@ mime_guess = "2.0"
 owo-colors = "4"
 reqwest = { version = "0.13", features = ["json", "cookies", "query"] }
 serde = { version = "1", features = ["derive"] }
-shell-words = "1"
 regex = "1"
 schemars = "1"
 serde_json = "1"

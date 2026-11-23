@@ -15,7 +15,7 @@ use chromiumoxide::browser::Browser;
 use chromiumoxide::page::Page;
 use chrono::{DateTime, Utc};
 use owo_colors::OwoColorize;
-use patterns::llm_cli::{Extractable, SharedLlm};
+use patterns::llm::{ChatLlm, Extractable};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -66,13 +66,13 @@ pub struct Candidate {
 }
 
 pub struct RedditScraper {
-    llm: SharedLlm,
-    /// Rendered into every extraction prompt (see SharedLlm::extract context).
+    llm: ChatLlm,
+    /// Rendered into every extraction prompt (see ChatLlm::extract context).
     context: String,
 }
 
 impl RedditScraper {
-    pub fn new(llm: SharedLlm, location: crate::region::Region) -> Result<Self> {
+    pub fn new(llm: ChatLlm, location: crate::region::Region) -> Result<Self> {
         Ok(Self {
             llm,
             context: format!("Candidate location: {location}"),

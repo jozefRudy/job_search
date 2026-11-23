@@ -8,7 +8,7 @@ use anyhow::Result;
 
 pub use patterns::embed::Embedder;
 
-use patterns::embed::{LoadOptions, ModelSpec, Pooling, Prefixes};
+use patterns::embed::{EmbeddingSpec, LoadOptions, Pooling, Prefixes};
 
 /// Hub repo of the default embedding model.
 pub const MODEL: &str = "nomic-ai/nomic-embed-text-v1.5";
@@ -19,8 +19,8 @@ const NATIVE_DIM: usize = 768;
 /// Domain helper: the pinned nomic spec — 768-d mean-pooled `last_hidden_state` with the
 /// model's `search_query: `/`search_document: ` prefixes baked in (symmetric models:
 /// `Prefixes::none()`).
-fn model_spec() -> Result<ModelSpec> {
-    Ok(ModelSpec::new(MODEL, REVISION, FILE, NATIVE_DIM)?
+fn model_spec() -> Result<EmbeddingSpec> {
+    Ok(EmbeddingSpec::new(MODEL, REVISION, FILE, NATIVE_DIM)?
         .with_pooling(Pooling::Mean)
         .with_prefixes(&Prefixes::new("search_query: ", "search_document: ")))
 }
