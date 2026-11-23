@@ -44,8 +44,9 @@ location = "Europe"
 bin = "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser"
 
 [llm]
-bin = "pi"
-args = "--print --no-session --no-tools --no-extensions --mode text --thinking off --model deepseek/deepseek-flash"
+base_url = "https://api.deepseek.com"   # any OpenAI-compatible endpoint
+model = "deepseek-flash"
+api_key_env = "DEEPSEEK_API_KEY"        # name of the env var, never the key
 
 [providers.nofluffjobs]
 urls = ["https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur8000m%20jobLanguage%3Den&sort=newest"]
@@ -53,6 +54,8 @@ urls = ["https://nofluffjobs.com/remote?criteria=employment%3Db2b%20salary%3Eeur
 [providers.upwork]
 urls = ["https://www.upwork.com/nx/search/jobs/?q=trading&sort=recency&per_page=50&t=0&hourly_rate=60-"]
 ```
+
+The LLM section points at an OpenAI-compatible chat API, and only the Hacker News and Reddit scrapers use it — to pull structured fields (title, remote, salary, country) out of free-form "Who's Hiring" comments. Every other provider is scraped from the DOM and makes no model call. The key is still validated up front, though: `jobsearch update` resolves `api_key_env` before dispatching to any provider, so a missing or blank key fails every `update` run, and the HN/Reddit paths add a cheap health-check call so a wrong key or model fails fast.
 
 Scraping runs through a real Chromium-based browser (configured under `[browser]`), driven over CDP. Before running `update`, make sure the browser is running and that you're logged in where required (Upwork, LinkedIn, Work at a Startup). Commands attach to the running browser session.
 

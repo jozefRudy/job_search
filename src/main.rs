@@ -189,7 +189,6 @@ async fn cmd_update(
     settings: &Settings,
 ) -> Result<()> {
     let lang = LanguageService::new();
-    let llm = jobsearch::config::shared_llm(&settings.llm)?;
     match update_cmd.platform {
         UpdatePlatform::Upwork => {
             if settings.providers.upwork.urls.is_empty() {
@@ -219,7 +218,8 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Hackernews => {
-            let scraper = HackerNewsScraper::new(llm.clone(), settings.personal_info.location);
+            let llm = jobsearch::config::shared_llm(&settings.llm)?;
+            let scraper = HackerNewsScraper::new(llm, settings.personal_info.location);
             fetch_and_store(db, browser, &scraper, ALGOLIA_URL, settings.pause_ms).await?;
         }
         UpdatePlatform::LinkedIn => {
@@ -232,7 +232,8 @@ async fn cmd_update(
             }
         }
         UpdatePlatform::Reddit => {
-            let scraper = RedditScraper::new(llm.clone(), settings.personal_info.location)?;
+            let llm = jobsearch::config::shared_llm(&settings.llm)?;
+            let scraper = RedditScraper::new(llm, settings.personal_info.location)?;
             fetch_and_store(
                 db,
                 browser,
