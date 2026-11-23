@@ -12,7 +12,7 @@
     # hashes are updated by .github/workflows/release.yml after each release
     version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package.version;
     hashes = {
-      aarch64-darwin = "sha256-ziZRlI9i/GDzz89IY5LZD6MUCCGr0du9WEHwvwFCCZg=";
+      aarch64-darwin = "sha256-qfSJfb0gz95GYEapKUP5Oz31rbXyrDAMvTCaVqa3H88=";
     };
     assets = {
       aarch64-darwin = "aarch64-macos";
